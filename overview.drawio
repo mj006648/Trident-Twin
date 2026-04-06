@@ -1,0 +1,323 @@
+<mxfile host="app.diagrams.net" modified="2026-04-06T00:00:00.000Z" agent="Claude" version="21.0.0" type="device">
+  <diagram name="Trident Data Lakehouse" id="trident-overview">
+    <mxGraphModel dx="1800" dy="1000" grid="0" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="0" pageScale="1" pageWidth="1920" pageHeight="2200" math="0" shadow="0" background="#1a1a2e">
+      <root>
+        <mxCell id="0" />
+        <mxCell id="1" parent="0" />
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- TITLE -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="title" value="1B. X+AI Services Project Overview — Trident Data Lakehouse Pipeline Twin &amp; AI Predictive Simulator" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=18;fontStyle=1;fontColor=#e0e0e0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="10" width="1580" height="40" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- SWIM LANE HEADERS -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- END lane header -->
+        <mxCell id="lane-end-header" value="END" style="text;html=1;strokeColor=#555577;fillColor=#16213e;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#aaaacc;arcSize=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="55" width="220" height="40" as="geometry" />
+        </mxCell>
+        <!-- END lane body -->
+        <mxCell id="lane-end-body" value="" style="strokeColor=#555577;fillColor=#12122a;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="20" y="95" width="220" height="1900" as="geometry" />
+        </mxCell>
+
+        <!-- EDGE lane header -->
+        <mxCell id="lane-edge-header" value="EDGE&#xa;Lakehouse Pipeline (Cloud-Native Pods on Kubernetes)" style="text;html=1;strokeColor=#555577;fillColor=#0d1b2a;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#aaccee;" vertex="1" parent="1">
+          <mxGeometry x="240" y="55" width="900" height="40" as="geometry" />
+        </mxCell>
+        <!-- EDGE lane body -->
+        <mxCell id="lane-edge-body" value="" style="strokeColor=#555577;fillColor=#0d1b2a;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="240" y="95" width="900" height="1900" as="geometry" />
+        </mxCell>
+
+        <!-- CORE lane header -->
+        <mxCell id="lane-core-header" value="CORE" style="text;html=1;strokeColor=#555577;fillColor=#1a0a2e;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontSize=16;fontStyle=1;fontColor=#ccaaee;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="55" width="500" height="40" as="geometry" />
+        </mxCell>
+        <!-- CORE lane body -->
+        <mxCell id="lane-core-body" value="" style="strokeColor=#555577;fillColor=#1a0a2e;align=center;verticalAlign=top;whiteSpace=wrap;rounded=0;" vertex="1" parent="1">
+          <mxGeometry x="1140" y="95" width="500" height="1900" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- END LANE — Web Portal -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="web-portal" value="&lt;b&gt;Web Portal&lt;/b&gt;&#xa;Next.js + Tailwind CSS" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1e2a3a;strokeColor=#4488aa;fontColor=#ddeeff;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=5;" vertex="1" parent="1">
+          <mxGeometry x="30" y="110" width="200" height="530" as="geometry" />
+        </mxCell>
+
+        <!-- Pipeline Control sub-box -->
+        <mxCell id="pipeline-control" value="&lt;b&gt;Pipeline Control&lt;/b&gt;&#xa;&#xa;• Trigger Lakehouse pipeline execution&#xa;• Monitor running Spark jobs&#xa;• Approve AI schema design proposals&#xa;&#xa;OUT: REST POST /api/pipeline/trigger" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a2a3a;strokeColor=#4488cc;fontColor=#bbddff;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="145" width="180" height="145" as="geometry" />
+        </mxCell>
+
+        <!-- Pipeline Simulation sub-box -->
+        <mxCell id="pipeline-simulation" value="&lt;b&gt;Pipeline Simulation&lt;/b&gt;&#xa;&#xa;• Input dataset profile before actual run&#xa;• View XGBoost predictions&#xa;  (bottleneck/duration/resource)&#xa;&#xa;OUT: REST POST /api/simulate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1a3a;strokeColor=#8844cc;fontColor=#ddbbff;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="300" width="180" height="140" as="geometry" />
+        </mxCell>
+
+        <!-- 3D Twin View sub-box -->
+        <mxCell id="twin-view" value="&lt;b&gt;3D Twin View&lt;/b&gt;&#xa;&#xa;• Embedded WebRTC stream from Omniverse Server&#xa;&#xa;IN: WebRTC (UDP/Video)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a2a1a;strokeColor=#44aa66;fontColor=#aaffcc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="40" y="450" width="180" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- END LANE — ArgoCD -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="argocd" value="&lt;b&gt;ArgoCD&lt;/b&gt;&#xa;GitOps Controller&#xa;&#xa;• Polls Git repo (Twinx) for manifest changes&#xa;• Deploys ALL pipeline pods to K8s:&#xa;  Spark Operator, Nessie, Milvus, Redis,&#xa;  Trino, Ollama, FastAPI, PostgreSQL&#xa;&#xa;OUT: kubectl apply (K8s manifests)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1a1a;strokeColor=#cc4444;fontColor=#ffbbbb;fontSize=10;fontStyle=0;verticalAlign=top;arcSize=5;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="30" y="680" width="200" height="240" as="geometry" />
+        </mxCell>
+
+        <!-- Git Repo sub-box inside ArgoCD -->
+        <mxCell id="git-repo" value="&lt;b&gt;Git Repo: Twinx&lt;/b&gt;&#xa;&#xa;K8s manifests / Helm charts / ArgoCD apps" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a2020;strokeColor=#ff6666;fontColor=#ffcccc;fontSize=10;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="40" y="870" width="180" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- EDGE LANE — Phase 1 Ingest -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="phase1" value="&lt;b&gt;Phase 1 | Ingest&lt;/b&gt;&#xa;Spark Operator (Kubernetes-native Spark) + Ollama LLM (qwen2.5-coder)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1010;strokeColor=#ff4444;fontColor=#ffaaaa;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=5;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="250" y="110" width="880" height="400" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 1 sub-boxes -->
+        <mxCell id="p1-probing" value="&lt;b&gt;Multi-Format Probing&lt;/b&gt;&#xa;&#xa;• Scan user METADATA path&#xa;• Detect JSON / CSV / TSV&#xa;• Each file → candidate Iceberg table" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a1818;strokeColor=#ff6666;fontColor=#ffcccc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="260" y="160" width="260" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-schema" value="&lt;b&gt;AI Schema Design&lt;/b&gt;&#xa;&#xa;• Ollama qwen2.5-coder proposes partition strategy&#xa;• User approves in Portal" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a1818;strokeColor=#ff6666;fontColor=#ffcccc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="540" y="160" width="260" height="130" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p1-iceberg" value="&lt;b&gt;Iceberg Table Creation + URI Detection + trident_search_index&lt;/b&gt;&#xa;&#xa;• Spark creates Iceberg tables via Nessie&#xa;• URI Detection (col-name → extension pattern)&#xa;• No URI → file_registry (S3 recursive scan)&#xa;• AI joins multi-tables → trident_search_index unified view&#xa;• Zero-Copy: only S3 URI pointers stored" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a1818;strokeColor=#ff6666;fontColor=#ffcccc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="820" y="160" width="290" height="130" as="geometry" />
+        </mxCell>
+
+        <!-- Integrity Audit sub-box -->
+        <mxCell id="p1-audit" value="&lt;b&gt;Integrity Audit&lt;/b&gt;&#xa;S3 file count vs index row count → integrity_pct&#xa;result cached to Redis [trident:audit:{namespace}]" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1818;strokeColor=#ff8888;fontColor=#ffdddd;fontSize=10;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="260" y="310" width="850" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- EDGE LANE — Phase 2 Metadata Indexing -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="phase2" value="&lt;b&gt;Phase 2 | Metadata Indexing&lt;/b&gt;" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1e0a2e;strokeColor=#aa44cc;fontColor=#ddaaff;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=5;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="250" y="540" width="880" height="260" as="geometry" />
+        </mxCell>
+
+        <!-- Milvus sub-box -->
+        <mxCell id="p2-milvus" value="&lt;b&gt;Milvus — Semantic Search Index&lt;/b&gt;&#xa;&#xa;• 3-Layer Super Context per dataset&#xa;  (user desc + AI summary + schema stats)&#xa;• Embed via Ollama bge-m3 → 1 vector per dataset&#xa;• Cosine similarity → top-5 table candidates&#xa;&#xa;IN: trident_search_index schema&#xa;OUT: top-5 candidates" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1040;strokeColor=#aa44cc;fontColor=#ddbbff;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="260" y="575" width="410" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- Redis sub-box -->
+        <mxCell id="p2-redis" value="&lt;b&gt;Redis — Storage Search Index&lt;/b&gt;&#xa;&#xa;• Iceberg Manifest → Redis ReJSON cache (partition-level)&#xa;• S3 Listing latency: O(N) → O(1)&#xa;&#xa;IN: Iceberg manifests&#xa;OUT: filtered S3 URI list" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#3a1010;strokeColor=#cc4422;fontColor=#ffccbb;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="690" y="575" width="420" height="200" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- EDGE LANE — Phase 3 Data Search & Zero-Copy Delivery -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="phase3" value="&lt;b&gt;Phase 3 | Data Search &amp; Zero-Copy Delivery&lt;/b&gt;&#xa;Semantic (Milvus) → LLM SQL Filter (Ollama) → Storage (Redis) → Interface" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a2a10;strokeColor=#44cc66;fontColor=#aaffbb;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=5;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="250" y="830" width="880" height="300" as="geometry" />
+        </mxCell>
+
+        <!-- Phase 3 sub-boxes -->
+        <mxCell id="p3-pipeline" value="&lt;b&gt;Search Pipeline&lt;/b&gt;&#xa;&#xa;1. NL query&#xa;2. Milvus top-5&#xa;3. User selects&#xa;4. Ollama SQL WHERE&#xa;5. Redis URI list&#xa;6. Dataset Snapshot" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a18;strokeColor=#44cc66;fontColor=#aaffcc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="260" y="875" width="190" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-ai" value="&lt;b&gt;AI / PyTorch / TF&lt;/b&gt;&#xa;&#xa;• S3 URI → SDK injection&#xa;• Real-time S3 stream&#xa;• Zero GPU starvation" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a18;strokeColor=#44cc66;fontColor=#aaffcc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="465" y="875" width="190" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-hpc" value="&lt;b&gt;HPC / FUSE&lt;/b&gt;&#xa;&#xa;• S3 URIs as /mnt/trident/ virtual folder&#xa;• Legacy sim compat" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a18;strokeColor=#44cc66;fontColor=#aaffcc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="668" y="875" width="190" height="220" as="geometry" />
+        </mxCell>
+
+        <mxCell id="p3-trino" value="&lt;b&gt;HPDA / Trino SQL&lt;/b&gt;&#xa;&#xa;• Unified Virtual View&#xa;• Cross-dataset JOIN&#xa;• NL→SQL via Ollama" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a18;strokeColor=#44cc66;fontColor=#aaffcc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="873" y="875" width="245" height="220" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- EDGE LANE — Shared Infrastructure -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- Ceph S3 -->
+        <mxCell id="ceph-s3" value="&lt;b&gt;Ceph S3&lt;/b&gt;&#xa;&#xa;S3-compatible object storage&#xa;Zero-Copy (URI pointers only)&#xa;PB-scale" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a2a10;strokeColor=#44cc44;fontColor=#aaffaa;fontSize=10;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="250" y="1165" width="200" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Nessie -->
+        <mxCell id="nessie" value="&lt;b&gt;Nessie&lt;/b&gt;&#xa;&#xa;Iceberg Catalog (Git-like)&#xa;namespace/table/branch mgmt&#xa;backend: PostgreSQL" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#1a0a3a;strokeColor=#7744cc;fontColor=#ccaaff;fontSize=10;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="465" y="1165" width="200" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Ollama LLM -->
+        <mxCell id="ollama" value="&lt;b&gt;Ollama LLM&lt;/b&gt;&#xa;&#xa;qwen2.5-coder (schema design, SQL gen)&#xa;bge-m3 (embedding)&#xa;used by Phase 1 / 2 / 3" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a1a3a;strokeColor=#4488cc;fontColor=#aaccff;fontSize=10;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="680" y="1165" width="200" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- Spark Operator + Trino -->
+        <mxCell id="spark-trino" value="&lt;b&gt;Spark Operator + Trino&lt;/b&gt;&#xa;&#xa;SparkApplication CRD&#xa;Reads S3 / writes Iceberg&#xa;Trino: Distributed SQL, Iceberg connector&#xa;Unified Virtual View" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a1500;strokeColor=#cc8800;fontColor=#ffcc66;fontSize=10;verticalAlign=top;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="895" y="1165" width="225" height="110" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- CORE LANE — FastAPI Phase 4 Hub -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="fastapi" value="&lt;b&gt;FastAPI — Phase 4 Hub&lt;/b&gt;&#xa;Central backend for AI Prediction &amp; 3D Twin control" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#002a2a;strokeColor=#00cccc;fontColor=#aaffff;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=5;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="110" width="480" height="440" as="geometry" />
+        </mxCell>
+
+        <!-- /api/pipeline/* sub-box -->
+        <mxCell id="api-pipeline" value="&lt;b&gt;/api/pipeline/*&lt;/b&gt;&#xa;&#xa;• Receive trigger from Portal&#xa;• Submit SparkApplication CRD to K8s&#xa;• Log Execution Profile:&#xa;  dataset chars, stage durations,&#xa;  resource usage, output metrics&#xa;&#xa;OUT: profile → PostgreSQL&#xa;OUT: CRD → Spark Operator" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#003040;strokeColor=#4488cc;fontColor=#aaccff;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="155" width="140" height="370" as="geometry" />
+        </mxCell>
+
+        <!-- /api/simulate/* sub-box -->
+        <mxCell id="api-simulate" value="&lt;b&gt;/api/simulate/*&lt;/b&gt;&#xa;&#xa;• Receive input profile from Portal&#xa;• Query XGBoost prediction model&#xa;• Return: bottleneck zone, stage durations, resource forecast&#xa;&#xa;After run: predicted vs actual (MAPE metrics)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#200040;strokeColor=#8844cc;fontColor=#ddbbff;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1315" y="155" width="145" height="370" as="geometry" />
+        </mxCell>
+
+        <!-- /api/twin/* sub-box -->
+        <mxCell id="api-twin" value="&lt;b&gt;/api/twin/*&lt;/b&gt;&#xa;&#xa;• Expose scene state to Omniverse Kit Extension&#xa;• Kit Ext polls this endpoint periodically&#xa;• Push USD scene updates:&#xa;  node health color/size,&#xa;  particle flow,&#xa;  bottleneck highlights&#xa;&#xa;WebSocket: real-time push" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#003020;strokeColor=#44cc66;fontColor=#aaffcc;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1475" y="155" width="145" height="370" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- CORE LANE — PostgreSQL -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="postgresql" value="&lt;b&gt;PostgreSQL&lt;/b&gt;&#xa;Unified CORE Database&#xa;&#xa;• Nessie Backend: Iceberg lineage, snapshot/manifest IDs&#xa;• Execution Profiles: dataset characteristics, stage durations,&#xa;  resource usage, output metrics&#xa;• Profiles accumulate → XGBoost training data source" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#001a3a;strokeColor=#4477cc;fontColor=#aabbff;fontSize=10;verticalAlign=top;arcSize=5;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="590" width="220" height="190" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- CORE LANE — XGBoost -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="xgboost" value="&lt;b&gt;XGBoost&lt;/b&gt;&#xa;AI Prediction Model&#xa;&#xa;&lt;b&gt;Input features:&lt;/b&gt;&#xa;file count, size, schema complexity, cardinality, partition count&#xa;&#xa;&lt;b&gt;Output predictions:&lt;/b&gt;&#xa;duration (Ingest/Embed/Cache)&#xa;resource (CPU/Mem/S3 calls)&#xa;bottleneck zone (RED/ORANGE/GREEN)&#xa;&#xa;Improves accuracy as profiles accumulate" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#2a0010;strokeColor=#cc2244;fontColor=#ffaacc;fontSize=10;verticalAlign=top;arcSize=5;align=left;spacingLeft=8;" vertex="1" parent="1">
+          <mxGeometry x="1395" y="590" width="225" height="260" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- CORE LANE — NVIDIA Omniverse Server -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <mxCell id="omniverse" value="&lt;b&gt;NVIDIA Omniverse Server&lt;/b&gt;&#xa;Nucleus + USD Composer + Kit Extension" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a2a00;strokeColor=#76b900;fontColor=#aaff44;fontSize=12;fontStyle=1;verticalAlign=top;arcSize=5;strokeWidth=3;" vertex="1" parent="1">
+          <mxGeometry x="1150" y="900" width="480" height="570" as="geometry" />
+        </mxCell>
+
+        <!-- Pipeline Twin sub-box -->
+        <mxCell id="omni-pipeline" value="&lt;b&gt;Pipeline Twin&lt;/b&gt;&#xa;&#xa;• 3D zones: Ingest / Metadata / Workload&#xa;• Data nodes = Iceberg tables&#xa;• Particle flow = data movement&#xa;• Node color = health" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a00;strokeColor=#76b900;fontColor=#ccff88;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="950" width="140" height="190" as="geometry" />
+        </mxCell>
+
+        <!-- Predictive Simulator sub-box -->
+        <mxCell id="omni-sim" value="&lt;b&gt;Predictive Simulator&lt;/b&gt;&#xa;&#xa;• Before execution: highlight RED bottleneck zones&#xa;• Particle speed = predicted throughput&#xa;• After run: MAPE comparison" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a00;strokeColor=#76b900;fontColor=#ccff88;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1315" y="950" width="145" height="190" as="geometry" />
+        </mxCell>
+
+        <!-- Dataset Health View sub-box -->
+        <mxCell id="omni-health" value="&lt;b&gt;Dataset Health View&lt;/b&gt;&#xa;&#xa;• Integrity ratio&#xa;• Redis cache freshness&#xa;• Usage frequency&#xa;• Partition-query alignment" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a3a00;strokeColor=#76b900;fontColor=#ccff88;fontSize=10;verticalAlign=top;arcSize=8;align=left;spacingLeft=6;" vertex="1" parent="1">
+          <mxGeometry x="1475" y="950" width="145" height="190" as="geometry" />
+        </mxCell>
+
+        <!-- WebRTC Streaming sub-box -->
+        <mxCell id="webrtc-box" value="&lt;b&gt;WebRTC Streaming&lt;/b&gt;&#xa;Omniverse → Web Portal 3D Twin View&#xa;(UDP/Video, no client install needed)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#0a4a00;strokeColor=#76b900;fontColor=#eeff88;fontSize=10;verticalAlign=middle;arcSize=8;" vertex="1" parent="1">
+          <mxGeometry x="1160" y="1170" width="460" height="70" as="geometry" />
+        </mxCell>
+
+        <!-- ═══════════════════════════════════════════════════════ -->
+        <!-- ARROWS -->
+        <!-- ═══════════════════════════════════════════════════════ -->
+
+        <!-- 1. Pipeline Control → FastAPI /api/pipeline/* -->
+        <mxCell id="arrow1" value="REST POST /api/pipeline/trigger" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;strokeColor=#4488cc;fontColor=#aaccff;fontSize=9;labelBackgroundColor=none;" edge="1" source="pipeline-control" target="api-pipeline" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 2. Pipeline Simulation → FastAPI /api/simulate/* -->
+        <mxCell id="arrow2" value="REST POST /api/simulate (input profile)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.3;entryDx=0;entryDy=0;strokeColor=#8844cc;fontColor=#ddbbff;fontSize=9;labelBackgroundColor=none;" edge="1" source="pipeline-simulation" target="api-simulate" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 3. FastAPI /api/pipeline/* → Spark Operator -->
+        <mxCell id="arrow3" value="SparkApplication CRD (K8s API)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0;exitY=0.7;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#cc8800;fontColor=#ffcc66;fontSize=9;labelBackgroundColor=none;" edge="1" source="api-pipeline" target="spark-trino" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 4. FastAPI /api/pipeline/* → PostgreSQL -->
+        <mxCell id="arrow4" value="WRITE execution profile" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#cc8800;fontColor=#ffcc66;fontSize=9;labelBackgroundColor=none;" edge="1" source="api-pipeline" target="postgresql" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 5. FastAPI /api/simulate/* → XGBoost -->
+        <mxCell id="arrow5" value="query prediction (input profile)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#cc2244;fontColor=#ffaacc;fontSize=9;labelBackgroundColor=none;" edge="1" source="api-simulate" target="xgboost" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 6. FastAPI /api/twin/* → Omniverse -->
+        <mxCell id="arrow6" value="USD scene update (Kit Ext polls)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#76b900;fontColor=#aaff44;fontSize=9;labelBackgroundColor=none;" edge="1" source="api-twin" target="omniverse" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 7. PostgreSQL → XGBoost -->
+        <mxCell id="arrow7" value="training data (historical profiles)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#cccc00;fontColor=#ffffaa;fontSize=9;labelBackgroundColor=none;" edge="1" source="postgresql" target="xgboost" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 8. Nessie → PostgreSQL -->
+        <mxCell id="arrow8" value="Nessie backend (ACID lineage)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.5;exitDx=0;exitDy=0;entryX=0;entryY=0.7;entryDx=0;entryDy=0;strokeColor=#aa88dd;fontColor=#ddbbff;fontSize=9;labelBackgroundColor=none;" edge="1" source="nessie" target="postgresql" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 9. Phase 1 → Phase 2 (thick purple) -->
+        <mxCell id="arrow9" value="Iceberg manifests + schema" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#aa44cc;fontColor=#ddbbff;fontSize=10;fontStyle=1;strokeWidth=3;labelBackgroundColor=none;" edge="1" source="phase1" target="phase2" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 10. Phase 2 → Phase 3 (thick green) -->
+        <mxCell id="arrow10" value="filtered S3 URI list" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#44cc66;fontColor=#aaffcc;fontSize=10;fontStyle=1;strokeWidth=3;labelBackgroundColor=none;" edge="1" source="phase2" target="phase3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 11. Ceph S3 → Phase 1 -->
+        <mxCell id="arrow11" value="S3 URI read (Zero-Copy)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.15;entryY=1;entryDx=0;entryDy=0;strokeColor=#44cc44;fontColor=#aaffaa;fontSize=9;labelBackgroundColor=none;" edge="1" source="ceph-s3" target="phase1" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 12. Phase 1 → Nessie -->
+        <mxCell id="arrow12" value="Iceberg commit (table metadata)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=1;exitDx=0;exitDy=0;entryX=0.5;entryY=0;entryDx=0;entryDy=0;strokeColor=#aa88dd;fontColor=#ddbbff;fontSize=9;labelBackgroundColor=none;" edge="1" source="p1-iceberg" target="nessie" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 13. FastAPI → Execution profile log (dashed orange) -->
+        <mxCell id="arrow13" value="dataset chars, stage duration, resource, output metrics" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0;exitY=0.9;exitDx=0;exitDy=0;entryX=1;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#cc8800;fontColor=#ffcc66;fontSize=9;dashed=1;labelBackgroundColor=none;" edge="1" source="fastapi" target="postgresql" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 14. Omniverse → Web Portal 3D Twin View (WebRTC) -->
+        <mxCell id="arrow14" value="WebRTC streaming (UDP/Video)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0;exitY=0.85;exitDx=0;exitDy=0;entryX=1;entryY=0.92;entryDx=0;entryDy=0;strokeColor=#76b900;fontColor=#aaff44;fontSize=9;labelBackgroundColor=none;" edge="1" source="omniverse" target="twin-view" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 15. Ollama → Phase 1/2/3 -->
+        <mxCell id="arrow15" value="AI schema design / Super Context embedding / NL→SQL WHERE" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.7;entryY=1;entryDx=0;entryDy=0;strokeColor=#4488cc;fontColor=#aaccff;fontSize=9;labelBackgroundColor=none;" edge="1" source="ollama" target="phase3" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 16. ArgoCD → EDGE pods -->
+        <mxCell id="arrow16" value="K8s manifest deploy (all pipeline pods)" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=1;exitY=0.3;exitDx=0;exitDy=0;entryX=0;entryY=0.5;entryDx=0;entryDy=0;strokeColor=#ff4444;fontColor=#ffaaaa;fontSize=9;labelBackgroundColor=none;" edge="1" source="argocd" target="spark-trino" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+        <!-- 17. Git Repo → ArgoCD (GitOps poll) -->
+        <mxCell id="arrow17" value="GitOps poll" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;exitX=0.5;exitY=0;exitDx=0;exitDy=0;entryX=0.5;entryY=1;entryDx=0;entryDy=0;strokeColor=#ff4444;fontColor=#ffaaaa;fontSize=9;labelBackgroundColor=none;" edge="1" source="git-repo" target="argocd" parent="1">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>
