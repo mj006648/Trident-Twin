@@ -1,0 +1,34 @@
+{
+  "entities": [
+    {
+      "id": "dataset.sample.001",
+      "type": "dataset",
+      "name": "Sample Climate Dataset",
+      "stage": "raw",
+      "zone": "lake_input",
+      "metadata_status": "none",
+      "sharing_status": "private",
+      "quality_score": 0.71,
+      "access_frequency": 0
+    },
+    {
+      "id": "lake.bronze",
+      "type": "storage_zone",
+      "name": "Bronze Lake",
+      "stage": "accumulation"
+    },
+    {
+      "id": "lakehouse.silver",
+      "type": "storage_zone",
+      "name": "Silver Lakehouse",
+      "stage": "staging"
+    },
+    {
+      "id": "workload.ai.001",
+      "type": "workload_interface",
+      "name": "AI Workload Interface",
+      "workload_type": "AI",
+      "requested_dataset": null
+    }
+  ]
+}

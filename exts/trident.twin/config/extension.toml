@@ -1,0 +1,13 @@
+[package]
+version = "0.1.0"
+title = "Trident Twin"
+description = "State-driven Trident Lakehouse digital twin PoC for Omniverse/Isaac Sim."
+category = "Simulation"
+keywords = ["trident", "lakehouse", "digital twin", "usd", "metadata"]
+
+[dependencies]
+"omni.usd" = {}
+"omni.ui" = {}
+
+[[python.module]]
+name = "trident.twin"

@@ -1,0 +1,459 @@
+#usda 1.0
+(
+    defaultPrim = "World"
+    endTimeCode = 150
+    metersPerUnit = 1
+    startTimeCode = 0
+    timeCodesPerSecond = 24
+    upAxis = "Z"
+)
+
+def Xform "World"
+{
+    def Scope "Materials"
+    {
+        def Material "floor"
+        {
+            token outputs:surface.connect = </World/Materials/floor/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.06, 0.07, 0.08)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "lake"
+        {
+            token outputs:surface.connect = </World/Materials/lake/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.1, 0.25, 0.55)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "lakehouse"
+        {
+            token outputs:surface.connect = </World/Materials/lakehouse/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.18, 0.38, 0.3)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "pipeline"
+        {
+            token outputs:surface.connect = </World/Materials/pipeline/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.12, 0.12, 0.12)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "metadata_explain"
+        {
+            token outputs:surface.connect = </World/Materials/metadata_explain/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.1, 0.35, 0.95)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "metadata_share"
+        {
+            token outputs:surface.connect = </World/Materials/metadata_share/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.1, 0.65, 0.35)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "operator"
+        {
+            token outputs:surface.connect = </World/Materials/operator/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.95, 0.75, 0.25)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "workload"
+        {
+            token outputs:surface.connect = </World/Materials/workload/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.6, 0.35, 0.95)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "dataset_raw"
+        {
+            token outputs:surface.connect = </World/Materials/dataset_raw/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.55, 0.55, 0.55)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "dataset_explained"
+        {
+            token outputs:surface.connect = </World/Materials/dataset_explained/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.1, 0.35, 0.95)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "dataset_shared"
+        {
+            token outputs:surface.connect = </World/Materials/dataset_shared/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.1, 0.7, 0.35)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "dataset_staged"
+        {
+            token outputs:surface.connect = </World/Materials/dataset_staged/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.55, 0.3, 0.95)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+
+        def Material "dataset_served"
+        {
+            token outputs:surface.connect = </World/Materials/dataset_served/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (1, 0.72, 0.15)
+                float inputs:roughness = 0.55
+                token outputs:surface
+            }
+        }
+    }
+
+    def Scope "Environment"
+    {
+        def Cube "Floor"
+        {
+            rel material:binding = </World/Materials/floor>
+            double size = 1
+            custom string trident:name = "Twin Floor"
+            float3 xformOp:scale = (12, 5, 0.05)
+            double3 xformOp:translate = (0, 0, -0.05)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Sphere "LightMarker"
+        {
+            double radius = 0.2
+            double3 xformOp:translate = (0, -3, 6)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
+    def Scope "Lake"
+    {
+        def Cube "BronzeLake"
+        {
+            rel material:binding = </World/Materials/lake>
+            double size = 1
+            custom string trident:entity_id = "lake.bronze"
+            custom string trident:entity_type = "storage_zone"
+            custom string trident:name = "Bronze Lake"
+            custom string trident:stage = "accumulation"
+            float3 xformOp:scale = (2.2, 2, 1)
+            double3 xformOp:translate = (-6.3, 0, 0.5)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "AccumulationPipeline"
+    {
+        def Cube "InputConveyor"
+        {
+            rel material:binding = </World/Materials/pipeline>
+            double size = 1
+            custom string trident:entity_id = "pipeline.accumulation"
+            custom string trident:entity_type = "pipeline"
+            custom string trident:name = "Accumulation Conveyor"
+            custom string trident:stage = "accumulation"
+            float3 xformOp:scale = (4.6, 0.18, 0.12)
+            double3 xformOp:translate = (-4.2, 0, 0.18)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "ToLakehouseConveyor"
+        {
+            rel material:binding = </World/Materials/pipeline>
+            double size = 1
+            custom string trident:entity_id = "pipeline.to_lakehouse"
+            custom string trident:entity_type = "pipeline"
+            custom string trident:name = "To Lakehouse Conveyor"
+            custom string trident:stage = "staging"
+            float3 xformOp:scale = (3.8, 0.18, 0.12)
+            double3 xformOp:translate = (2.8, 0, 0.18)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "Metadata"
+    {
+        def Cube "ExplainingStation"
+        {
+            rel material:binding = </World/Materials/metadata_explain>
+            double size = 1
+            custom string trident:entity_id = "station.metadata.explaining"
+            custom string trident:entity_type = "metadata_station"
+            custom string trident:name = "Explaining Metadata Station"
+            custom string trident:stage = "explaining"
+            float3 xformOp:scale = (0.8, 1.4, 1.2)
+            double3 xformOp:translate = (-2.4, 0, 0.6)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "SharingStation"
+        {
+            rel material:binding = </World/Materials/metadata_share>
+            double size = 1
+            custom string trident:entity_id = "station.metadata.sharing"
+            custom string trident:entity_type = "metadata_station"
+            custom string trident:name = "Sharing Metadata Station"
+            custom string trident:stage = "sharing"
+            float3 xformOp:scale = (0.8, 1.4, 1.2)
+            double3 xformOp:translate = (0.8, 0, 0.6)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "Lakehouse"
+    {
+        def Cube "SilverLakehouse"
+        {
+            rel material:binding = </World/Materials/lakehouse>
+            double size = 1
+            custom string trident:entity_id = "lakehouse.silver"
+            custom string trident:entity_type = "storage_zone"
+            custom string trident:name = "Silver Lakehouse"
+            custom string trident:stage = "staging"
+            float3 xformOp:scale = (2, 2.2, 1.6)
+            double3 xformOp:translate = (5.4, 0, 0.8)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "StagingShelf1"
+        {
+            rel material:binding = </World/Materials/pipeline>
+            double size = 1
+            custom string trident:entity_id = "shelf.silver.1"
+            custom string trident:entity_type = "staging_shelf"
+            custom string trident:name = "Staging Shelf 1"
+            custom string trident:stage = "staging"
+            float3 xformOp:scale = (2.3, 0.1, 0.08)
+            double3 xformOp:translate = (5.4, -0.8, 1.7)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "StagingShelf2"
+        {
+            rel material:binding = </World/Materials/pipeline>
+            double size = 1
+            custom string trident:entity_id = "shelf.silver.2"
+            custom string trident:entity_type = "staging_shelf"
+            custom string trident:name = "Staging Shelf 2"
+            custom string trident:stage = "staging"
+            float3 xformOp:scale = (2.3, 0.1, 0.08)
+            double3 xformOp:translate = (5.4, 0, 2.1)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "StagingShelf3"
+        {
+            rel material:binding = </World/Materials/pipeline>
+            double size = 1
+            custom string trident:entity_id = "shelf.silver.3"
+            custom string trident:entity_type = "staging_shelf"
+            custom string trident:name = "Staging Shelf 3"
+            custom string trident:stage = "staging"
+            float3 xformOp:scale = (2.3, 0.1, 0.08)
+            double3 xformOp:translate = (5.4, 0.8, 2.5)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "WorkloadInterfaces"
+    {
+        def Cube "HPC"
+        {
+            rel material:binding = </World/Materials/workload>
+            double size = 1
+            custom string trident:entity_id = "workload.hpc.001"
+            custom string trident:entity_type = "workload_interface"
+            custom string trident:name = "HPC Interface"
+            custom string trident:stage = "serving"
+            float3 xformOp:scale = (0.7, 0.7, 1.4)
+            double3 xformOp:translate = (7.8, -2.1, 0.7)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "MS"
+        {
+            rel material:binding = </World/Materials/workload>
+            double size = 1
+            custom string trident:entity_id = "workload.ms.001"
+            custom string trident:entity_type = "workload_interface"
+            custom string trident:name = "M&S Interface"
+            custom string trident:stage = "serving"
+            float3 xformOp:scale = (0.7, 0.7, 1.4)
+            double3 xformOp:translate = (8.8, -0.7, 0.7)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "AI"
+        {
+            rel material:binding = </World/Materials/workload>
+            double size = 1
+            custom string trident:entity_id = "workload.ai.001"
+            custom string trident:entity_type = "workload_interface"
+            custom string trident:name = "AI Interface"
+            custom string trident:stage = "serving"
+            float3 xformOp:scale = (0.7, 0.7, 1.4)
+            double3 xformOp:translate = (8.8, 0.7, 0.7)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+
+        def Cube "HPDA"
+        {
+            rel material:binding = </World/Materials/workload>
+            double size = 1
+            custom string trident:entity_id = "workload.hpda.001"
+            custom string trident:entity_type = "workload_interface"
+            custom string trident:name = "HPDA Interface"
+            custom string trident:stage = "serving"
+            float3 xformOp:scale = (0.7, 0.7, 1.4)
+            double3 xformOp:translate = (7.8, 2.1, 0.7)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "Operations"
+    {
+        def Cube "OperatorDesk"
+        {
+            rel material:binding = </World/Materials/operator>
+            double size = 1
+            custom string trident:entity_id = "operator.control"
+            custom string trident:entity_type = "operator"
+            custom string trident:name = "Operator Desk"
+            custom string trident:stage = "monitoring"
+            float3 xformOp:scale = (1, 0.7, 1.1)
+            double3 xformOp:translate = (1.4, -2.4, 0.55)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "Datasets"
+    {
+        def Cube "DatasetPackage001"
+        {
+            rel material:binding = </World/Materials/dataset_raw>
+            double size = 1
+            custom int trident:access_frequency = 0
+            custom string trident:entity_id = "dataset.sample.001"
+            custom string trident:entity_type = "dataset"
+            custom string trident:metadata_status = "none"
+            custom string trident:name = "Dataset Package 001"
+            custom float trident:quality_score = 0.71
+            custom string trident:sharing_status = "private"
+            custom string trident:stage = "raw"
+            float3 xformOp:scale = (0.55, 0.38, 0.38)
+            double3 xformOp:translate = (-9, 0, 0.7)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+
+            def Cube "ExplainingMetadataTag"
+            {
+                rel material:binding = </World/Materials/metadata_explain>
+                double size = 1
+                custom string trident:entity_id = "metadata.explaining.dataset.sample.001"
+                custom string trident:entity_type = "metadata"
+                custom string trident:name = "Explaining Metadata Tag"
+                custom string trident:stage = "explaining"
+                float3 xformOp:scale = (0.28, 0.05, 0.2)
+                double3 xformOp:translate = (0, 0.48, 0.42)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+
+            def Cube "SharingMetadataTag"
+            {
+                rel material:binding = </World/Materials/metadata_share>
+                double size = 1
+                custom string trident:entity_id = "metadata.sharing.dataset.sample.001"
+                custom string trident:entity_type = "metadata"
+                custom string trident:name = "Sharing Metadata Tag"
+                custom string trident:stage = "sharing"
+                float3 xformOp:scale = (0.28, 0.05, 0.2)
+                double3 xformOp:translate = (0, -0.48, 0.42)
+                uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+            }
+        }
+    }
+
+    def Camera "Camera"
+    {
+        float focalLength = 24
+        float3 xformOp:rotateXYZ = (58, 0, 0)
+        double3 xformOp:translate = (0, -10, 7)
+        uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:rotateXYZ"]
+    }
+}
+

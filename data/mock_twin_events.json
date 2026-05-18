@@ -1,0 +1,84 @@
+{
+  "scenario": "Trident Lakehouse Accumulation to Staging Replay",
+  "timeline": [
+    {
+      "time": 0,
+      "event": "raw_arrived",
+      "target": "dataset.sample.001",
+      "stage": "raw",
+      "zone": "lake_input",
+      "position": [-9.0, 0.0, 0.7],
+      "metadata_status": "none",
+      "sharing_status": "private",
+      "color": "raw"
+    },
+    {
+      "time": 25,
+      "event": "stored_in_lake",
+      "target": "dataset.sample.001",
+      "stage": "lake",
+      "zone": "bronze",
+      "position": [-6.0, 0.0, 0.7],
+      "metadata_status": "none",
+      "sharing_status": "private",
+      "color": "raw"
+    },
+    {
+      "time": 50,
+      "event": "explaining_metadata_generated",
+      "target": "dataset.sample.001",
+      "stage": "metadata_explaining",
+      "zone": "explaining_station",
+      "position": [-2.5, 0.0, 0.7],
+      "metadata_status": "explained",
+      "sharing_status": "private",
+      "color": "explained"
+    },
+    {
+      "time": 75,
+      "event": "sharing_metadata_published",
+      "target": "dataset.sample.001",
+      "stage": "metadata_sharing",
+      "zone": "sharing_station",
+      "position": [0.8, 0.0, 0.7],
+      "metadata_status": "explained",
+      "sharing_status": "published",
+      "color": "shared"
+    },
+    {
+      "time": 100,
+      "event": "staged_in_lakehouse",
+      "target": "dataset.sample.001",
+      "stage": "staged",
+      "zone": "silver_shelf",
+      "position": [5.2, 0.0, 1.8],
+      "metadata_status": "explained",
+      "sharing_status": "published",
+      "color": "staged"
+    },
+    {
+      "time": 125,
+      "event": "requested_by_ai_workload",
+      "target": "dataset.sample.001",
+      "stage": "requested",
+      "zone": "ai_interface",
+      "position": [7.8, 2.3, 1.1],
+      "metadata_status": "explained",
+      "sharing_status": "published",
+      "access_frequency": 1,
+      "color": "requested"
+    },
+    {
+      "time": 150,
+      "event": "served_to_workload",
+      "target": "dataset.sample.001",
+      "stage": "served",
+      "zone": "ai_interface",
+      "position": [9.2, 2.3, 1.1],
+      "metadata_status": "explained",
+      "sharing_status": "published",
+      "access_frequency": 1,
+      "color": "served"
+    }
+  ]
+}
