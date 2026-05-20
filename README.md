@@ -2,6 +2,12 @@
 
 **NVIDIA Omniverse/Isaac Sim 기반 Trident Lakehouse Digital Twin PoC**
 
+![Trident Twin Site Plan](docs/site-plan.png)
+
+> Phase 5 Site Plan — 축적(Accumulation)·진열(Delivery) 파이프라인을 탑뷰로 표현.
+> 좌표는 `scripts/create_scene.py`의 PoC USD stage와 1:1 일치 (1 unit = 1 m).
+> 재생성: `python3 scripts/draw_site_plan.py`
+
 > Trident Lakehouse의 `Lake → Metadata → Lakehouse → Staging/Serving → Workload Interface` 흐름을 USD stage, 상태 이벤트, Isaac Sim extension으로 표현하는 디지털 트윈 실험 저장소입니다.
 
 ## Overview
