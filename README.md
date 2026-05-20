@@ -52,9 +52,7 @@ Omniverse 상에서 어떻게 상태 기반으로 표현할 것인가?
 | Path | Description |
 | --- | --- |
 | `README.md` | 저장소 개요, 실행 방법, 현재 구현 범위 |
-| `overview.drawio` | Trident Twin 전체 구상 다이어그램 |
-| `overview.png` | 다이어그램 이미지 |
-| `draw_overview.py` | `overview.png` 생성용 보조 스크립트 |
+| `docs/master-plan.md` | Phase 5 청사진: 좌표·entity 매핑·바인딩 표준·데모 시나리오·빌드 단계 |
 | `data/twin_entities.json` | Twin entity 정의: Lake, Lakehouse, Metadata Station, Workload Interface, Dataset |
 | `data/mock_twin_events.json` | Dataset lifecycle mock event sequence |
 | `scripts/create_scene.py` | Isaac Sim Python 기반 기본 USD stage 생성 스크립트 |
@@ -64,6 +62,7 @@ Omniverse 상에서 어떻게 상태 기반으로 표현할 것인가?
 | `exts/trident.twin/` | Omniverse Kit/Isaac Sim extension skeleton |
 | `docs/omniverse-twin-poc.md` | PoC 실행 방법과 설계 메모 |
 | `docs/twin-architecture.md` | Twin entity/state/event/backend 연동 아키텍처 |
+| `archive/old/` | Phase 5 재정의 이전 회로도(`draw_overview.py` / `overview.drawio` / `overview.png`) 보관 |
 
 ## Twin Concept Mapping
 
