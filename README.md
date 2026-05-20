@@ -9,10 +9,15 @@
 
 ![Trident Twin Site Plan](docs/site-plan.png)
 
-> Phase 5 Site Plan — 위 개념도를 정확한 좌표 위에 매핑한 기술 평면도.
+> Phase 5 Site Plan — 위 개념도를 정확한 좌표 위에 매핑한 기술 평면도(탑뷰, X-Y).
 > 4-Zone(Lake / Accumulation / Staging / Delivery) 모두 단일 Trident Lakehouse 외곽선 안에 위치.
 > 좌표는 `scripts/create_scene.py`의 PoC USD stage와 1:1 일치 (1 unit = 1 m).
 > 재생성: `python3 scripts/draw_site_plan.py`
+
+![Trident Twin Elevation View](docs/elevation.png)
+
+> Phase 5 Elevation View — Site Plan의 짝(사이드뷰, X-Z). Staging Shelf가 Silver Lakehouse 위로 z=1.7/2.1/2.5 m 에 적층되는 수직 구조를 보여준다. 탑뷰가 표현할 수 없는 entity 키 차이(Bronze Lake/Stations/Desks/Workload Docks)도 함께 확인 가능.
+> 재생성: `python3 scripts/draw_elevation.py`
 
 > Trident Lakehouse 내부의 **축적(Accumulation)** 과 **진열·전달(Staging/Delivery)** 파이프라인을 USD stage, 상태 이벤트, Isaac Sim extension으로 실시간 시각화하는 디지털 트윈 저장소입니다.
 
@@ -95,7 +100,8 @@
 | --- | --- |
 | `README.md` | 저장소 개요, 실행 방법, 현재 구현 범위 |
 | `overview.png` | Conceptual Overview 일러스트 (수작업, 항만·창고 비유) |
-| `docs/site-plan.png` | Phase 5 Site Plan (좌표 1:1 기술 평면도) |
+| `docs/site-plan.png` | Phase 5 Site Plan (좌표 1:1 기술 평면도, 탑뷰) |
+| `docs/elevation.png` | Phase 5 Elevation View (사이드뷰, Staging Shelf 수직 적층 강조) |
 | `docs/master-plan.md` | Phase 5 청사진: 좌표·entity 매핑·바인딩 표준·데모 시나리오·빌드 단계 |
 | `data/twin_entities.json` | Twin entity 정의: Lake, Lakehouse, Metadata Station, Workload Interface, Dataset |
 | `data/mock_twin_events.json` | Dataset lifecycle mock event sequence |
