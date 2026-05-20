@@ -394,10 +394,28 @@ def Xform "World"
             double size = 1
             custom string trident:entity_id = "operator.control"
             custom string trident:entity_type = "operator"
-            custom string trident:name = "Operator Desk"
+            custom string trident:name = "System Operator Desk"
             custom string trident:stage = "monitoring"
+            custom string trident:zone = "cross"
             float3 xformOp:scale = (1, 0.7, 1.1)
             double3 xformOp:translate = (1.4, -2.4, 0.55)
+            uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
+        }
+    }
+
+    def Scope "Delivery"
+    {
+        def Cube "CustomerDesk"
+        {
+            rel material:binding = </World/Materials/operator>
+            double size = 1
+            custom string trident:entity_id = "customer.desk"
+            custom string trident:entity_type = "customer"
+            custom string trident:name = "Customer Desk"
+            custom string trident:stage = "delivery"
+            custom string trident:zone = "zone.delivery"
+            float3 xformOp:scale = (1, 0.7, 1.1)
+            double3 xformOp:translate = (8.3, 3.0, 0.55)
             uniform token[] xformOpOrder = ["xformOp:translate", "xformOp:scale"]
         }
     }
