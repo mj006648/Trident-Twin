@@ -2,9 +2,15 @@
 
 **NVIDIA Omniverse/Isaac Sim 기반 Trident Lakehouse Digital Twin PoC**
 
+![Trident Twin Conceptual Overview](overview.png)
+
+> Conceptual Overview — Trident Lakehouse를 항만·창고·진열대·고객 응대로 비유한 개념도.
+> Lake(트럭 유입) → Accumulation(컨베이어 위 메타 부여) → Lakehouse 진열대(Staging) → Adaptive Workload Interfaces(카트로 픽업하는 Delivery) → Operator(관제탑) 흐름을 보여준다.
+
 ![Trident Twin Site Plan](docs/site-plan.png)
 
-> Phase 5 Site Plan — Trident Lakehouse 4-Zone(Lake / Accumulation / Staging / Delivery) 탑뷰.
+> Phase 5 Site Plan — 위 개념도를 정확한 좌표 위에 매핑한 기술 평면도.
+> 4-Zone(Lake / Accumulation / Staging / Delivery) 모두 단일 Trident Lakehouse 외곽선 안에 위치.
 > 좌표는 `scripts/create_scene.py`의 PoC USD stage와 1:1 일치 (1 unit = 1 m).
 > 재생성: `python3 scripts/draw_site_plan.py`
 
@@ -88,6 +94,8 @@
 | Path | Description |
 | --- | --- |
 | `README.md` | 저장소 개요, 실행 방법, 현재 구현 범위 |
+| `overview.png` | Conceptual Overview 일러스트 (수작업, 항만·창고 비유) |
+| `docs/site-plan.png` | Phase 5 Site Plan (좌표 1:1 기술 평면도) |
 | `docs/master-plan.md` | Phase 5 청사진: 좌표·entity 매핑·바인딩 표준·데모 시나리오·빌드 단계 |
 | `data/twin_entities.json` | Twin entity 정의: Lake, Lakehouse, Metadata Station, Workload Interface, Dataset |
 | `data/mock_twin_events.json` | Dataset lifecycle mock event sequence |
