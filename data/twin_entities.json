@@ -1,11 +1,33 @@
 {
+  "zones": [
+    {
+      "id": "zone.lake",
+      "name": "Lake Zone",
+      "description": "Area inside the Trident Lakehouse where raw/bronze files are stored in Ceph buckets without any metadata. Same storage, no context yet."
+    },
+    {
+      "id": "zone.accumulation",
+      "name": "Accumulation Zone",
+      "description": "Workshop area that turns Lake files into Iceberg tables and attaches Milvus explaining metadata + Redis sharing metadata. This is the step that promotes Lake content into Lakehouse content."
+    },
+    {
+      "id": "zone.staging",
+      "name": "Staging Zone",
+      "description": "Frequently used datasets are placed on shelves for fast pickup (Silver Iceberg + Redis hot partition cache)."
+    },
+    {
+      "id": "zone.delivery",
+      "name": "Delivery Zone",
+      "description": "Customer Desk receives user queries and either (a) looks up datasets via Milvus metadata or (b) picks from staging shelves, then hands data off to AI/HPC/HPDA/M&S workload docks."
+    }
+  ],
   "entities": [
     {
       "id": "dataset.sample.001",
       "type": "dataset",
       "name": "Sample Climate Dataset",
       "stage": "raw",
-      "zone": "lake_input",
+      "zone": "zone.lake",
       "metadata_status": "none",
       "sharing_status": "private",
       "quality_score": 0.71,
@@ -15,20 +37,76 @@
       "id": "lake.bronze",
       "type": "storage_zone",
       "name": "Bronze Lake",
-      "stage": "accumulation"
+      "stage": "accumulation",
+      "zone": "zone.lake"
+    },
+    {
+      "id": "station.metadata.explaining",
+      "type": "metadata_station",
+      "name": "Explaining Metadata Station (Milvus)",
+      "stage": "explaining",
+      "zone": "zone.accumulation"
+    },
+    {
+      "id": "station.metadata.sharing",
+      "type": "metadata_station",
+      "name": "Sharing Metadata Station (Redis)",
+      "stage": "sharing",
+      "zone": "zone.accumulation"
     },
     {
       "id": "lakehouse.silver",
       "type": "storage_zone",
       "name": "Silver Lakehouse",
-      "stage": "staging"
+      "stage": "staging",
+      "zone": "zone.staging"
+    },
+    {
+      "id": "customer.desk",
+      "type": "customer",
+      "name": "Customer Desk",
+      "stage": "delivery",
+      "zone": "zone.delivery",
+      "description": "User search/request intake. Routes to Milvus metadata lookup or Staging shelf pickup."
     },
     {
       "id": "workload.ai.001",
       "type": "workload_interface",
-      "name": "AI Workload Interface",
+      "name": "AI Workload Interface (PyTorch SDK)",
       "workload_type": "AI",
+      "zone": "zone.delivery",
       "requested_dataset": null
+    },
+    {
+      "id": "workload.hpc.001",
+      "type": "workload_interface",
+      "name": "HPC Workload Interface (FUSE mount)",
+      "workload_type": "HPC",
+      "zone": "zone.delivery",
+      "requested_dataset": null
+    },
+    {
+      "id": "workload.hpda.001",
+      "type": "workload_interface",
+      "name": "HPDA Workload Interface (Trino SQL)",
+      "workload_type": "HPDA",
+      "zone": "zone.delivery",
+      "requested_dataset": null
+    },
+    {
+      "id": "workload.ms.001",
+      "type": "workload_interface",
+      "name": "M&S Workload Interface (Modeling & Simulation)",
+      "workload_type": "MS",
+      "zone": "zone.delivery",
+      "requested_dataset": null
+    },
+    {
+      "id": "operator.control",
+      "type": "operator",
+      "name": "System Operator Desk",
+      "zone": "cross",
+      "description": "System administrator console. Separate from Customer Desk."
     }
   ]
 }

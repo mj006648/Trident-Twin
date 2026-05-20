@@ -68,6 +68,7 @@ def main():
     UsdGeom.Scope.Define(stage, "/World/AccumulationPipeline")
     UsdGeom.Scope.Define(stage, "/World/Metadata")
     UsdGeom.Scope.Define(stage, "/World/Lakehouse")
+    UsdGeom.Scope.Define(stage, "/World/Delivery")
     UsdGeom.Scope.Define(stage, "/World/WorkloadInterfaces")
     UsdGeom.Scope.Define(stage, "/World/Operations")
     UsdGeom.Scope.Define(stage, "/World/Datasets")
@@ -89,8 +90,15 @@ def main():
     cube(stage, "/World/Metadata/SharingStation", "Sharing Metadata Station", (0.8, 0, 0.6), (0.8, 1.4, 1.2), mats["metadata_share"], "station.metadata.sharing", "metadata_station", "sharing")
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor", "To Lakehouse Conveyor", (2.8, 0, 0.18), (3.8, 0.18, 0.12), mats["pipeline"], "pipeline.to_lakehouse", "pipeline", "staging")
 
-    # Operations and workload interfaces
-    cube(stage, "/World/Operations/OperatorDesk", "Operator Desk", (1.4, -2.4, 0.55), (1.0, 0.7, 1.1), mats["operator"], "operator.control", "operator", "monitoring")
+    # Operations: system operator desk (NOT for customers).
+    cube(stage, "/World/Operations/OperatorDesk", "System Operator Desk", (1.4, -2.4, 0.55), (1.0, 0.7, 1.1), mats["operator"], "operator.control", "operator", "monitoring")
+
+    # Delivery Zone entry: Customer Desk receives user search/request, then
+    # either consults metadata or picks from staging shelves to hand off to
+    # one of the workload docks. Placed mirror-symmetric to the Operator Desk
+    # (y=-2.4 -> y=+2.4) so the floor plan keeps a clear left/right divide.
+    cube(stage, "/World/Delivery/CustomerDesk", "Customer Desk", (8.3, 3.0, 0.55), (1.0, 0.7, 1.1), mats["operator"], "customer.desk", "customer", "delivery")
+
     cube(stage, "/World/WorkloadInterfaces/HPC", "HPC Interface", (7.8, -2.1, 0.7), (0.7, 0.7, 1.4), mats["workload"], "workload.hpc.001", "workload_interface", "serving")
     cube(stage, "/World/WorkloadInterfaces/MS", "M&S Interface", (8.8, -0.7, 0.7), (0.7, 0.7, 1.4), mats["workload"], "workload.ms.001", "workload_interface", "serving")
     cube(stage, "/World/WorkloadInterfaces/AI", "AI Interface", (8.8, 0.7, 0.7), (0.7, 0.7, 1.4), mats["workload"], "workload.ai.001", "workload_interface", "serving")
