@@ -4,33 +4,63 @@
 
 ![Trident Twin Site Plan](docs/site-plan.png)
 
-> Phase 5 Site Plan — 축적(Accumulation)·진열(Delivery) 파이프라인을 탑뷰로 표현.
+> Phase 5 Site Plan — Trident Lakehouse 4-Zone(Lake / Accumulation / Staging / Delivery) 탑뷰.
 > 좌표는 `scripts/create_scene.py`의 PoC USD stage와 1:1 일치 (1 unit = 1 m).
 > 재생성: `python3 scripts/draw_site_plan.py`
 
-> Trident Lakehouse의 `Lake → Metadata → Lakehouse → Staging/Serving → Workload Interface` 흐름을 USD stage, 상태 이벤트, Isaac Sim extension으로 표현하는 디지털 트윈 실험 저장소입니다.
+> Trident Lakehouse 내부의 **축적(Accumulation)** 과 **진열·전달(Staging/Delivery)** 파이프라인을 USD stage, 상태 이벤트, Isaac Sim extension으로 실시간 시각화하는 디지털 트윈 저장소입니다.
+
+## Concept — Trident Lakehouse는 한 건물, 그 안에 네 개의 Zone
+
+> 핵심 통찰: **Lake와 Lakehouse는 공간이 다른 두 시스템이 아니라, 같은 저장소(Ceph S3) 위에서 메타데이터가 부여되었는지에 따른 상태 차이**다.
+> 따라서 Twin에서도 "Lake → Lakehouse 이동"이 아니라 **단일 Lakehouse 건물 안에서의 Zone 전이**로 표현한다.
+
+```
+┌──────────────────────────────────────────────────────────────────────────────┐
+│                            Trident Lakehouse                                 │
+│                                                                              │
+│   Lake Zone        Accumulation Zone     Staging Zone      Delivery Zone     │
+│   ─────────        ─────────────────     ────────────      ──────────────    │
+│   Raw/Bronze   →   Iceberg 구조화 +   →  자주 사용되는  →  Customer Desk     │
+│   버킷 저장        설명/공유 메타       데이터셋 진열        (검색 → 진열대    │
+│   (Ceph S3)        부여 (Milvus/         (Silver Iceberg     또는 메타 →     │
+│                    Redis/Nessie)         + Redis hot)        워크로드 전달)   │
+│                                                              │               │
+│                                                              ▼               │
+│                                                       AI · HPC · HPDA · M&S  │
+└──────────────────────────────────────────────────────────────────────────────┘
+```
+
+| Zone | 한 줄 정의 | 데이터 상태 | 책임 컴포넌트 (Trident Phase) |
+|------|-----------|----------|---------------------------|
+| **Lake** | 사용자가 올린 raw/bronze 파일이 메타데이터 없이 그대로 저장되는 영역 | 데이터만 있음, 맥락 없음 (Data Swamp 위험 구간) | Ceph S3 버킷 (Phase 1 입력) |
+| **Accumulation** | Lake 위의 파일들을 Iceberg 테이블로 구조화하고 설명·공유 메타데이터를 부여하는 작업장. 이 단계를 거쳐야 Lake가 Lakehouse로 승격됨 | Iceberg + Nessie commit + Milvus Super Context + Redis manifest cache | Phase 1 (Ingest) + Phase 2 (Catalog) |
+| **Staging** | Accumulation을 마친 데이터셋 중 자주 검색·사용되는 인기 셋을 빠르게 꺼낼 수 있도록 진열대에 올려두는 구간 | Silver Iceberg 테이블 + Redis hot partition cache | Phase 1 Silver 출력 + Phase 3 Redis 가속 |
+| **Delivery** | Customer Desk가 사용자 검색을 받아 ① Milvus 메타로 데이터를 찾거나 ② Staging 진열대에서 즉시 픽업하여 워크로드(AI/HPC/HPDA/M&S)에 전달하는 구간 | URI 리스트, Zero-Copy 핸드오프 | Phase 3 (Search) + Phase 4 (Delivery) |
+
+### 두 파이프라인
+
+- **Accumulation Pipeline (상행선)** — `Lake → Accumulation → Staging`. 사용자가 데이터를 올리면 메타가 붙고 진열대에 오른다.
+- **Delivery Pipeline (하행선)** — `Customer query → Delivery → (Staging 또는 Milvus 메타) → Workload Dock`. 사용자가 데이터를 요청하면 진열대 또는 메타 검색을 통해 워크로드로 흘러나간다.
+
+> M&S = **Modeling & Simulation** (전산 모사). USD prim 식별자에 `&`를 못 써서 prim 이름은 `MS`로 단축하지만 의미는 M&S와 동일하다.
 
 ## Overview
 
-`Trident-Twin`은 Trident Lakehouse를 단순 대시보드로 보여주는 프로젝트가 아니라, 데이터셋·메타데이터·Lakehouse·워크로드 인터페이스를 **트윈 엔티티**, **상태 전이**, **이벤트 리플레이**, **운영 피드백 루프**로 연결하기 위한 PoC입니다.
+`Trident-Twin`은 위 4-Zone과 두 파이프라인을 **3D 공간 + 상태 전이 + 이벤트 replay**로 표현하기 위한 PoC이다. 단순 대시보드가 아니라:
 
-현재 구현은 다음 질문에 답하기 위한 첫 번째 실행 가능한 skeleton입니다.
+- **공간**: 각 Zone과 그 안의 entity를 USD prim으로 배치 (Site Plan과 1:1)
+- **상태**: 각 prim에 `trident:*` custom attribute로 현재 상태(stage/zone/metadata_status/sharing_status/last_event 등)를 기록
+- **흐름**: Dataset Package가 Lake → Accumulation → Staging → Delivery 를 거치는 lifecycle을 mock event로 재생 (향후 Stats Service 실 source로 교체)
+- **렌더**: Isaac Sim Kit extension이 상태 변화를 USD 속성에 반영, WebRTC로 Trident Portal에 스트리밍
 
-```text
-데이터셋 하나가 Lake에 유입되고,
-설명 메타데이터와 공유 메타데이터를 획득한 뒤,
-Lakehouse에 진열되고,
-AI/HPC/HPDA/M&S 워크로드에 의해 선택·제공되는 과정을
-Omniverse 상에서 어떻게 상태 기반으로 표현할 것인가?
-```
+핵심 분담:
 
-핵심 방향은 다음과 같습니다.
-
-- **Omniverse/Isaac Sim**: 3D 공간, USD Prim, 상태 시각화, 이벤트 replay 담당
-- **Trident Lakehouse**: Iceberg/Nessie 기반 데이터 저장·카탈로그 계층 담당
-- **Metadata Layer**: Milvus 설명 메타데이터, Redis 공유/위치/상태 메타데이터, PostgreSQL 거버넌스 담당
-- **Portal/Stats Service**: 운영자 UI, 상태 API, WebRTC viewer, 제어 루프 담당
-- **AI Agent/RAG**: 향후 실행 이력 기반 병목 예측과 리소스 티어 추천 담당
+- **Omniverse/Isaac Sim**: 3D 공간, USD prim, 상태 시각화, 이벤트 replay
+- **Trident Lakehouse**: Iceberg/Nessie 기반 실 저장·카탈로그 계층 (state source of truth)
+- **Metadata Layer**: Milvus(설명 메타) + Redis(공유/위치 메타) + PostgreSQL(거버넌스)
+- **Portal/Stats Service**: 운영자 UI, 상태 API, WebRTC viewer
+- **AI Agent/RAG**: Phase 5 비목표 — Intelligence Layer로 분리, 본 repo는 관측만
 
 ## Current Status
 
@@ -70,14 +100,46 @@ Omniverse 상에서 어떻게 상태 기반으로 표현할 것인가?
 | `docs/twin-architecture.md` | Twin entity/state/event/backend 연동 아키텍처 |
 | `archive/old/` | Phase 5 재정의 이전 회로도(`draw_overview.py` / `overview.drawio` / `overview.png`) 보관 |
 
-## Twin Concept Mapping
+## Twin Concept Mapping (4-Zone 기준)
 
-사용자의 Lakehouse abstraction을 Omniverse runtime에서는 다음처럼 매핑합니다.
+사용자의 Lakehouse abstraction을 Omniverse runtime에서는 다음처럼 매핑한다.
+(아래 표는 Site Plan과 PoC USD prim 양쪽 모두의 ground truth.)
 
-| Abstraction | Twin Entity | USD 표현 | 역할 |
-| --- | --- | --- | --- |
-| Lake | `lake.bronze` | `/World/Lake/BronzeLake` | raw/bronze 데이터 유입·저장 영역 |
-| Accumulation Pipeline | `pipeline.accumulation` | `/World/AccumulationPipeline/*` | 데이터셋이 메타데이터를 획득하며 이동하는 축적 흐름 |
+### Lake Zone
+| Twin Entity | USD prim | 역할 |
+| --- | --- | --- |
+| `lake.bronze` | `/World/Lake/BronzeLake` | Raw/Bronze 파일이 메타 없이 쌓이는 Ceph 버킷 영역 |
+
+### Accumulation Zone
+| Twin Entity | USD prim | 역할 |
+| --- | --- | --- |
+| `pipeline.accumulation` | `/World/AccumulationPipeline/InputConveyor` | Lake → 메타 부여 작업장으로의 이송 라인 |
+| `station.metadata.explaining` | `/World/Metadata/ExplainingStation` | Milvus Super Context(설명 메타) 생성 지점 |
+| `station.metadata.sharing` | `/World/Metadata/SharingStation` | Redis 기반 공유·위치 메타 발급 지점 |
+| `pipeline.to_staging` | `/World/AccumulationPipeline/ToLakehouseConveyor` | 메타 부여 완료 후 Staging Zone으로의 이송 |
+
+### Staging Zone
+| Twin Entity | USD prim | 역할 |
+| --- | --- | --- |
+| `lakehouse.silver` | `/World/Lakehouse/SilverLakehouse` | Silver Iceberg 본체 (Staging 진열장 토대) |
+| `shelf.silver.{1,2,3}` | `/World/Lakehouse/StagingShelf{1,2,3}` | 자주 사용되는 인기 데이터셋이 올려지는 진열 칸 |
+
+### Delivery Zone
+| Twin Entity | USD prim | 역할 |
+| --- | --- | --- |
+| `customer.desk` (예정) | `/World/Delivery/CustomerDesk` | 사용자 검색 접수창 — 본 단계에서 PoC USD에 신규 추가 예정 |
+| `workload.ai.001` | `/World/WorkloadInterfaces/AI` | PyTorch SDK 픽업 도크 |
+| `workload.hpc.001` | `/World/WorkloadInterfaces/HPC` | FUSE 마운트 픽업 도크 |
+| `workload.hpda.001` | `/World/WorkloadInterfaces/HPDA` | Trino SQL 픽업 도크 |
+| `workload.ms.001` | `/World/WorkloadInterfaces/MS` | M&S(Modeling & Simulation) 픽업 도크 |
+
+### Cross-Zone (Lakehouse 전반)
+| Twin Entity | USD prim | 역할 |
+| --- | --- | --- |
+| `operator.control` | `/World/Operations/OperatorDesk` | 운영자(시스템 관리) 관제 지점. Customer Desk와는 분리 |
+| `dataset.sample.001` | `/World/Datasets/DatasetPackage001` | Lake → ... → Delivery 전 구간을 이동하는 lifecycle 주인공 |
+
+> **레거시 호환 주의**: 현재 PoC USD의 일부 prim 경로(`/World/Lakehouse/...`)는 의미적으로는 Staging Zone에 속한다. PoC 호환을 위해 경로는 유지하되, Zone 라벨링은 본 표를 기준으로 한다.
 | Explaining Metadata | `station.metadata.explaining` | `/World/Metadata/ExplainingStation` | 데이터셋 설명·의미·검색 컨텍스트 생성 지점 |
 | Sharing Metadata | `station.metadata.sharing` | `/World/Metadata/SharingStation` | 위치·상태·공유 가능성·접근 정보를 부여하는 지점 |
 | Lakehouse | `lakehouse.silver` | `/World/Lakehouse/SilverLakehouse` | 정리된 데이터셋이 진열되는 Silver/Serving 영역 |
