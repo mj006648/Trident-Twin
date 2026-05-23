@@ -1,4 +1,15 @@
-# Trident-Twin Master Plan
+# Trident-Twin Master Plan (Phase 5 초기안 — v3 시점)
+
+> ⚠️ **이 문서는 v3 시점의 master-plan으로 일부 내용이 현재(v11) 구현과 다르다.**
+> 현재 구현 상태의 정확한 zone / coordinate / belt color 명세는
+> [`/README.md`](../README.md) 와 [`/docs/v10-design.md`](v10-design.md)에 있다.
+>
+> 주요 변경:
+> - 4-Zone 모델 (Lake / Accumulation / Staging / Delivery) → **3-stage 메탈 모델 (Bronze / Silver / Gold)**
+> - 단일 Trident Lakehouse outline → **3 separate buildings (Raw / Lakehouse / Showcase)**
+> - Audit Gate / Catalog Office → **제거됨**
+> - Lobby + Search Counter → **단일 plaza로 통합**
+> - 3개 dock 테이블 → **1개 Big Consolidation Table + 3 직선 outgoing belt**
 
 > **Phase 5 정체성**
 > Trident Lakehouse의 **축적(Accumulation)** 과 **진열(Delivery)** 파이프라인을

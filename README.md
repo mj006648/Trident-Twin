@@ -1,6 +1,6 @@
 # Trident-Twin
 
-**NVIDIA Omniverse/Isaac Sim 기반 Trident Lakehouse Digital Twin PoC**
+**NVIDIA Omniverse/Isaac Sim 기반 Trident Lakehouse Digital Twin PoC (v11)**
 
 ![Trident Twin Conceptual Overview](overview.png)
 
@@ -9,220 +9,178 @@
 
 ![Trident Twin Site Plan](docs/site-plan.png)
 
-> Phase 5 Site Plan — 위 개념도를 정확한 좌표 위에 매핑한 기술 평면도(탑뷰, X-Y).
-> 4-Zone(Lake / Accumulation / Staging / Delivery) 모두 단일 Trident Lakehouse 외곽선 안에 위치.
-> 좌표는 `scripts/create_scene.py`의 PoC USD stage와 1:1 일치 (1 unit = 1 m).
+> v11 Site Plan — 3-stage metallic 모델을 정확한 좌표 위에 매핑한 기술 평면도(탑뷰, X-Y).
+> Bronze(Raw) → Silver(Pipeline + Lakehouse) → Gold(Showcase) → Big Consolidation Table → 3 dock trucks.
+> 좌표는 `scripts/create_scene.py`의 USD stage와 1:1 일치 (1 unit = 1 m).
 > 재생성: `python3 scripts/draw_site_plan.py`
 
 ![Trident Twin Elevation View](docs/elevation.png)
 
-> Phase 5 Elevation View — Site Plan의 짝(사이드뷰, X-Z). Staging Shelf가 Silver Lakehouse 위로 z=1.7/2.1/2.5 m 에 적층되는 수직 구조를 보여준다. 탑뷰가 표현할 수 없는 entity 키 차이(Bronze Lake/Stations/Desks/Workload Docks)도 함께 확인 가능.
+> v11 Elevation View — Site Plan의 짝(사이드뷰, X-Z). Y=0 메인 흐름 라인의 수직 높이를 보여준다. Showcase(Y=+22)는 LH 뒤에 가려져 있어 점선 ghost로 위쪽에 offset 표시.
 > 재생성: `python3 scripts/draw_elevation.py`
 
-> Trident Lakehouse 내부의 **축적(Accumulation)** 과 **진열·전달(Staging/Delivery)** 파이프라인을 USD stage, 상태 이벤트, Isaac Sim extension으로 실시간 시각화하는 디지털 트윈 저장소입니다.
+---
 
-## Concept — Trident Lakehouse는 한 건물, 그 안에 네 개의 Zone
+## Concept — Bronze → Silver → Gold metallic lifecycle
 
-> 핵심 통찰: **Lake와 Lakehouse는 공간이 다른 두 시스템이 아니라, 같은 저장소(Ceph S3) 위에서 메타데이터가 부여되었는지에 따른 상태 차이**다.
-> 따라서 Twin에서도 "Lake → Lakehouse 이동"이 아니라 **단일 Lakehouse 건물 안에서의 Zone 전이**로 표현한다.
+> 핵심 통찰: **데이터의 lifecycle 단계는 금속 톤으로 일관되게 표현된다.**
+> 각 stage zone의 바닥 패드와 해당 stage로 들어가는 컨베이어 벨트 프레임이 동일한 메탈 컬러를 공유한다.
 
 ```
 ┌──────────────────────────────────────────────────────────────────────────────┐
-│                            Trident Lakehouse                                 │
+│                            Trident Lakehouse Facility                        │
 │                                                                              │
-│   Lake Zone        Accumulation Zone     Staging Zone      Delivery Zone     │
-│   ─────────        ─────────────────     ────────────      ──────────────    │
-│   Raw/Bronze   →   Iceberg 구조화 +   →  자주 사용되는  →  Customer Desk     │
-│   버킷 저장        설명/공유 메타       데이터셋 진열        (검색 → 진열대    │
-│   (Ceph S3)        부여 (Milvus/         (Silver Iceberg     또는 메타 →     │
-│                    Redis/Nessie)         + Redis hot)        워크로드 전달)   │
-│                                                              │               │
-│                                                              ▼               │
-│                                                       AI · HPC · HPDA · M&S  │
+│   🟫 Bronze            🟦 Silver                       🟨 Gold                │
+│   ────────             ──────────                     ──────                  │
+│   Raw Bucket   →   Pipeline + Lakehouse        →    Showcase                  │
+│   (Data Swamp)     (정제 + 라벨링 + 정식 보관)        (자주 쓰는 핫 데이터)      │
+│                                                                              │
+│                                                              ↓               │
+│                                                       Big Consolidation Table │
+│                                                              ↓               │
+│                                                       AI · HPC · HPDA dock    │
 └──────────────────────────────────────────────────────────────────────────────┘
 ```
 
-| Zone | 한 줄 정의 | 데이터 상태 | 책임 컴포넌트 (Trident Phase) |
-|------|-----------|----------|---------------------------|
-| **Lake** | 사용자가 올린 raw/bronze 파일이 메타데이터 없이 그대로 저장되는 영역 | 데이터만 있음, 맥락 없음 (Data Swamp 위험 구간) | Ceph S3 버킷 (Phase 1 입력) |
-| **Accumulation** | Lake 위의 파일들을 Iceberg 테이블로 구조화하고 설명·공유 메타데이터를 부여하는 작업장. 이 단계를 거쳐야 Lake가 Lakehouse로 승격됨 | Iceberg + Nessie commit + Milvus Super Context + Redis manifest cache | Phase 1 (Ingest) + Phase 2 (Catalog) |
-| **Staging** | Accumulation을 마친 데이터셋 중 자주 검색·사용되는 인기 셋을 빠르게 꺼낼 수 있도록 진열대에 올려두는 구간 | Silver Iceberg 테이블 + Redis hot partition cache | Phase 1 Silver 출력 + Phase 3 Redis 가속 |
-| **Delivery** | Customer Desk가 사용자 검색을 받아 ① Milvus 메타로 데이터를 찾거나 ② Staging 진열대에서 즉시 픽업하여 워크로드(AI/HPC/HPDA/M&S)에 전달하는 구간 | URI 리스트, Zero-Copy 핸드오프 | Phase 3 (Search) + Phase 4 (Delivery) |
+| Stage | 색 | 공간 | 데이터 상태 | 책임 컴포넌트 |
+|------|---|-------|----------|-----------|
+| 🟫 **Bronze** | 브론즈 | Raw Bucket 창고 | 메타데이터 없는 갈색 무지 박스 (Data Swamp 표현) | Ceph S3 Raw Bucket |
+| 🟦 **Silver** | 실버 | Pipeline + Lakehouse | Iceberg 포장 + 보라 라벨 + 빨강 카드 + 상태 LED, storage table에 적재 | Iceberg + Nessie + Milvus + Redis + PostgreSQL catalog |
+| 🟨 **Gold** | 골드 | Showcase | 거실형 글래스 캐비닛에 핫 데이터 진열 | Redis hot key, Dataset Basket, access_audit |
 
-### 두 파이프라인
-
-- **Accumulation Pipeline (상행선)** — `Lake → Accumulation → Staging`. 사용자가 데이터를 올리면 메타가 붙고 진열대에 오른다.
-- **Delivery Pipeline (하행선)** — `Customer query → Delivery → (Staging 또는 Milvus 메타) → Workload Dock`. 사용자가 데이터를 요청하면 진열대 또는 메타 검색을 통해 워크로드로 흘러나간다.
-
-> M&S = **Modeling & Simulation** (전산 모사). USD prim 식별자에 `&`를 못 써서 prim 이름은 `MS`로 단축하지만 의미는 M&S와 동일하다.
+---
 
 ## Overview
 
-`Trident-Twin`은 위 4-Zone과 두 파이프라인을 **3D 공간 + 상태 전이 + 이벤트 replay**로 표현하기 위한 PoC이다. 단순 대시보드가 아니라:
+`Trident-Twin`은 v11 layout을 **3D 공간 + 상태 전이 + 이벤트 replay**로 표현하는 PoC이다.
 
-- **공간**: 각 Zone과 그 안의 entity를 USD prim으로 배치 (Site Plan과 1:1)
+- **공간**: 각 zone과 entity를 USD prim으로 배치 (Site Plan과 1:1)
 - **상태**: 각 prim에 `trident:*` custom attribute로 현재 상태(stage/zone/metadata_status/sharing_status/last_event 등)를 기록
-- **흐름**: Dataset Package가 Lake → Accumulation → Staging → Delivery 를 거치는 lifecycle을 mock event로 재생 (향후 Stats Service 실 source로 교체)
+- **흐름**: Dataset Package가 Raw → Pipeline → Lakehouse → (Promotion) → Showcase → Big Table → Truck을 거치는 lifecycle을 mock event로 재생 (향후 Stats Service 실 source로 교체)
 - **렌더**: Isaac Sim Kit extension이 상태 변화를 USD 속성에 반영, WebRTC로 Trident Portal에 스트리밍
 
 핵심 분담:
+- **Omniverse / Isaac Sim**: 3D 공간, USD prim, 상태 시각화, 이벤트 replay
+- **Trident Lakehouse**: Iceberg / Nessie 기반 실 저장·카탈로그 계층 (state source of truth)
+- **Metadata Layer**: Milvus(설명 메타) + Redis(공유 / 위치 메타) + PostgreSQL(거버넌스)
+- **Portal / Stats Service**: 운영자 UI, 상태 API, WebRTC viewer
+- **AI Agent / RAG**: Phase 5 비목표 — Intelligence Layer로 분리, 본 repo는 관측만
 
-- **Omniverse/Isaac Sim**: 3D 공간, USD prim, 상태 시각화, 이벤트 replay
-- **Trident Lakehouse**: Iceberg/Nessie 기반 실 저장·카탈로그 계층 (state source of truth)
-- **Metadata Layer**: Milvus(설명 메타) + Redis(공유/위치 메타) + PostgreSQL(거버넌스)
-- **Portal/Stats Service**: 운영자 UI, 상태 API, WebRTC viewer
-- **AI Agent/RAG**: Phase 5 비목표 — Intelligence Layer로 분리, 본 repo는 관측만
+---
+
+## v11 Layout — 10 zones
+
+| Zone | 이름 | 좌표 (cx, cy) | 크기 |
+| --- | --- | --- | --- |
+| 0+7 | Lobby + Search Counter (merged) | (+44, +10) | plaza 7×7 |
+| 1 | Inbound Truck Yard | (-22, 0) | asphalt 14×8 |
+| 2 | Raw Bucket 창고 (Bronze) | (-4, 0) | 17×12×6 |
+| 3 | Pipeline Line (Silver) — 5 stations | X = 7, 10, 13, 16, 19, Y=0 | station 1.8×3×3 each |
+| 4 | Lakehouse 저장동 (Silver) | (+29, 0) | 17×12×6 |
+| 5 | Showcase 진열장 (Gold) | (+29, +22) | 17×12×6 |
+| 8 | Delivery Yard | dock_x=+62, dock_ys=+6/+10/+14 | 22×14 asphalt |
+| 8.0 | Big Consolidation Table | (+52, +10) | 4×11 |
+| 9 | Twin Control Tower | (-22, -13) | 3.2×3.2 base + 9m shaft + deck |
+
+> **참고**: 원본 설계의 Zone 3.5 Audit Gate와 Zone 6 Catalog Office는 v11에서 제거됨. Zone 0 Lobby와 Zone 7 Search Counter는 단일 plaza로 통합됨.
+
+---
+
+## v11 Conveyor System — 색상으로 lifecycle 단계 표현
+
+| 컨베이어 | 색 (frame) | 경로 | 의미 |
+| --- | --- | --- | --- |
+| Inbound | 🟫 Bronze | Truck rear (-17.9) → Raw west (-12.3) | Raw 단계 진입 |
+| Pipeline Main | 🟦 Silver | (+4.7 → +20.4) at Y=-0.7 | Full Mode 5-station 풀 코스 |
+| Pipeline Express | 🟦 Silver | (+4.7 → +20.4) at Y=+0.7 | Delta Mode 평행 라인 |
+| Pipeline → Lakehouse | 🟦 Silver | 2개 Y bend → Y=0 합류 → LH 진입 | Silver 보관소 진입 |
+| Promotion | 🟨 Gold | (X=+29, Y=+6 → +16) | LH → Showcase 핫 승격 |
+| LH → Big Table | 🟦 Silver | X (+37.5 → +52) at Y=0 + Y bend | Silver 출고 |
+| SC → Big Table | 🟨 Gold | X (+37.5 → +52) at Y=+22 + Y bend | Gold 출고 |
+| Big Table → AI dock | 🟪 Delivery | (+54 → +61.5) at Y=+6 | 직선 dispatch |
+| Big Table → HPC dock | 🟪 Delivery | (+54 → +61.5) at Y=+10 | 직선 dispatch |
+| Big Table → HPDA dock | 🟪 Delivery | (+54 → +61.5) at Y=+14 | 직선 dispatch |
+
+---
 
 ## Current Status
 
-현재 저장소에는 **실제로 Isaac Sim Python으로 생성 가능한 USD stage**와 **mock event replay script**가 포함되어 있습니다.
+현재 저장소에는 **실제로 Isaac Sim Python으로 생성 가능한 v11 USD stage**와 **mock event replay script**가 포함되어 있다.
 
 완료된 항목:
-
-- Trident Lakehouse Twin USD scene 생성
-- Dataset Package, Lake, Lakehouse, Metadata Station, Workload Interface Prim 구성
-- mock event 기반 dataset lifecycle replay
+- v11 Trident Lakehouse Twin USD scene 생성 (Bronze / Silver / Gold 메탈 테마)
+- 3 separate buildings (Raw / Lakehouse / Showcase)
+- 5-station pipeline with parallel Main + Express belts
+- Big Consolidation Table + 3 straight outgoing belts
+- Lobby + Search Counter 통합 plaza
+- 거실형 Showcase 캐비닛 (북벽 2 + 중간 3 + 남벽 2)
+- Lakehouse storage table 그리드 (5×4 = 20 tables)
+- 5 user mannequin (admin/researcher/operator/viewer/librarian)
+- Twin Control Tower (9m shaft + glass deck + 안테나)
+- mock event 기반 dataset lifecycle replay (10 events)
 - USD custom attributes에 `trident:*` 상태 정보 기록
-- Isaac Sim/Omniverse Kit extension skeleton 작성
-- PoC 실행 방법 및 아키텍처 문서 작성
+- Isaac Sim / Omniverse Kit extension skeleton
 
 아직 남은 항목:
+- file_registry 바이패스 시각화
+- Delta Mode 박스 변형 (작은 큐브)
+- Integrity Audit Gate 재추가 (검토 중)
+- Keycloak 실시간 아바타 (게이트 통과, 권한 거부)
+- 박스 부유 이동 애니메이션 (search → counter → dock)
+- 워크로드별 박스 변형 (AI 두루마리, HPC 폴더, HPDA 가상 테이블)
+- Lakehouse 풀 lineage 광선 네트워크
+- Portal WebRTC 동기화 (Twin Control Tower 안 모니터)
+- Stats Service / WebSocket / API 실시간 연동
 
-- Isaac Sim GUI에서 stage 시각 검수
-- Extension enable 및 UI 동작 검증
-- Stats Service/WebSocket/API 실시간 연동
-- Portal `TridentTwin.tsx` viewer/state panel 연동
-- 실제 Redis/Milvus/PostgreSQL/Iceberg/Nessie 상태 source 연결
+---
 
 ## Repository Contents
 
 | Path | Description |
 | --- | --- |
-| `README.md` | 저장소 개요, 실행 방법, 현재 구현 범위 |
+| `README.md` | 본 문서 (v11 기준) |
 | `overview.png` | Conceptual Overview 일러스트 (수작업, 항만·창고 비유) |
-| `docs/site-plan.png` | Phase 5 Site Plan (좌표 1:1 기술 평면도, 탑뷰) |
-| `docs/elevation.png` | Phase 5 Elevation View (사이드뷰, Staging Shelf 수직 적층 강조) |
-| `docs/master-plan.md` | Phase 5 청사진: 좌표·entity 매핑·바인딩 표준·데모 시나리오·빌드 단계 |
-| `data/twin_entities.json` | Twin entity 정의: Lake, Lakehouse, Metadata Station, Workload Interface, Dataset |
-| `data/mock_twin_events.json` | Dataset lifecycle mock event sequence |
-| `scripts/create_scene.py` | Isaac Sim Python 기반 기본 USD stage 생성 스크립트 |
+| `docs/site-plan.png` | v11 Site Plan (탑뷰) |
+| `docs/elevation.png` | v11 Elevation View (사이드뷰) |
+| `docs/v10-design.md` | v10 시점 design diff 문서 |
+| `docs/master-plan.md` | 초기 master-plan (참고용, 일부 내용은 v11에서 변경됨) |
+| `data/twin_entities.json` | Twin entity 정의 |
+| `data/mock_twin_events.json` | Dataset lifecycle mock event sequence (v11 좌표) |
+| `scripts/create_scene.py` | Isaac Sim Python 기반 v11 USD stage 생성 스크립트 |
 | `scripts/replay_events.py` | mock event를 USD time samples/custom attributes로 반영하는 replay 스크립트 |
-| `stages/trident_lakehouse_twin.usda` | 기본 Trident Lakehouse Twin USD stage |
+| `scripts/draw_site_plan.py` | docs/site-plan.png 생성 |
+| `scripts/draw_elevation.py` | docs/elevation.png 생성 |
+| `stages/trident_lakehouse_twin.usda` | v11 Trident Lakehouse Twin USD stage |
 | `stages/trident_lakehouse_twin_replay.usda` | 이벤트 replay가 반영된 USD stage |
-| `exts/trident.twin/` | Omniverse Kit/Isaac Sim extension skeleton |
-| `docs/omniverse-twin-poc.md` | PoC 실행 방법과 설계 메모 |
-| `docs/twin-architecture.md` | Twin entity/state/event/backend 연동 아키텍처 |
-| `archive/old/` | Phase 5 재정의 이전 회로도(`draw_overview.py` / `overview.drawio` / `overview.png`) 보관 |
+| `exts/trident.twin/` | Omniverse Kit / Isaac Sim extension skeleton |
 
-## Twin Concept Mapping (4-Zone 기준)
-
-사용자의 Lakehouse abstraction을 Omniverse runtime에서는 다음처럼 매핑한다.
-(아래 표는 Site Plan과 PoC USD prim 양쪽 모두의 ground truth.)
-
-### Lake Zone
-| Twin Entity | USD prim | 역할 |
-| --- | --- | --- |
-| `lake.bronze` | `/World/Lake/BronzeLake` | Raw/Bronze 파일이 메타 없이 쌓이는 Ceph 버킷 영역 |
-
-### Accumulation Zone
-| Twin Entity | USD prim | 역할 |
-| --- | --- | --- |
-| `pipeline.accumulation` | `/World/AccumulationPipeline/InputConveyor` | Lake → 메타 부여 작업장으로의 이송 라인 |
-| `station.metadata.explaining` | `/World/Metadata/ExplainingStation` | Milvus Super Context(설명 메타) 생성 지점 |
-| `station.metadata.sharing` | `/World/Metadata/SharingStation` | Redis 기반 공유·위치 메타 발급 지점 |
-| `pipeline.to_staging` | `/World/AccumulationPipeline/ToLakehouseConveyor` | 메타 부여 완료 후 Staging Zone으로의 이송 |
-
-### Staging Zone
-| Twin Entity | USD prim | 역할 |
-| --- | --- | --- |
-| `lakehouse.silver` | `/World/Lakehouse/SilverLakehouse` | Silver Iceberg 본체 (Staging 진열장 토대) |
-| `shelf.silver.{1,2,3}` | `/World/Lakehouse/StagingShelf{1,2,3}` | 자주 사용되는 인기 데이터셋이 올려지는 진열 칸 |
-
-### Delivery Zone
-| Twin Entity | USD prim | 역할 |
-| --- | --- | --- |
-| `customer.desk` (예정) | `/World/Delivery/CustomerDesk` | 사용자 검색 접수창 — 본 단계에서 PoC USD에 신규 추가 예정 |
-| `workload.ai.001` | `/World/WorkloadInterfaces/AI` | PyTorch SDK 픽업 도크 |
-| `workload.hpc.001` | `/World/WorkloadInterfaces/HPC` | FUSE 마운트 픽업 도크 |
-| `workload.hpda.001` | `/World/WorkloadInterfaces/HPDA` | Trino SQL 픽업 도크 |
-| `workload.ms.001` | `/World/WorkloadInterfaces/MS` | M&S(Modeling & Simulation) 픽업 도크 |
-
-### Cross-Zone (Lakehouse 전반)
-| Twin Entity | USD prim | 역할 |
-| --- | --- | --- |
-| `operator.control` | `/World/Operations/OperatorDesk` | 운영자(시스템 관리) 관제 지점. Customer Desk와는 분리 |
-| `dataset.sample.001` | `/World/Datasets/DatasetPackage001` | Lake → ... → Delivery 전 구간을 이동하는 lifecycle 주인공 |
-
-> **레거시 호환 주의**: 현재 PoC USD의 일부 prim 경로(`/World/Lakehouse/...`)는 의미적으로는 Staging Zone에 속한다. PoC 호환을 위해 경로는 유지하되, Zone 라벨링은 본 표를 기준으로 한다.
-| Explaining Metadata | `station.metadata.explaining` | `/World/Metadata/ExplainingStation` | 데이터셋 설명·의미·검색 컨텍스트 생성 지점 |
-| Sharing Metadata | `station.metadata.sharing` | `/World/Metadata/SharingStation` | 위치·상태·공유 가능성·접근 정보를 부여하는 지점 |
-| Lakehouse | `lakehouse.silver` | `/World/Lakehouse/SilverLakehouse` | 정리된 데이터셋이 진열되는 Silver/Serving 영역 |
-| Staging/Serving | `pipeline.staging` | `/World/Lakehouse/StagingShelf*` | 워크로드 접근을 위한 데이터셋 진열·선택 영역 |
-| Adaptive Workload Interface | `workload.*` | `/World/WorkloadInterfaces/*` | AI/HPC/HPDA/M&S 요청자 또는 실행 인터페이스 |
-| Operator Desk | `operator.control` | `/World/Operations/OperatorDesk` | 운영자 관제·제어 지점 |
-| Dataset Package | `dataset.sample.001` | `/World/Datasets/DatasetPackage001` | 상태 전이에 따라 이동하는 데이터셋 단위 |
-
-## USD Scene Hierarchy
-
-현재 PoC stage의 핵심 구조는 다음과 같습니다.
-
-```text
-/World
-  /Lake
-    /BronzeLake
-  /AccumulationPipeline
-    /InputConveyor
-    /ToLakehouseConveyor
-  /Metadata
-    /ExplainingStation
-    /SharingStation
-  /Lakehouse
-    /SilverLakehouse
-    /StagingShelf1
-    /StagingShelf2
-    /StagingShelf3
-  /WorkloadInterfaces
-    /HPC
-    /MS
-    /AI
-    /HPDA
-  /Operations
-    /OperatorDesk
-  /Datasets
-    /DatasetPackage001
-      /ExplainingMetadataTag
-      /SharingMetadataTag
-```
+---
 
 ## Dataset Event Replay
 
-`data/mock_twin_events.json`에는 데이터셋 하나의 상태 전이 시나리오가 들어 있습니다.
+`data/mock_twin_events.json`에는 데이터셋 하나의 v11 lifecycle 시나리오가 들어 있다.
 
 ```text
-raw_arrived
-→ stored_in_lake
-→ explaining_metadata_generated
-→ sharing_metadata_published
-→ staged_in_lakehouse
-→ requested_by_ai_workload
-→ served_to_workload
+raw_arrived              (t=0,   -17.5, 0)   # 트레일러 후미
+stored_in_lake           (t=20,  -4, 0)      # Raw 창고 내부
+explaining_metadata_generated  (t=55,  16, -0.7)  # Milvus 스테이션
+sharing_metadata_published     (t=75,  19, -0.7)  # Redis 스테이션
+staged_in_lakehouse      (t=105, 29, 0)      # Lakehouse 테이블
+customer_query_received  (t=118, 44, 13)     # Lobby+SC plaza
+promoted_to_showcase     (t=128, 29, 22)     # Showcase 캐비닛
+arrived_on_big_table     (t=138, 52, 10)     # Big Consolidation Table
+delivered_to_ai_dock     (t=146, 61, 6)      # AI dock 직선 belt
+served_to_workload       (t=150, 64, 6)      # AI 트럭 적재
 ```
 
-각 이벤트는 USD stage에 다음 정보를 반영합니다.
-
+각 이벤트는 USD stage에 다음 정보를 반영한다.
 - Dataset Package의 위치 이동
-- `trident:stage` 상태 변경
-- `trident:zone` 위치/구역 변경
-- `trident:metadata_status` 변경
-- `trident:sharing_status` 변경
-- `trident:last_event` 기록
+- `trident:stage`, `trident:zone`, `trident:metadata_status`, `trident:sharing_status`, `trident:last_event` 갱신
 - time sample 기반 replay 가능성 확보
 
+---
+
 ## Trident Custom Attributes
-
-PoC는 단순 geometry만 만들지 않고, 향후 backend와 연결하기 위해 `trident:*` custom attributes를 사용합니다.
-
-예시:
 
 ```text
 trident:entity_id = dataset.sample.001
@@ -236,7 +194,7 @@ trident:access_frequency = 17
 trident:last_event = served_to_workload
 ```
 
-향후 실제 시스템에서는 `trident:entity_id`를 기준으로 아래 source와 연결합니다.
+`trident:entity_id`를 기준으로 향후 실제 source 연결:
 
 ```text
 Redis      → file location, serving state, cache state
@@ -247,14 +205,16 @@ Nessie     → branch/tag/commit metadata
 Stats API  → event stream, health score, execution profile
 ```
 
+---
+
 ## Quick Start
 
-### 1. Stage 생성
+### 1. v11 Stage 생성
 
-Isaac Sim Python을 사용해야 합니다. 일반 Python에서는 `pxr` 모듈이 바로 잡히지 않을 수 있습니다.
+Isaac Sim Python을 사용해야 한다. 일반 Python에서는 `pxr` 모듈이 바로 잡히지 않는다.
 
 ```bash
-cd /home/chang/git/trident-omniverse-twin-poc
+cd /home/chang/git/Trident-Twin
 
 /home/chang/isaac-sim/python.sh scripts/create_scene.py
 /home/chang/isaac-sim/python.sh scripts/replay_events.py
@@ -263,28 +223,36 @@ cd /home/chang/git/trident-omniverse-twin-poc
 생성 결과:
 
 ```text
-stages/trident_lakehouse_twin.usda
-stages/trident_lakehouse_twin_replay.usda
+stages/trident_lakehouse_twin.usda          (~660 KB)
+stages/trident_lakehouse_twin_replay.usda   (~660 KB)
 ```
 
 ### 2. Isaac Sim에서 확인
 
-Isaac Sim GUI 실행 후 아래 파일을 엽니다.
+Isaac Sim GUI 실행 후 아래 파일을 연다.
 
 ```text
-File → Open → stages/trident_lakehouse_twin_replay.usda
+File → Open → /home/chang/git/Trident-Twin/stages/trident_lakehouse_twin_replay.usda
 ```
 
-절대 경로:
+좌측 상단 viewport 카메라 드롭다운에서 다음 4개 카메라를 선택할 수 있다:
+- `Camera` — 전체 facility 조감
+- `Camera_Pipeline` — Pipeline + 5 stations 클로즈업
+- `Camera_Storage` — Lakehouse / Showcase 클로즈업
+- `Camera_Delivery` — Big Table + 3 truck 도크 클로즈업
 
-```text
-/home/chang/git/trident-omniverse-twin-poc/stages/trident_lakehouse_twin_replay.usda
-```
-
-### 3. 기본 검증
+### 3. Site Plan / Elevation 다이어그램 재생성
 
 ```bash
-cd /home/chang/git/trident-omniverse-twin-poc
+cd /home/chang/git/Trident-Twin
+python3 scripts/draw_site_plan.py
+python3 scripts/draw_elevation.py
+```
+
+### 4. 기본 검증
+
+```bash
+cd /home/chang/git/Trident-Twin
 
 python3 -m json.tool data/twin_entities.json >/dev/null
 python3 -m json.tool data/mock_twin_events.json >/dev/null
@@ -292,6 +260,8 @@ python3 -m py_compile scripts/create_scene.py scripts/replay_events.py exts/trid
 test -s stages/trident_lakehouse_twin.usda
 test -s stages/trident_lakehouse_twin_replay.usda
 ```
+
+---
 
 ## Omniverse Extension Skeleton
 
@@ -302,10 +272,9 @@ exts/trident.twin/
 ```
 
 현재 목적:
-
-- Isaac Sim/Kit extension 구조 확보
+- Isaac Sim / Kit extension 구조 확보
 - mock event를 읽어 Dataset Package 상태를 갱신하는 기반 마련
-- 향후 API/WebSocket 기반 live update로 확장
+- 향후 API / WebSocket 기반 live update로 확장
 
 향후 목표:
 
@@ -316,6 +285,8 @@ WebSocket /ws/twin/state
 Portal selection ↔ Omniverse Prim selection
 Omniverse WebRTC viewer ↔ Trident Portal
 ```
+
+---
 
 ## Target Architecture
 
@@ -359,54 +330,62 @@ Omniverse WebRTC viewer ↔ Trident Portal
                             └─ operator interaction
 ```
 
+---
+
 ## Roadmap
 
-### Phase 1. Static Twin Scene
-
-- USD stage hierarchy 구성
-- Lake/Lakehouse/Metadata/Workload 공간 배치
+### Phase 1. Static Twin Scene (완료)
+- v11 USD stage hierarchy 구성
+- Bronze / Silver / Gold 메탈 테마 적용
+- 3 separate buildings, 5-station pipeline, Big Table
 - Dataset Package와 metadata tag 표현
-- 기본 카메라/조명/재질 구성
+- 기본 카메라 / 조명 / 재질 구성
 
-### Phase 2. Event Replay Twin
-
-- mock event sequence 정의
+### Phase 2. Event Replay Twin (완료)
+- mock event sequence 정의 (10 events)
 - Dataset lifecycle animation 반영
 - `trident:*` custom attributes 기록
 - 이벤트 timeline 기반 replay 확인
 
 ### Phase 3. Live State Twin
-
 - Stats Service에 twin state API 추가
 - WebSocket event stream 연결
-- Redis/Milvus/PostgreSQL 상태를 Twin entity로 변환
+- Redis / Milvus / PostgreSQL 상태를 Twin entity로 변환
 - Isaac Sim extension에서 live update 수행
 
 ### Phase 4. Portal Integrated Twin
-
 - `Trident-Portal`의 `TridentTwin.tsx`와 WebRTC viewer 연결
 - Portal dataset selection과 Omniverse Prim selection 동기화
 - Event timeline, health score, metadata panel 제공
 - 운영자 action을 API로 전달
 
 ### Phase 5. Predictive Twin
-
 - 실행 이력 기반 resource tier simulation
-- Gold/Silver/Bronze 실행 시나리오 비교
-- AI Agent/RAG 기반 병목 예측
+- Bronze / Silver / Gold 실행 시나리오 비교
+- AI Agent / RAG 기반 병목 예측
 - compaction, cache warm-up, re-indexing 같은 운영 제안 생성
+
+### Phase 6+. Keycloak Avatars & Lineage Network
+- 실시간 사용자 아바타 (게이트 통과, 권한 거부 X 표시)
+- Lakehouse 전체에 걸친 lineage 광선 네트워크
+- 박스 부유 이동 애니메이션
+- 워크로드별 박스 변형 (두루마리 / 폴더 / 가상 테이블)
+
+---
 
 ## Integration with Other Repositories
 
 | Repository | Role |
 | --- | --- |
 | `Trident-Portal` | Next.js 제어 포털, FastAPI stats-service, WebRTC Twin viewer, monitoring UI |
-| `TwinX` | Kubernetes/ArgoCD GitOps 배포 매니페스트 |
-| `Trident-Twin` | Omniverse/Isaac Sim Digital Twin, event replay, predictive simulation 구현 공간 |
+| `TwinX` | Kubernetes / ArgoCD GitOps 배포 매니페스트 |
+| `Trident-Twin` | Omniverse / Isaac Sim Digital Twin, event replay, predictive simulation 구현 공간 |
+
+---
 
 ## Design Principle
 
-이 프로젝트에서 Omniverse는 source of truth가 아닙니다.
+이 프로젝트에서 Omniverse는 source of truth가 아니다.
 
 ```text
 Source of truth:
@@ -420,4 +399,4 @@ Omniverse role:
   operator interaction
 ```
 
-즉, 실제 데이터는 Lakehouse와 metadata backend에 있고, Omniverse는 그 상태를 **공간적으로 이해하고, 재생하고, 운영자가 상호작용할 수 있게 만드는 Twin layer**입니다.
+즉, 실제 데이터는 Lakehouse와 metadata backend에 있고, Omniverse는 그 상태를 **공간적으로 이해하고, 재생하고, 운영자가 상호작용할 수 있게 만드는 Twin layer**다.
