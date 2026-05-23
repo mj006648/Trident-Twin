@@ -64,7 +64,11 @@ COLORS = {
     "conveyor_frame":     ((0.95, 0.55, 0.05), 1.00),
     "conveyor_hot":       ((0.95, 0.25, 0.10), 1.00),
     "conveyor_cold":      ((0.20, 0.65, 0.95), 1.00),
-    "conveyor_promotion": ((0.95, 0.50, 0.95), 1.00),  # pink - LH->Showcase
+    "conveyor_promotion": ((0.95, 0.50, 0.95), 1.00),
+    # Metallic theme colors used to mark data lifecycle stages
+    "metal_bronze":       ((0.72, 0.45, 0.22), 1.00),  # Raw stage
+    "metal_silver":       ((0.78, 0.80, 0.84), 1.00),  # Pipeline + Lakehouse
+    "metal_gold":         ((0.98, 0.78, 0.18), 1.00),  # Showcase
     # Truck
     "truck_cab":          ((0.85, 0.20, 0.20), 1.00),
     "truck_trailer":      ((0.92, 0.92, 0.94), 1.00),
@@ -1099,10 +1103,10 @@ def main():
     # ===== Zone floor pads (colored identification, no signposts) =====
     zone_pad(stage, "/World/ZonePads/Tower",       (-22,  -13), (6,  6),  mats["zone_color_9"])
     zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,    0), (16, 8),  mats["zone_color_1"])
-    zone_pad(stage, "/World/ZonePads/RawBucket",   ( -4,    0), (19, 14), mats["zone_color_2"])
-    zone_pad(stage, "/World/ZonePads/Pipeline",    (+13,    0), (16, 7),  mats["zone_color_3"])
-    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29,    0), (19, 14), mats["zone_color_4"])
-    zone_pad(stage, "/World/ZonePads/Showcase",    (+29,  +22), (19, 14), mats["zone_color_5"])
+    zone_pad(stage, "/World/ZonePads/RawBucket",   ( -4,    0), (19, 14), mats["metal_bronze"])
+    zone_pad(stage, "/World/ZonePads/Pipeline",    (+13,    0), (16, 7),  mats["metal_silver"])
+    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29,    0), (19, 14), mats["metal_silver"])
+    zone_pad(stage, "/World/ZonePads/Showcase",    (+29,  +22), (19, 14), mats["metal_gold"])
     zone_pad(stage, "/World/ZonePads/LobbySearch", (+44, +10), (10, 11), mats["zone_color_0"])
     zone_pad(stage, "/World/ZonePads/Delivery",    (+59,  +10), (22, 14), mats["zone_color_8"])
 
@@ -1124,9 +1128,11 @@ def main():
                 trailer_rear_x=-18.0, y_center=0.0, mats=mats)
 
     # Inbound conveyor: long stretch from truck rear (-17.9) to Raw west wall (-12.5)
+    # BRONZE frame — this belt feeds the Raw / Bronze stage.
     build_conveyor(stage, "/World/LoadingDock/InboundConveyor",
                    x_start=-17.9, x_end=-12.3, y_center=0.0,
-                   z_top=0.7, width=1.0, mats=mats)
+                   z_top=0.7, width=1.0, mats=mats,
+                   frame_mat_key="metal_bronze")
 
     # ===== Zone 2: Raw Bucket Warehouse (17 x 12 x 6) =====
     raw_cx, raw_cy, raw_cz = -4.0, 0.0, 0.10
@@ -1227,19 +1233,21 @@ def main():
     build_station_milvus(stage,   "/World/Pipeline/Station_Milvus",    station_x[3], mats)
     build_station_redis(stage,    "/World/Pipeline/Station_Redis",     station_x[4], mats)
 
-    # Main belt — starts at Raw east wall (+4.7), Y=-0.7
+    # Main belt — starts at Raw east wall (+4.7), Y=-0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/InputConveyor",
                    x_start=4.7, x_end=20.4, y_center=-0.7,
-                   z_top=0.7, width=1.0, mats=mats)
+                   z_top=0.7, width=1.0, mats=mats,
+                   frame_mat_key="metal_silver")
     p = stage.GetPrimAtPath("/World/AccumulationPipeline/InputConveyor")
     p.CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set("pipeline.accumulation")
     p.CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("pipeline")
     p.CreateAttribute("trident:stage", Sdf.ValueTypeNames.String).Set("accumulation")
     p.CreateAttribute("trident:name", Sdf.ValueTypeNames.String).Set("Pipeline Main Line (Full Mode)")
-    # Express belt — SAME size as main, parallel at Y=+0.7
+    # Express belt — SAME size as main, parallel at Y=+0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/ExpressLine",
                    x_start=4.7, x_end=20.4, y_center=+0.7,
                    z_top=0.7, width=1.0, mats=mats,
+                   frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
     # Replay-compat metadata station anchors
     cube(stage, "/World/Metadata/ExplainingStation",
@@ -1261,13 +1269,15 @@ def main():
          entity_type="pipeline", stage_name="staging")
 
     # Both belts converge to Y=0 at the Lakehouse entrance via two Y-bends.
-    # No belt continues INSIDE the Lakehouse — boxes just enter the warehouse.
+    # SILVER frames — feeding the Silver Lakehouse stage.
     build_conveyor_Y(stage, "/World/AccumulationPipeline/MainConverge_YBend",
                      y_start=-0.7, y_end=0.0, x_center=20.4,
-                     z_top=0.7, width=1.0, mats=mats)
+                     z_top=0.7, width=1.0, mats=mats,
+                     frame_mat_key="metal_silver")
     build_conveyor_Y(stage, "/World/AccumulationPipeline/ExpressConverge_YBend",
                      y_start=0.0, y_end=+0.7, x_center=20.4,
                      z_top=0.7, width=1.0, mats=mats,
+                     frame_mat_key="metal_silver",
                      belt_mat_key="conveyor_belt_express")
 
     # ===== Zone 4: Lakehouse (Y=0, 17 x 12 x 6) — aligned with Raw on Y=0 =====
@@ -1373,12 +1383,12 @@ def main():
                                cab_w=4.5, cab_d=0.8, cab_h=2.4,
                                facing="north", popularity=pop)
 
-    # ===== Lakehouse -> Showcase promotion belt =====
+    # ===== Lakehouse -> Showcase promotion belt (GOLD frame) =====
     # Belt runs Y from +6 (LH north wall) to +16 (SC south wall) at X=29
     build_conveyor_Y(stage, "/World/Lakehouse/PromotionConveyor",
                      y_start=+6.0, y_end=+16.0, x_center=29.0,
                      z_top=0.7, width=0.9, mats=mats,
-                     frame_mat_key="conveyor_promotion")
+                     frame_mat_key="metal_gold")
 
     # ===== Zone 0+7 MERGED: Lobby + Search Counter (previous design restored,
     # only X position moved into the open corridor between LH/SC east wall and
@@ -1427,15 +1437,15 @@ def main():
     cube(stage, "/World/DeliveryYard/BigTable/Top",
          (big_table_cx, big_table_cy, floor_z + table_top_z),
          (big_table_w, big_table_d, 0.10), mats["table_top"])
-    # Decorative rails on the two long edges (where belts arrive)
+    # Decorative rails on the two long edges (silver = LH side, gold = SC side)
     cube(stage, "/World/DeliveryYard/BigTable/Rail_S",
          (big_table_cx, big_table_cy - big_table_d / 2 + 0.05,
           floor_z + table_top_z + 0.06),
-         (big_table_w * 0.95, 0.08, 0.10), mats["conveyor_cold"])
+         (big_table_w * 0.95, 0.08, 0.10), mats["metal_silver"])
     cube(stage, "/World/DeliveryYard/BigTable/Rail_N",
          (big_table_cx, big_table_cy + big_table_d / 2 - 0.05,
           floor_z + table_top_z + 0.06),
-         (big_table_w * 0.95, 0.08, 0.10), mats["conveyor_hot"])
+         (big_table_w * 0.95, 0.08, 0.10), mats["metal_gold"])
     # Sample boxes ready for dispatch — spread across the longer Y span
     box_top_z = floor_z + table_top_z + 0.05 + 0.20
     for i, (dx, dy, led) in enumerate([
@@ -1452,30 +1462,30 @@ def main():
                          (big_table_cx + dx, dy, box_top_z),
                          (0.50, 0.36, 0.40), mats, led=led)
 
-    # ---- ONE LH belt -> big table (south edge) ----
+    # ---- ONE LH belt -> big table (south edge) — SILVER ----
     big_t_south = big_table_cy - big_table_d / 2  # +5.0
     big_t_north = big_table_cy + big_table_d / 2  # +10.0
     build_conveyor(stage, "/World/DeliveryYard/LH_Belt/X",
                    x_start=37.5, x_end=big_table_cx, y_center=0.0,
                    z_top=0.7, width=1.0, mats=mats,
-                   frame_mat_key="conveyor_cold")
+                   frame_mat_key="metal_silver")
     build_conveyor_Y(stage, "/World/DeliveryYard/LH_Belt/Y",
                      y_start=0.0, y_end=big_t_south,
                      x_center=big_table_cx,
                      z_top=0.7, width=1.0, mats=mats,
-                     frame_mat_key="conveyor_cold")
+                     frame_mat_key="metal_silver")
 
-    # ---- ONE SC belt -> big table (north edge) ----
+    # ---- ONE SC belt -> big table (north edge) — GOLD ----
     # SC now at cy=+22, east wall exit at Y=+22.
     build_conveyor(stage, "/World/DeliveryYard/SC_Belt/X",
                    x_start=37.5, x_end=big_table_cx, y_center=+22.0,
                    z_top=0.7, width=1.0, mats=mats,
-                   frame_mat_key="conveyor_hot")
+                   frame_mat_key="metal_gold")
     build_conveyor_Y(stage, "/World/DeliveryYard/SC_Belt/Y",
                      y_start=big_t_north, y_end=+22.0,
                      x_center=big_table_cx,
                      z_top=0.7, width=1.0, mats=mats,
-                     frame_mat_key="conveyor_hot")
+                     frame_mat_key="metal_gold")
 
     # ---- 3 STRAIGHT outgoing belts: big table east edge -> each truck (no bends) ----
     # Big Table now wide enough in Y to cover all 3 truck Y lanes, so each belt is

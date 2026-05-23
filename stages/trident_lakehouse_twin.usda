@@ -460,6 +460,48 @@ def Xform "World"
             }
         }
 
+        def Material "metal_bronze"
+        {
+            token outputs:surface.connect = </World/Materials/metal_bronze/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.72, 0.45, 0.22)
+                float inputs:metallic = 0
+                float inputs:roughness = 0.45
+                token outputs:surface
+            }
+        }
+
+        def Material "metal_silver"
+        {
+            token outputs:surface.connect = </World/Materials/metal_silver/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.78, 0.8, 0.84)
+                float inputs:metallic = 0
+                float inputs:roughness = 0.45
+                token outputs:surface
+            }
+        }
+
+        def Material "metal_gold"
+        {
+            token outputs:surface.connect = </World/Materials/metal_gold/PreviewSurface.outputs:surface>
+
+            def Shader "PreviewSurface"
+            {
+                uniform token info:id = "UsdPreviewSurface"
+                color3f inputs:diffuseColor = (0.98, 0.78, 0.18)
+                float inputs:metallic = 0
+                float inputs:roughness = 0.45
+                token outputs:surface
+            }
+        }
+
         def Material "truck_cab"
         {
             token outputs:surface.connect = </World/Materials/truck_cab/PreviewSurface.outputs:surface>
@@ -1358,7 +1400,7 @@ def Xform "World"
 
         def Cube "RawBucket"
         {
-            rel material:binding = </World/Materials/zone_color_2>
+            rel material:binding = </World/Materials/metal_bronze>
             double size = 1
             float3 xformOp:scale = (19, 14, 0.024)
             double3 xformOp:translate = (-4, 0, 0.012)
@@ -1367,7 +1409,7 @@ def Xform "World"
 
         def Cube "Pipeline"
         {
-            rel material:binding = </World/Materials/zone_color_3>
+            rel material:binding = </World/Materials/metal_silver>
             double size = 1
             float3 xformOp:scale = (16, 7, 0.024)
             double3 xformOp:translate = (13, 0, 0.012)
@@ -1376,7 +1418,7 @@ def Xform "World"
 
         def Cube "Lakehouse"
         {
-            rel material:binding = </World/Materials/zone_color_4>
+            rel material:binding = </World/Materials/metal_silver>
             double size = 1
             float3 xformOp:scale = (19, 14, 0.024)
             double3 xformOp:translate = (29, 0, 0.012)
@@ -1385,7 +1427,7 @@ def Xform "World"
 
         def Cube "Showcase"
         {
-            rel material:binding = </World/Materials/zone_color_5>
+            rel material:binding = </World/Materials/metal_gold>
             double size = 1
             float3 xformOp:scale = (19, 14, 0.024)
             double3 xformOp:translate = (29, 22, 0.012)
@@ -1586,7 +1628,7 @@ def Xform "World"
 
             def Cube "Rail_Y_neg"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_bronze>
                 double size = 1
                 float3 xformOp:scale = (5.6, 0.05, 0.24)
                 double3 xformOp:translate = (-15.1, -0.525, 0.715)
@@ -1595,7 +1637,7 @@ def Xform "World"
 
             def Cube "Rail_Y_pos"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_bronze>
                 double size = 1
                 float3 xformOp:scale = (5.6, 0.05, 0.24)
                 double3 xformOp:translate = (-15.1, 0.525, 0.715)
@@ -1664,7 +1706,7 @@ def Xform "World"
 
             def Cube "Leg_1_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_bronze>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (-16.5, -0.45, 0.26999999999999996)
@@ -1673,7 +1715,7 @@ def Xform "World"
 
             def Cube "Leg_1_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_bronze>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (-16.5, 0.45, 0.26999999999999996)
@@ -1682,7 +1724,7 @@ def Xform "World"
 
             def Cube "Leg_2_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_bronze>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (-13.7, -0.45, 0.26999999999999996)
@@ -1691,7 +1733,7 @@ def Xform "World"
 
             def Cube "Leg_2_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_bronze>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (-13.7, 0.45, 0.26999999999999996)
@@ -2474,7 +2516,7 @@ def Xform "World"
 
             def Cube "Rail_Y_neg"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (15.7, 0.05, 0.24)
                 double3 xformOp:translate = (12.549999999999999, -1.2249999999999999, 0.715)
@@ -2483,7 +2525,7 @@ def Xform "World"
 
             def Cube "Rail_Y_pos"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (15.7, 0.05, 0.24)
                 double3 xformOp:translate = (12.549999999999999, -0.17499999999999996, 0.715)
@@ -2682,7 +2724,7 @@ def Xform "World"
 
             def Cube "Leg_1_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (6.008333333333334, -1.15, 0.26999999999999996)
@@ -2691,7 +2733,7 @@ def Xform "World"
 
             def Cube "Leg_1_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (6.008333333333334, -0.24999999999999994, 0.26999999999999996)
@@ -2700,7 +2742,7 @@ def Xform "World"
 
             def Cube "Leg_2_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (8.625, -1.15, 0.26999999999999996)
@@ -2709,7 +2751,7 @@ def Xform "World"
 
             def Cube "Leg_2_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (8.625, -0.24999999999999994, 0.26999999999999996)
@@ -2718,7 +2760,7 @@ def Xform "World"
 
             def Cube "Leg_3_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (11.241666666666667, -1.15, 0.26999999999999996)
@@ -2727,7 +2769,7 @@ def Xform "World"
 
             def Cube "Leg_3_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (11.241666666666667, -0.24999999999999994, 0.26999999999999996)
@@ -2736,7 +2778,7 @@ def Xform "World"
 
             def Cube "Leg_4_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (13.858333333333334, -1.15, 0.26999999999999996)
@@ -2745,7 +2787,7 @@ def Xform "World"
 
             def Cube "Leg_4_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (13.858333333333334, -0.24999999999999994, 0.26999999999999996)
@@ -2754,7 +2796,7 @@ def Xform "World"
 
             def Cube "Leg_5_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (16.475, -1.15, 0.26999999999999996)
@@ -2763,7 +2805,7 @@ def Xform "World"
 
             def Cube "Leg_5_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (16.475, -0.24999999999999994, 0.26999999999999996)
@@ -2772,7 +2814,7 @@ def Xform "World"
 
             def Cube "Leg_6_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.09166666666667, -1.15, 0.26999999999999996)
@@ -2781,7 +2823,7 @@ def Xform "World"
 
             def Cube "Leg_6_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.09166666666667, -0.24999999999999994, 0.26999999999999996)
@@ -2802,7 +2844,7 @@ def Xform "World"
 
             def Cube "Rail_Y_neg"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (15.7, 0.05, 0.24)
                 double3 xformOp:translate = (12.549999999999999, 0.17499999999999996, 0.715)
@@ -2811,7 +2853,7 @@ def Xform "World"
 
             def Cube "Rail_Y_pos"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (15.7, 0.05, 0.24)
                 double3 xformOp:translate = (12.549999999999999, 1.2249999999999999, 0.715)
@@ -3010,7 +3052,7 @@ def Xform "World"
 
             def Cube "Leg_1_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (6.008333333333334, 0.24999999999999994, 0.26999999999999996)
@@ -3019,7 +3061,7 @@ def Xform "World"
 
             def Cube "Leg_1_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (6.008333333333334, 1.15, 0.26999999999999996)
@@ -3028,7 +3070,7 @@ def Xform "World"
 
             def Cube "Leg_2_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (8.625, 0.24999999999999994, 0.26999999999999996)
@@ -3037,7 +3079,7 @@ def Xform "World"
 
             def Cube "Leg_2_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (8.625, 1.15, 0.26999999999999996)
@@ -3046,7 +3088,7 @@ def Xform "World"
 
             def Cube "Leg_3_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (11.241666666666667, 0.24999999999999994, 0.26999999999999996)
@@ -3055,7 +3097,7 @@ def Xform "World"
 
             def Cube "Leg_3_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (11.241666666666667, 1.15, 0.26999999999999996)
@@ -3064,7 +3106,7 @@ def Xform "World"
 
             def Cube "Leg_4_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (13.858333333333334, 0.24999999999999994, 0.26999999999999996)
@@ -3073,7 +3115,7 @@ def Xform "World"
 
             def Cube "Leg_4_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (13.858333333333334, 1.15, 0.26999999999999996)
@@ -3082,7 +3124,7 @@ def Xform "World"
 
             def Cube "Leg_5_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (16.475, 0.24999999999999994, 0.26999999999999996)
@@ -3091,7 +3133,7 @@ def Xform "World"
 
             def Cube "Leg_5_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (16.475, 1.15, 0.26999999999999996)
@@ -3100,7 +3142,7 @@ def Xform "World"
 
             def Cube "Leg_6_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.09166666666667, 0.24999999999999994, 0.26999999999999996)
@@ -3109,7 +3151,7 @@ def Xform "World"
 
             def Cube "Leg_6_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.09166666666667, 1.15, 0.26999999999999996)
@@ -3143,7 +3185,7 @@ def Xform "World"
 
             def Cube "Rail_X_neg"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.05, 0.7, 0.24)
                 double3 xformOp:translate = (19.875, -0.35, 0.715)
@@ -3152,7 +3194,7 @@ def Xform "World"
 
             def Cube "Rail_X_pos"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.05, 0.7, 0.24)
                 double3 xformOp:translate = (20.924999999999997, -0.35, 0.715)
@@ -3181,7 +3223,7 @@ def Xform "World"
 
             def Cube "Leg_1_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.95, -0.5249999999999999, 0.26999999999999996)
@@ -3190,7 +3232,7 @@ def Xform "World"
 
             def Cube "Leg_1_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (20.849999999999998, -0.5249999999999999, 0.26999999999999996)
@@ -3199,7 +3241,7 @@ def Xform "World"
 
             def Cube "Leg_2_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.95, -0.17500000000000004, 0.26999999999999996)
@@ -3208,7 +3250,7 @@ def Xform "World"
 
             def Cube "Leg_2_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (20.849999999999998, -0.17500000000000004, 0.26999999999999996)
@@ -3229,7 +3271,7 @@ def Xform "World"
 
             def Cube "Rail_X_neg"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.05, 0.7, 0.24)
                 double3 xformOp:translate = (19.875, 0.35, 0.715)
@@ -3238,7 +3280,7 @@ def Xform "World"
 
             def Cube "Rail_X_pos"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.05, 0.7, 0.24)
                 double3 xformOp:translate = (20.924999999999997, 0.35, 0.715)
@@ -3267,7 +3309,7 @@ def Xform "World"
 
             def Cube "Leg_1_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.95, 0.175, 0.26999999999999996)
@@ -3276,7 +3318,7 @@ def Xform "World"
 
             def Cube "Leg_1_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (20.849999999999998, 0.175, 0.26999999999999996)
@@ -3285,7 +3327,7 @@ def Xform "World"
 
             def Cube "Leg_2_N"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (19.95, 0.5249999999999999, 0.26999999999999996)
@@ -3294,7 +3336,7 @@ def Xform "World"
 
             def Cube "Leg_2_P"
             {
-                rel material:binding = </World/Materials/conveyor_frame>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (20.849999999999998, 0.5249999999999999, 0.26999999999999996)
@@ -7334,7 +7376,7 @@ def Xform "World"
 
             def Cube "Rail_X_neg"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.05, 10, 0.24)
                 double3 xformOp:translate = (28.525000000000002, 11, 0.715)
@@ -7343,7 +7385,7 @@ def Xform "World"
 
             def Cube "Rail_X_pos"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.05, 10, 0.24)
                 double3 xformOp:translate = (29.474999999999998, 11, 0.715)
@@ -7472,7 +7514,7 @@ def Xform "World"
 
             def Cube "Leg_1_N"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (28.6, 7.25, 0.26999999999999996)
@@ -7481,7 +7523,7 @@ def Xform "World"
 
             def Cube "Leg_1_P"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (29.4, 7.25, 0.26999999999999996)
@@ -7490,7 +7532,7 @@ def Xform "World"
 
             def Cube "Leg_2_N"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (28.6, 9.75, 0.26999999999999996)
@@ -7499,7 +7541,7 @@ def Xform "World"
 
             def Cube "Leg_2_P"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (29.4, 9.75, 0.26999999999999996)
@@ -7508,7 +7550,7 @@ def Xform "World"
 
             def Cube "Leg_3_N"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (28.6, 12.25, 0.26999999999999996)
@@ -7517,7 +7559,7 @@ def Xform "World"
 
             def Cube "Leg_3_P"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (29.4, 12.25, 0.26999999999999996)
@@ -7526,7 +7568,7 @@ def Xform "World"
 
             def Cube "Leg_4_N"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (28.6, 14.75, 0.26999999999999996)
@@ -7535,7 +7577,7 @@ def Xform "World"
 
             def Cube "Leg_4_P"
             {
-                rel material:binding = </World/Materials/conveyor_promotion>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (0.1, 0.1, 0.54)
                 double3 xformOp:translate = (29.4, 14.75, 0.26999999999999996)
@@ -12573,7 +12615,7 @@ def Xform "World"
 
             def Cube "Rail_S"
             {
-                rel material:binding = </World/Materials/conveyor_cold>
+                rel material:binding = </World/Materials/metal_silver>
                 double size = 1
                 float3 xformOp:scale = (3.8, 0.08, 0.1)
                 double3 xformOp:translate = (52, 4.55, 1.01)
@@ -12582,7 +12624,7 @@ def Xform "World"
 
             def Cube "Rail_N"
             {
-                rel material:binding = </World/Materials/conveyor_hot>
+                rel material:binding = </World/Materials/metal_gold>
                 double size = 1
                 float3 xformOp:scale = (3.8, 0.08, 0.1)
                 double3 xformOp:translate = (52, 15.45, 1.01)
@@ -12925,7 +12967,7 @@ def Xform "World"
 
                 def Cube "Rail_Y_neg"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (14.5, 0.05, 0.24)
                     double3 xformOp:translate = (44.75, -0.525, 0.715)
@@ -12934,7 +12976,7 @@ def Xform "World"
 
                 def Cube "Rail_Y_pos"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (14.5, 0.05, 0.24)
                     double3 xformOp:translate = (44.75, 0.525, 0.715)
@@ -13123,7 +13165,7 @@ def Xform "World"
 
                 def Cube "Leg_1_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (38.95, -0.45, 0.26999999999999996)
@@ -13132,7 +13174,7 @@ def Xform "World"
 
                 def Cube "Leg_1_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (38.95, 0.45, 0.26999999999999996)
@@ -13141,7 +13183,7 @@ def Xform "World"
 
                 def Cube "Leg_2_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (41.85, -0.45, 0.26999999999999996)
@@ -13150,7 +13192,7 @@ def Xform "World"
 
                 def Cube "Leg_2_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (41.85, 0.45, 0.26999999999999996)
@@ -13159,7 +13201,7 @@ def Xform "World"
 
                 def Cube "Leg_3_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (44.75, -0.45, 0.26999999999999996)
@@ -13168,7 +13210,7 @@ def Xform "World"
 
                 def Cube "Leg_3_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (44.75, 0.45, 0.26999999999999996)
@@ -13177,7 +13219,7 @@ def Xform "World"
 
                 def Cube "Leg_4_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (47.65, -0.45, 0.26999999999999996)
@@ -13186,7 +13228,7 @@ def Xform "World"
 
                 def Cube "Leg_4_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (47.65, 0.45, 0.26999999999999996)
@@ -13195,7 +13237,7 @@ def Xform "World"
 
                 def Cube "Leg_5_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (50.55, -0.45, 0.26999999999999996)
@@ -13204,7 +13246,7 @@ def Xform "World"
 
                 def Cube "Leg_5_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (50.55, 0.45, 0.26999999999999996)
@@ -13225,7 +13267,7 @@ def Xform "World"
 
                 def Cube "Rail_X_neg"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.05, 4.5, 0.24)
                     double3 xformOp:translate = (51.475, 2.25, 0.715)
@@ -13234,7 +13276,7 @@ def Xform "World"
 
                 def Cube "Rail_X_pos"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.05, 4.5, 0.24)
                     double3 xformOp:translate = (52.525, 2.25, 0.715)
@@ -13293,7 +13335,7 @@ def Xform "World"
 
                 def Cube "Leg_1_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (51.55, 1.125, 0.26999999999999996)
@@ -13302,7 +13344,7 @@ def Xform "World"
 
                 def Cube "Leg_1_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (52.45, 1.125, 0.26999999999999996)
@@ -13311,7 +13353,7 @@ def Xform "World"
 
                 def Cube "Leg_2_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (51.55, 3.375, 0.26999999999999996)
@@ -13320,7 +13362,7 @@ def Xform "World"
 
                 def Cube "Leg_2_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_cold>
+                    rel material:binding = </World/Materials/metal_silver>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (52.45, 3.375, 0.26999999999999996)
@@ -13344,7 +13386,7 @@ def Xform "World"
 
                 def Cube "Rail_Y_neg"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (14.5, 0.05, 0.24)
                     double3 xformOp:translate = (44.75, 21.475, 0.715)
@@ -13353,7 +13395,7 @@ def Xform "World"
 
                 def Cube "Rail_Y_pos"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (14.5, 0.05, 0.24)
                     double3 xformOp:translate = (44.75, 22.525, 0.715)
@@ -13542,7 +13584,7 @@ def Xform "World"
 
                 def Cube "Leg_1_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (38.95, 21.55, 0.26999999999999996)
@@ -13551,7 +13593,7 @@ def Xform "World"
 
                 def Cube "Leg_1_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (38.95, 22.45, 0.26999999999999996)
@@ -13560,7 +13602,7 @@ def Xform "World"
 
                 def Cube "Leg_2_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (41.85, 21.55, 0.26999999999999996)
@@ -13569,7 +13611,7 @@ def Xform "World"
 
                 def Cube "Leg_2_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (41.85, 22.45, 0.26999999999999996)
@@ -13578,7 +13620,7 @@ def Xform "World"
 
                 def Cube "Leg_3_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (44.75, 21.55, 0.26999999999999996)
@@ -13587,7 +13629,7 @@ def Xform "World"
 
                 def Cube "Leg_3_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (44.75, 22.45, 0.26999999999999996)
@@ -13596,7 +13638,7 @@ def Xform "World"
 
                 def Cube "Leg_4_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (47.65, 21.55, 0.26999999999999996)
@@ -13605,7 +13647,7 @@ def Xform "World"
 
                 def Cube "Leg_4_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (47.65, 22.45, 0.26999999999999996)
@@ -13614,7 +13656,7 @@ def Xform "World"
 
                 def Cube "Leg_5_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (50.55, 21.55, 0.26999999999999996)
@@ -13623,7 +13665,7 @@ def Xform "World"
 
                 def Cube "Leg_5_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (50.55, 22.45, 0.26999999999999996)
@@ -13644,7 +13686,7 @@ def Xform "World"
 
                 def Cube "Rail_X_neg"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.05, 6.5, 0.24)
                     double3 xformOp:translate = (51.475, 18.75, 0.715)
@@ -13653,7 +13695,7 @@ def Xform "World"
 
                 def Cube "Rail_X_pos"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.05, 6.5, 0.24)
                     double3 xformOp:translate = (52.525, 18.75, 0.715)
@@ -13742,7 +13784,7 @@ def Xform "World"
 
                 def Cube "Leg_1_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (51.55, 17.125, 0.26999999999999996)
@@ -13751,7 +13793,7 @@ def Xform "World"
 
                 def Cube "Leg_1_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (52.45, 17.125, 0.26999999999999996)
@@ -13760,7 +13802,7 @@ def Xform "World"
 
                 def Cube "Leg_2_N"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (51.55, 20.375, 0.26999999999999996)
@@ -13769,7 +13811,7 @@ def Xform "World"
 
                 def Cube "Leg_2_P"
                 {
-                    rel material:binding = </World/Materials/conveyor_hot>
+                    rel material:binding = </World/Materials/metal_gold>
                     double size = 1
                     float3 xformOp:scale = (0.1, 0.1, 0.54)
                     double3 xformOp:translate = (52.45, 20.375, 0.26999999999999996)
