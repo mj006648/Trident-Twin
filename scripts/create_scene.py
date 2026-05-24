@@ -206,6 +206,73 @@ def zone_pad(stage, path, center, size, color_mat):
 
 
 # ============================================================================
+# Flat ground text — 5x7 pixel block alphabet, painted as thin cubes on floor.
+# Used for zone labels (INGEST ZONE / RAW BUCKET ZONE / ...) and truck labels.
+# ============================================================================
+ALPHABET_5x7 = {
+    "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
+    "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
+    "D": ["11110", "10001", "10001", "10001", "10001", "10001", "11110"],
+    "E": ["11111", "10000", "10000", "11110", "10000", "10000", "11111"],
+    "G": ["01111", "10000", "10000", "10011", "10001", "10001", "01111"],
+    "H": ["10001", "10001", "10001", "11111", "10001", "10001", "10001"],
+    "I": ["11111", "00100", "00100", "00100", "00100", "00100", "11111"],
+    "K": ["10001", "10010", "10100", "11000", "10100", "10010", "10001"],
+    "L": ["10000", "10000", "10000", "10000", "10000", "10000", "11111"],
+    "M": ["10001", "11011", "10101", "10001", "10001", "10001", "10001"],
+    "N": ["10001", "11001", "10101", "10101", "10101", "10011", "10001"],
+    "O": ["01110", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "P": ["11110", "10001", "10001", "11110", "10000", "10000", "10000"],
+    "R": ["11110", "10001", "10001", "11110", "10100", "10010", "10001"],
+    "S": ["01111", "10000", "10000", "01110", "00001", "00001", "11110"],
+    "T": ["11111", "00100", "00100", "00100", "00100", "00100", "00100"],
+    "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
+    "V": ["10001", "10001", "10001", "01010", "01010", "00100", "00100"],
+    "W": ["10001", "10001", "10001", "10001", "10101", "11011", "10001"],
+    "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
+    "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
+}
+
+
+def render_text(stage, root_path, text, center, mats,
+                pixel=0.12, height_z=0.04, color_key="black_panel"):
+    """Render TEXT flat on the ground at `center`, centered horizontally.
+
+    Text reads west-to-east (along +X), characters lying down so the camera
+    looking from -Y sees them right-side-up.
+    """
+    UsdGeom.Scope.Define(stage, root_path)
+    cx, cy, cz = center
+    char_w = 5 * pixel
+    char_h = 7 * pixel
+    gap = pixel
+    chars = list(text.upper())
+    total_w = sum(char_w if c != " " else char_w * 0.6 for c in chars) + gap * max(0, len(chars) - 1)
+    x = cx - total_w / 2
+    mat = mats[color_key]
+    cube_z = cz + height_z / 2
+    for ci, ch in enumerate(chars):
+        if ch == " ":
+            x += char_w * 0.6 + gap
+            continue
+        pattern = ALPHABET_5x7.get(ch)
+        if pattern is None:
+            x += char_w + gap
+            continue
+        for r, line in enumerate(pattern):
+            for c, p in enumerate(line):
+                if p != "1":
+                    continue
+                px = x + c * pixel + pixel / 2
+                py = cy + ((6 - r) - 3) * pixel  # row 0 = top (north)
+                cube(stage, f"{root_path}/C{ci}_R{r}_C{c}",
+                     (px, py, cube_z),
+                     (pixel * 0.92, pixel * 0.92, height_z), mat)
+        x += char_w + gap
+
+
+# ============================================================================
 # Box helpers
 # ============================================================================
 def make_raw_box(stage, path, pos, scale, mats, dark=False):
@@ -822,12 +889,6 @@ def _generic_van(stage, root_path, anchor_x, y_center, body_mat, accent_mat,
     cube(stage, f"{root_path}/RearDoorVert",
          (rear_x - sign_x * 0.01, y_center, body_cz),
          (0.02, 0.05, body_h * 0.88), mats["truck_wheel"])
-    cube(stage, f"{root_path}/AccentStripe",
-         (body_cx, y_center + body_w / 2 + 0.012, body_cz),
-         (body_len * 0.9, 0.025, 0.18), accent_mat)
-    cube(stage, f"{root_path}/LogoDecal",
-         (body_cx, y_center + body_w / 2 + 0.024, body_cz + body_h * 0.25),
-         (body_len * 0.4, 0.025, body_h * 0.3), accent_mat)
     # 4 wheels: 1 body axle (rear) + 1 cab axle (front)
     wheel_r = 0.42
     wheel_w = 0.32
@@ -1100,30 +1161,46 @@ def main():
     #   Trucks (facing east): rear at X=+59.5, cab to +X side
     # -------------------------------------------------------------------
 
-    # ===== Zone floor pads (colored identification, no signposts) =====
-    zone_pad(stage, "/World/ZonePads/Tower",       (-22,  -13), (6,  6),  mats["zone_color_9"])
-    zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,    0), (16, 8),  mats["zone_color_1"])
-    zone_pad(stage, "/World/ZonePads/RawBucket",   ( -4,    0), (19, 14), mats["metal_bronze"])
-    zone_pad(stage, "/World/ZonePads/Pipeline",    (+13,    0), (16, 7),  mats["metal_silver"])
-    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29,    0), (19, 14), mats["metal_silver"])
-    zone_pad(stage, "/World/ZonePads/Showcase",    (+29,  +22), (19, 14), mats["metal_gold"])
-    zone_pad(stage, "/World/ZonePads/LobbySearch", (+44, +10), (10, 11), mats["zone_color_0"])
-    zone_pad(stage, "/World/ZonePads/Delivery",    (+59,  +10), (22, 14), mats["zone_color_8"])
+    # ===== Zone floor pads (colored identification) + flat ground labels =====
+    # Pads were widened in Y so the painted text fits comfortably below the zone content.
+    zone_pad(stage, "/World/ZonePads/Tower",       (-22,  +25), (6,  6),  mats["zone_color_9"])
+    zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,    0), (16, 11), mats["metal_bronze"])
+    zone_pad(stage, "/World/ZonePads/RawBucket",   ( -4,    0), (19, 17), mats["metal_bronze"])
+    zone_pad(stage, "/World/ZonePads/Pipeline",    (+13,    0), (16, 10), mats["metal_silver"])
+    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29,    0), (19, 17), mats["metal_silver"])
+    zone_pad(stage, "/World/ZonePads/Showcase",    (+29,  +22), (19, 17), mats["metal_gold"])
+    zone_pad(stage, "/World/ZonePads/LobbySearch", (+44, +10), (10, 14), mats["zone_color_0"])
+    zone_pad(stage, "/World/ZonePads/Delivery",    (+59,  +10), (22, 17), mats["zone_color_8"])
 
-    # ===== Zone 9: Control Tower (stays at south-west) =====
-    build_control_tower(stage, "/World/ControlTower", cx=-22.0, cy=-13.0, mats=mats)
-    cube(stage, "/World/Operations/OperatorDesk", (-22.0, -12.5, 11.5),
+    # ----- Painted zone-name labels (black), flat on the ground, at south edge -----
+    render_text(stage, "/World/ZonePads/Labels/Ingest",
+                "INGEST ZONE",      (-22.0,  -4.7, 0.025), mats, pixel=0.14)
+    render_text(stage, "/World/ZonePads/Labels/RawBucket",
+                "RAW BUCKET ZONE",  ( -4.0,  -7.6, 0.025), mats, pixel=0.14)
+    render_text(stage, "/World/ZonePads/Labels/Accumulation",
+                "ACCUMULATION ZONE",(+13.0,  -4.3, 0.025), mats, pixel=0.10)
+    render_text(stage, "/World/ZonePads/Labels/Lakehouse",
+                "LAKEHOUSE ZONE",   (+29.0,  -7.6, 0.025), mats, pixel=0.14)
+    render_text(stage, "/World/ZonePads/Labels/Staging",
+                "STAGING ZONE",     (+29.0, +14.4, 0.025), mats, pixel=0.14)
+    render_text(stage, "/World/ZonePads/Labels/Search",
+                "SEARCH ZONE",      (+44.0,  +4.0, 0.025), mats, pixel=0.12)
+    render_text(stage, "/World/ZonePads/Labels/Delivery",
+                "DELIVERY ZONE",    (+59.0,  +2.6, 0.025), mats, pixel=0.14)
+    render_text(stage, "/World/ZonePads/Labels/Tower",
+                "TOWER",            (-22.0, +22.4, 0.025), mats, pixel=0.14)
+
+    # ===== Zone 9: Control Tower (moved north to (-22, +25)) =====
+    build_control_tower(stage, "/World/ControlTower", cx=-22.0, cy=+25.0, mats=mats)
+    cube(stage, "/World/Operations/OperatorDesk", (-22.0, +25.5, 11.5),
          (0.10, 0.10, 0.10), mats["operator"],
          name="System Operator Desk (Control Tower)",
          entity_id="operator.control", entity_type="operator",
          stage_name="monitoring")
 
-    # ===== Zone 1: Truck Yard (truck pushed further west, longer inbound belt) =====
+    # ===== Zone 1: Ingest / Truck Yard (no parking stripes) =====
     cube(stage, "/World/TruckYard/Asphalt", (-22.0, 0, -0.02),
          (14.0, 8.0, 0.05), mats["asphalt"])
-    for i, y in enumerate([-3.5, 3.5]):
-        cube(stage, f"/World/TruckYard/Stripe_{i + 1}",
-             (-22.0, y, 0.025), (14.0, 0.15, 0.01), mats["zone_color_1"])
     build_truck(stage, "/World/LoadingDock/Truck",
                 trailer_rear_x=-18.0, y_center=0.0, mats=mats)
 
@@ -1291,14 +1368,14 @@ def main():
     # Lakehouse openings:
     #   left  (X-): for audit incoming at Y=0
     #   right (X+): for cold belt outgoing to docks at Y=0
-    #   back  (Y+): for promotion belt up to Showcase at X=25
+    #   back  (Y+): for promotion belt up to Showcase at X=23 (gx_c=-6 from LH cx=29)
     build_warehouse(stage, "/World/Lakehouse",
                     center=(lh_cx, lh_cy, lh_cz + 0.10),
                     size=(lh_sx, lh_sy, lh_sz),
                     wall_mat=mats["glass_lakehouse"], frame_mat=mats["steel_frame"],
                     left_gap=(0.0, 1.4, 1.1),
                     right_gap=(0.0, 1.4, 1.1),
-                    back_gap=(0.0, 1.4, 1.1))
+                    back_gap=(-6.0, 1.4, 1.1))
     # Storage tables inside (5 cols x 4 rows = 20 tables) — fills the larger warehouse
     UsdGeom.Scope.Define(stage, "/World/Lakehouse/Tables")
     table_xs = [lh_cx - 7.5, lh_cx - 3.75, lh_cx, lh_cx + 3.75, lh_cx + 7.5]
@@ -1316,17 +1393,11 @@ def main():
                                 f"/World/Lakehouse/Tables/Table_{table_idx}",
                                 (tx, ty), mats,
                                 n_boxes=n_boxes, leds=led_choice)
-    # Lineage rays demo (3 thin colored beams between tables)
+    # Lineage rays demo — only the white table-lineage beam remains
     UsdGeom.Scope.Define(stage, "/World/Lakehouse/LineageRays")
     cube(stage, "/World/Lakehouse/LineageRays/Ray_Table_1",
          (lh_cx - 1.6, lh_cy - 2.2, lh_cz + 1.20),
          (3.0, 0.04, 0.04), mats["lineage_table"])
-    cube(stage, "/World/Lakehouse/LineageRays/Ray_Column_1",
-         (lh_cx, lh_cy + 0.0, lh_cz + 1.25),
-         (4.0, 0.04, 0.04), mats["lineage_column"])
-    cube(stage, "/World/Lakehouse/LineageRays/Ray_Impact_1",
-         (lh_cx + 1.6, lh_cy + 2.2, lh_cz + 1.30),
-         (3.0, 0.05, 0.05), mats["lineage_impact"])
     # Legacy compat shelves (tiny anchors)
     cube(stage, "/World/Lakehouse/StagingShelf1", (lh_cx, lh_cy - 2.2, 1.20),
          (0.05, 0.05, 0.05), mats["table_top"],
@@ -1354,7 +1425,7 @@ def main():
                     size=(sc_sx, sc_sy, sc_sz),
                     wall_mat=mats["glass_showcase"], frame_mat=mats["steel_frame"],
                     right_gap=(0.0, 1.4, 1.1),
-                    front_gap=(0.0, 1.4, 1.1))  # south opening for promotion belt
+                    front_gap=(-6.0, 1.4, 1.1))  # south opening at X=23 (gx_c=-6 from SC cx=29)
     # Living-room style cabinets — distributed across 3 rows (north wall, middle
     # freestanding, south wall) so the showcase doesn't feel wall-hugging only.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")
@@ -1384,9 +1455,10 @@ def main():
                                facing="north", popularity=pop)
 
     # ===== Lakehouse -> Showcase promotion belt (GOLD frame) =====
-    # Belt runs Y from +6 (LH north wall) to +16 (SC south wall) at X=29
+    # Belt runs Y from +6 (LH north wall) to +16 (SC south wall) at X=23
+    # (shifted west so it does not cover the STAGING ZONE floor label)
     build_conveyor_Y(stage, "/World/Lakehouse/PromotionConveyor",
-                     y_start=+6.0, y_end=+16.0, x_center=29.0,
+                     y_start=+6.0, y_end=+16.0, x_center=23.0,
                      z_top=0.7, width=0.9, mats=mats,
                      frame_mat_key="metal_gold")
 
@@ -1504,6 +1576,16 @@ def main():
                   truck_rear_x, dock_ys[1], mats)
     build_hpda_van(stage, "/World/DeliveryYard/Vehicle_HPDA",
                    truck_rear_x, dock_ys[2], mats)
+    # Painted truck labels ON TOP of each truck body, centered, flat
+    # AI: body_len=3.8, body_h=2.2  -> body_cx=63.9, top_z=3.05
+    # HPC: body_len=3.4, body_h=2.0 -> body_cx=63.7, top_z=2.85
+    # HPDA: body_len=3.6, body_h=2.0 -> body_cx=63.8, top_z=2.85
+    render_text(stage, "/World/DeliveryYard/Labels/AI",
+                "AI",   (63.9, dock_ys[0], 3.06), mats, pixel=0.10)
+    render_text(stage, "/World/DeliveryYard/Labels/HPC",
+                "HPC",  (63.7, dock_ys[1], 2.86), mats, pixel=0.08)
+    render_text(stage, "/World/DeliveryYard/Labels/HPDA",
+                "HPDA", (63.8, dock_ys[2], 2.86), mats, pixel=0.07)
 
     workloads = [
         ("AI",   truck_rear_x + 2.0, dock_ys[0], "workload.ai.001"),
