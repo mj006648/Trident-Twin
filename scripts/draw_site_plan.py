@@ -43,7 +43,7 @@ C_TOWER = "#4a6b9c"
 # Floor pad color per zone (top-down)
 ZONE_PADS = [
     # (cx, cy, w, h, fill, edge, label)
-    (-22, -13, 6, 6, "#c3d0e4", C_TOWER, "Zone 9\nControl Tower"),
+    (-22, +25, 6, 6, "#c3d0e4", C_TOWER, "Zone 9\nControl Tower"),
     (-22, 0, 14, 8, "#c8c8c8", "#666666", "Zone 1\nTruck Yard"),
     (-4, 0, 19, 14, C_BRONZE_FILL, C_BRONZE, "Zone 2  Raw Bucket  (Bronze)"),
     (13, 0, 16, 7, C_SILVER_FILL, C_SILVER, "Zone 3  Pipeline  (Silver)"),
@@ -76,8 +76,8 @@ CONVEYORS = [
     # Pipeline main + express (silver)
     (4.7, -0.7, 20.4, -0.7, C_SILVER, "Main Line (Silver, Full Mode)", (0, -0.8)),
     (4.7, 0.7, 20.4, 0.7, C_SILVER, "Express Line (Silver, Delta Mode)", (0, 0.8)),
-    # Promotion (gold) – drawn as Y belt
-    (29.0, 6.0, 29.0, 16.0, C_GOLD, "Promotion (Gold)\nLH → Showcase", (-1.7, 0)),
+    # Promotion (gold) – drawn as Y belt, shifted west to clear the STAGING label
+    (23.0, 6.0, 23.0, 16.0, C_GOLD, "Promotion (Gold)\nLH → Showcase", (-1.7, 0)),
     # LH → Big Table (silver)
     (37.5, 0.0, 52.0, 0.0, C_SILVER, "LH belt (Silver)", (0, -0.8)),
     (52.0, 0.0, 52.0, 4.5, C_SILVER, "", (0, 0)),
@@ -266,7 +266,7 @@ def main() -> None:
 
     draw_big_table(ax, *BIG_TABLE)
     draw_lobby_interior(ax, *LOBBY)
-    draw_control_tower(ax, -22, -13)
+    draw_control_tower(ax, -22, +25)
 
     for cx, cy, w, h, color, label in TRUCKS:
         draw_truck(ax, cx, cy, w, h, color, label)
