@@ -43,14 +43,14 @@ C_TOWER = "#4a6b9c"
 # Floor pad color per zone (top-down)
 ZONE_PADS = [
     # (cx, cy, w, h, fill, edge, label)
-    (-22, +25, 6, 6, "#c3d0e4", C_TOWER, "Zone 9\nControl Tower"),
-    (-22, 0, 14, 8, "#c8c8c8", "#666666", "Zone 1\nTruck Yard"),
+    (-22, +25, 6, 6, "#c3d0e4", C_TOWER, "Zone 7\nControl Tower"),
+    (-22, 0, 14, 8, C_BRONZE_FILL, C_BRONZE, "Zone 1 Data Ingest"),
     (-4, 0, 19, 14, C_BRONZE_FILL, C_BRONZE, "Zone 2  Raw Bucket  (Bronze)"),
-    (13, 0, 16, 7, C_SILVER_FILL, C_SILVER, "Zone 3  Pipeline  (Silver)"),
+    (13, 0, 22, 7, C_SILVER_FILL, C_SILVER, "Zone 3  Accumulation  (Silver)"),
     (29, 0, 19, 14, C_SILVER_FILL, C_SILVER, "Zone 4  Lakehouse  (Silver)"),
     (29, 22, 19, 14, C_GOLD_FILL, C_GOLD, "Zone 5  Showcase  (Gold)"),
-    (44, 10, 10, 11, C_LOBBY_FILL, C_LOBBY, "Zone 0+7\nLobby + Search"),
-    (59, 10, 22, 14, C_DELIVERY_FILL, C_DELIVERY, "Zone 8  Delivery Docks"),
+    (44, 10, 10, 11, C_LOBBY_FILL, "#222222", "Zone 0\nUser Control"),
+    (59, 10, 22, 14, C_DELIVERY_FILL, C_DELIVERY, "Zone 6  Delivery"),
 ]
 
 # Warehouse outlines (cx, cy, w, h, color, label)
@@ -71,13 +71,13 @@ STATIONS = [
 
 # Conveyors — list of (x1, y1, x2, y2, color, label, label_offset)
 CONVEYORS = [
-    # Inbound (bronze)
-    (-17.9, 0.0, -12.3, 0.0, C_BRONZE, "Inbound (Bronze)", (0, 0.6)),
+    # Ingest belt (bronze)
+    (-17.9, 0.0, -12.3, 0.0, C_BRONZE, "Ingest Belt\n(Bronze)", (0, 0.8)),
     # Pipeline main + express (silver)
     (4.7, -0.7, 20.4, -0.7, C_SILVER, "Main Line (Silver, Full Mode)", (0, -0.8)),
     (4.7, 0.7, 20.4, 0.7, C_SILVER, "Express Line (Silver, Delta Mode)", (0, 0.8)),
-    # Promotion (gold) – drawn as Y belt, shifted west to clear the STAGING label
-    (23.0, 6.0, 23.0, 16.0, C_GOLD, "Promotion (Gold)\nLH → Showcase", (-1.7, 0)),
+    # Staging belt (gold) – drawn as Y belt, shifted west to clear the STAGING label
+    (23.0, 6.0, 23.0, 16.0, C_GOLD, "Staging belt\n(Gold)", (-1.7, 0)),
     # LH → Big Table (silver)
     (37.5, 0.0, 52.0, 0.0, C_SILVER, "LH belt (Silver)", (0, -0.8)),
     (52.0, 0.0, 52.0, 4.5, C_SILVER, "", (0, 0)),
@@ -92,10 +92,10 @@ CONVEYORS = [
 
 # Trucks (cx, cy, w, h, color, label)
 TRUCKS = [
-    (-20.5, 0, 7.0, 2.4, "#e63b3b", "Inbound Truck"),
+    (-20.5, 0, 7.0, 2.4, "#e63b3b", "Ingest Truck"),
     (64, 6, 5.6, 2.2, "#27a040", "AI Truck"),
-    (64, 10, 4.8, 2.0, "#7d7f88", "HPC Van"),
-    (64, 14, 5.0, 2.0, "#4a76d6", "HPDA Van"),
+    (64, 10, 4.8, 2.0, "#7d7f88", "HPC Truck"),
+    (64, 14, 5.0, 2.0, "#4a76d6", "HPDA Truck"),
 ]
 
 # Big Consolidation Table
@@ -180,17 +180,17 @@ def draw_big_table(ax, cx, cy, w, h) -> None:
             color=C_SILVER, lw=2.5, zorder=6)
     ax.plot([cx - w / 2, cx + w / 2], [cy + h / 2 - 0.05, cy + h / 2 - 0.05],
             color=C_GOLD, lw=2.5, zorder=6)
-    ax.text(cx, cy, "Big\nConsolidation\nTable\n4×11m",
-            ha="center", va="center", fontsize=8.5, fontweight="bold",
+    ax.text(cx, cy, "Big Table\n4×11m",
+            ha="center", va="center", fontsize=10, fontweight="bold",
             color="white", zorder=7)
 
 
 def draw_lobby_interior(ax, cx, cy, w, h) -> None:
-    # Reception desk + search counter (long N-S desk in plaza center)
+    # Reception desk + search counter (teal desk, black text)
     ax.plot([cx, cx], [cy - 1.7, cy + 1.7], color="#0d6e72",
             lw=8, solid_capstyle="round", zorder=5)
     ax.text(cx, cy, "Search\nCounter", ha="center", va="center",
-            fontsize=7, color="white", fontweight="bold", zorder=6)
+            fontsize=7, color="#111111", fontweight="bold", zorder=6)
 
 
 def draw_control_tower(ax, cx, cy) -> None:
@@ -271,7 +271,6 @@ def main() -> None:
     for cx, cy, w, h, color, label in TRUCKS:
         draw_truck(ax, cx, cy, w, h, color, label)
 
-    draw_north_arrow(ax)
     draw_scale_bar(ax)
     draw_legend(ax)
 
