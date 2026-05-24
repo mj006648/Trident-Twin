@@ -1620,7 +1620,28 @@ def main():
          entity_id="metadata.sharing.dataset.sample.001",
          entity_type="metadata", stage_name="sharing")
 
-    # ===== Cameras =====
+    # ===== Top-down (90deg) per-zone capture cameras =====
+    # Position above each zone center, looking straight down. Default camera
+    # orientation is -Z forward / +Y up, so no rotation needed: standing at
+    # (cx, cy, h) with no rotation gives a top-down view with +X right, +Y up.
+    top_cams = [
+        ("Top_Overview",      ( 15,  +7, 95), 14),
+        ("Top_Ingest",        (-22,   0, 22), 22),
+        ("Top_RawBucket",     ( -4,   0, 28), 22),
+        ("Top_Accumulation",  (+13,   0, 22), 20),
+        ("Top_Lakehouse",     (+29,   0, 28), 22),
+        ("Top_Staging",       (+29, +22, 28), 22),
+        ("Top_Search",        (+44, +10, 22), 22),
+        ("Top_Delivery",      (+59, +10, 30), 22),
+        ("Top_Tower",         (-22, +25, 22), 22),
+    ]
+    UsdGeom.Scope.Define(stage, "/World/Cameras")
+    for name, pos, focal in top_cams:
+        tcam = UsdGeom.Camera.Define(stage, f"/World/Cameras/{name}")
+        UsdGeom.XformCommonAPI(tcam).SetTranslate(Gf.Vec3d(*pos))
+        tcam.CreateFocalLengthAttr(focal)
+
+    # ===== Existing oblique / cinematic cameras =====
     cam_overview = UsdGeom.Camera.Define(stage, "/World/Camera")
     UsdGeom.XformCommonAPI(cam_overview).SetTranslate(Gf.Vec3d(25, -34, 32))
     UsdGeom.XformCommonAPI(cam_overview).SetRotate(Gf.Vec3f(58, 0, 0))

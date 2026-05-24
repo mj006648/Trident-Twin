@@ -29706,6 +29706,72 @@ def Xform "World"
         }
     }
 
+    def Scope "Cameras"
+    {
+        def Camera "Top_Overview"
+        {
+            float focalLength = 14
+            double3 xformOp:translate = (15, 7, 95)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Ingest"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (-22, 0, 22)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_RawBucket"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (-4, 0, 28)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Accumulation"
+        {
+            float focalLength = 20
+            double3 xformOp:translate = (13, 0, 22)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Lakehouse"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (29, 0, 28)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Staging"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (29, 22, 28)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Search"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (44, 10, 22)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Delivery"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (59, 10, 30)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+
+        def Camera "Top_Tower"
+        {
+            float focalLength = 22
+            double3 xformOp:translate = (-22, 25, 22)
+            uniform token[] xformOpOrder = ["xformOp:translate"]
+        }
+    }
+
     def Camera "Camera"
     {
         float focalLength = 15
