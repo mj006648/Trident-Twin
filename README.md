@@ -2,6 +2,11 @@
 
 **NVIDIA Omniverse/Isaac Sim 기반 Trident Lakehouse Digital Twin PoC (v11.1)**
 
+![Trident Twin Conceptual Overview](overview.png)
+
+> Conceptual Overview — Trident Lakehouse를 항만·창고·진열대·고객 응대로 비유한 개념도.
+> Lake(트럭 유입) → Accumulation(컨베이어 위 메타 부여) → Lakehouse 진열대(Staging) → Adaptive Workload Interfaces(카트로 픽업하는 Delivery) → Operator(관제탑) 흐름을 보여준다.
+
 ![Trident Twin — Isaac Sim RTX render (oblique)](docs/screenshots/Obli_Overview.png)
 
 > 실제 Isaac Sim RTX 렌더 (45° 부감) — v11.1 facility 전체 조감.
@@ -9,14 +14,7 @@
 
 ![Trident Twin — Isaac Sim RTX render (top-down)](docs/screenshots/Top_Overview.png)
 
-> 동일 씬 90° 탑다운 RTX 렌더 — Site Plan과 같은 구도로 8개 zone 배치를 한눈에 보여준다.
-
----
-
-![Trident Twin Conceptual Overview](overview.png)
-
-> Conceptual Overview — Trident Lakehouse를 항만·창고·진열대·고객 응대로 비유한 개념도.
-> Lake(트럭 유입) → Accumulation(컨베이어 위 메타 부여) → Lakehouse 진열대(Staging) → Adaptive Workload Interfaces(카트로 픽업하는 Delivery) → Operator(관제탑) 흐름을 보여준다.
+> 동일 씬 90° 탑다운 RTX 렌더 — 아래 Site Plan과 같은 탑뷰 구도로 8개 zone 배치를 한눈에 보여준다.
 
 ![Trident Twin Site Plan](docs/site-plan.png)
 
@@ -24,11 +22,6 @@
 > Bronze(Raw) → Silver(Pipeline + Lakehouse) → Gold(Showcase) → Big Consolidation Table → 3 dock trucks.
 > 좌표는 `scripts/create_scene.py`의 USD stage와 1:1 일치 (1 unit = 1 m).
 > 재생성: `python3 scripts/draw_site_plan.py`
-
-![Trident Twin Elevation View](docs/elevation.png)
-
-> Elevation View — Site Plan의 짝(사이드뷰, X-Z). Y=0 메인 흐름 라인의 수직 높이를 보여준다. Showcase(Y=+22)는 LH 뒤에 가려져 있어 점선 ghost로 위쪽에 offset 표시.
-> 재생성: `python3 scripts/draw_elevation.py`
 
 ---
 
