@@ -1,473 +1,292 @@
 # Trident-Twin
 
-**Data Readiness / Usage Optimization Twin for the Trident Lakehouse**
+**Data Readiness / Usage Optimization Twin — Trident Lakehouse 공간 의사결정 인터페이스**
 
-Trident-Twin is not just a 3D visualization of a lakehouse. Its target role is a
-**spatial decision map** that helps Trident Portal users understand which data is
-ready, why it is searchable, and how it can be delivered to AI / HPC / HPDA
-workloads.
-
-![Trident Twin Conceptual Overview](overview.png)
-
-> Conceptual Overview — Trident-Twin reframed as a **Data Readiness / Usage
-> Optimization Twin**. The value loop is `Raw intake` → `Refinement + metadata`
-> → `Lakehouse Inventory` → `Ready Bundle staging` → `Search & workload use`.
-> Users should be able to judge “what can I use right now?” from box type,
-> count, pipeline step bars, readiness, and workload fit.
-
-![Trident Twin Site Plan](docs/site-plan.png)
-
-> Site Plan — the same coordinate system, but annotated around operational value:
-> raw object count → code-shaped pipeline operation bars → refined table inventory →
-> curated ready bundles → Search/Selection → AI/HPC/HPDA delivery.
-
-![Trident Twin Readiness Elevation](docs/elevation.png)
-
-> Elevation — raw boxes move through visible operation steps; each step produces
-> one new artifact or readiness bar. Staging is not a second warehouse; it is a
-> ready-to-use curated shelf above the Lakehouse Inventory flow.
-
-![Trident Twin Readiness Overview](docs/screenshots/00_overview.png)
-
-> Top-down schematic overview — the 8 zones are now explained as a data readiness
-> map. Legacy Isaac Sim RTX renders are kept only as physical-layout references
-> under [Legacy render references](#legacy-render-references).
-
+Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal 사용자가
+"지금 쓸 수 있는 데이터가 무엇인지"를 한눈에 판단할 수 있는 **공간형 의사결정 지도**다.
 
 ---
 
-## Current l40s / Isaac Sim deployment note
+## 씬 레이아웃 (2026-05-31 기준)
 
-This is the current working deployment used during the May 31, 2026 iteration.
+| 번호 | 존 | 역할 | 중심 좌표 (x, y) |
+|---|---|---|---|
+| 1 | **TRUCK YARD** | 트럭 + 인바운드 컨베이어로 원시 데이터 반입 | (-22, 0) |
+| 2 | **RAW BUCKET ZONE** | 창고 내부 5개 디렉터리 서브존, 태그 없는 갈색 박스 적재 | (-4, 11) |
+| 3 | **ACCUMULATION ZONE** | 2개 컨베이어 벨트를 가로지르는 5개 보안검색대 게이트 | (+13, 0) |
+| 4 | **LAKEHOUSE ZONE** | 통합 창고 — 하단 절반: 테이블 저장소, 상단 절반: 책꽂이 스테이징 | (+29, 11) |
+| 5 | **SEARCH ZONE** | 로비 + 검색 카운터, 사용자 인텐트 → 후보 데이터 하이라이트 | (+44, +10) |
+| 6 | **DELIVERY ZONE** | 통합 테이블 → 3개 아웃바운드 벨트 → AI/HPC/HPDA 트럭 | (+59, +10) |
+| 7 | **CONTROL TOWER** | 운영자 뷰 — 레디니스, 병목, 라이브 상태 모니터링 | (-22, +25) |
 
-| Item | Value |
-| --- | --- |
-| Host | `netai@l40s` |
-| Isaac container used for this project | `isaac-sim-ICH-strongest` |
-| Portal WebRTC endpoint | `10.38.38.197:49100` |
-| Persistent project path inside container | `/mnt/Trident-Twin-520d314` |
-| Latest generated scene | `stages/trident_lakehouse_twin_<timestamp>.usda` |
-| Replay scene | `/mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_replay.usda` |
+### Accumulation Zone 게이트 5개
 
-Use the `/mnt/...` path, not `/isaac-sim/...`, because `/mnt` is mounted from
-the host and survives container restart/recreation. Files copied only inside the
-container filesystem can disappear when the container is recreated.
+두 컨베이어 벨트(y=-0.7, y=+0.7)를 동시에 가로지르는 보안검색대 구조.
+필러가 바닥에서 올라오고, 크로스바가 두 레인을 모두 덮으며, 색깔 배지가 작업 종류를 나타낸다.
 
-### How to open in the running WebRTC session
+| 스텝 | 작업 | 배지 색 | 생성 아티팩트 |
+|---|---|---|---|
+| 1 | `audit_run` | 브론즈 | raw object / ingest 결과 |
+| 2 | `catalog_dataset_upsert` | 블루 | `catalog.datasets` 행 |
+| 3 | `schema_snapshot_recorded` | 옐로 | `catalog.schema_versions` 스냅샷 |
+| 4 | `semantic_location_policy_attached` | 퍼플 | Milvus/Redis/policy 바 |
+| 5 | `search_index_refreshed` | 그린 | 검색 가능한 카탈로그 인덱스 |
 
-In Isaac Sim WebRTC:
+### Lakehouse Zone 구조
 
-```text
-File > Open > /mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_replay.usda
-```
+- **하단 절반 (Y: -3.5 ~ +11.5)**: 테이블 저장소 — 4열 × 6행 실제 테이블, 위에 Iceberg 박스
+- **상단 절반 (Y: +14.5 ~ +26.5)**: 스테이징 — 책꽂이 선반 유닛 12개, 3단 × 박스 3개
 
-Choose the replay file when explaining the value flow because it contains the
-time-sampled movement and attributes for the dataset package. Choose the static
-file when only the spatial layout is needed.
+---
 
-### How the USD is organized
+## l40s / Isaac Sim 배포 현황
 
-The stage keeps the old physical warehouse metaphor but the canonical live
-vocabulary is under `/World/DataReadiness`:
+| 항목 | 값 |
+|---|---|
+| 호스트 | `netai@l40s` |
+| Isaac 컨테이너 | `isaac-sim-ICH-strongest` |
+| Portal WebRTC 엔드포인트 | `10.38.38.197:49100` |
+| 프로젝트 경로 (컨테이너 내) | `/mnt/Trident-Twin-520d314` |
+| 최신 생성 씬 | `stages/trident_lakehouse_twin_<YYYYMMDD_HHMM>.usda` |
+| 리플레이 씬 | `stages/trident_lakehouse_twin_replay.usda` |
 
-| USD path | Meaning |
-| --- | --- |
-| `/World/DataReadiness/RawObjects/*` | raw object boxes; count/volume before useful metadata |
-| `/World/DataReadiness/ProcessFlow/Step_*` | seven operation cards matching the real Portal/stats-service path |
-| `/World/DataReadiness/Inventory/*` | lakehouse table crates grouped by namespace/component |
-| `/World/DataReadiness/Inventory/*/ReadinessBars/*` | compact bars for schema, quality, semantic, location, policy readiness |
-| `/World/DataReadiness/ReadyBundles/*` | curated staging layer: baskets, joins, materialized collections |
-| `/World/DataReadiness/SearchSelection/*` | Portal search intent and readiness comparison targets |
-| `/World/DataReadiness/WorkloadDelivery/*` | AI/HPC/HPDA package/snippet delivery targets |
-| `/World/Datasets/DatasetPackage001` | replay protagonist; moves through the operation flow over time |
-
-The important design change is that the scene no longer tries to show many
-individual metadata stickers. Instead, it shows **what operation happened** and
-**what new artifact/bar appeared**. This matches the code path better and keeps
-the stage readable.
-
-### Five security-gate checkpoints in the Accumulation Zone
-
-Each gate straddles both conveyor belts simultaneously. Pillars rise from the
-floor, crossbar spans both lanes, and a colored badge identifies the step.
-
-| Step | Operation | Badge color | New artifact |
-| --- | --- | --- | --- |
-| 1 | `audit_run` | Bronze | raw object / ingest result |
-| 2 | `catalog_dataset_upsert` | Blue | `catalog.datasets` row |
-| 3 | `schema_snapshot_recorded` | Yellow | `catalog.schema_versions` snapshot |
-| 4 | `semantic_location_policy_attached` | Purple | Milvus/Redis/policy bars |
-| 5 | `search_index_refreshed` | Green | searchable catalog index |
-
-### Regenerate the USD in the container
+### USD 씬 재생성
 
 ```bash
-# From host
-cat scripts/create_scene.py | ssh netai@l40s "sudo tee /mnt/Trident-Twin-520d314/scripts/create_scene.py > /dev/null"
+# 호스트에서 실행
+cat scripts/create_scene.py | ssh netai@l40s \
+  "sudo tee /mnt/Trident-Twin-520d314/scripts/create_scene.py > /dev/null"
+
 ssh netai@l40s "sudo docker exec isaac-sim-ICH-strongest bash -c \
   'cd /mnt/Trident-Twin-520d314 && /isaac-sim/python.sh scripts/create_scene.py'"
 ```
 
-Output: `stages/trident_lakehouse_twin_<YYYYMMDD_HHMM>.usda`
-
-Open in Isaac Sim WebRTC:
-```text
+Isaac Sim WebRTC에서 열기:
+```
 File > Open > /mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_<timestamp>.usda
 ```
 
-### Live Trident Lakehouse binding
+---
 
-`twin-hub` can now run in fixture mode or stats-service live mode. The intended
-live path is:
+## Lakehouse 라이브 연동 구조
 
-```text
-Trident Portal stats-service
-  /api/v1/catalog/overview
-  /api/v1/catalog/datasets
-  /collection
+```
+Trident Portal stats-service (10.234.33.83)
+  GET /api/v1/catalog/overview   → datasets, integrity, pipeline_runs
+  GET /api/v1/catalog/datasets   → tags, namespace, row_count, size
+  GET /collection                → ready bundles / materialized collections
+        ↓  (HTTP, Bearer token)
+twin-hub (uvicorn, port 8765)
+  GET /api/twin/state            → entity_id → trident:* 속성 딕셔너리
+        ↓  (HTTP polling, Kit update loop)
+Isaac Sim extension (trident.twin)
+  _on_update() → _fetch_state() → _apply_state()
+  USD prim의 trident:* custom attribute를 매 N초마다 갱신
         ↓
-twin-hub /api/twin/entities, /api/twin/state
-        ↓
-Isaac Sim extension / USD prim attributes
-        ↓
-Portal Digital Twin WebRTC tab
+Portal Digital Twin WebRTC 탭 (10.38.38.197:49100)
 ```
 
-Run live mode by pointing `twin-hub` at the Portal stats-service:
+### 라이브 모드 실행
 
 ```bash
 cd /mnt/Trident-Twin-520d314/twin-hub
-TRIDENT_STATS_BASE_URL=http://<trident-portal-stats-service>:<port> \
-uvicorn app:app --host 0.0.0.0 --port 8765
+
+# Keycloak 토큰 발급 (trident-baseline-runner service account)
+TOKEN=$(kubectl exec -n trident deploy/stats-service -- \
+  python3 -c "
+import urllib.request, json, os
+r = urllib.request.urlopen(urllib.request.Request(
+  'http://10.38.38.220:8080/realms/trident/protocol/openid-connect/token',
+  data='grant_type=client_credentials&client_id=trident-baseline-runner&client_secret=SECRET'.encode(),
+  headers={'Content-Type':'application/x-www-form-urlencoded'}
+))
+print(json.loads(r.read())['access_token'])
+")
+
+TRIDENT_STATS_BASE_URL=http://10.234.33.83 \
+TRIDENT_STATS_TOKEN=$TOKEN \
+  uvicorn app:app --host 0.0.0.0 --port 8765
 ```
 
-Optional if the stats-service requires auth:
-
+또는 `run_live.sh` 사용:
 ```bash
-export TRIDENT_STATS_TOKEN=<bearer-token>
+cd /mnt/Trident-Twin-520d314/twin-hub
+TRIDENT_STATS_TOKEN=<token> bash run_live.sh
 ```
 
-Current limitation: the USD and `twin-hub` live contract are ready, but the Isaac
-Sim extension still needs the final polling/WebSocket loop to continuously apply
-`/api/twin/state` to prims during runtime. Until that loop is enabled, opening
-the replay USD shows the intended flow and attributes, while live backend changes
-are available through `twin-hub` but not automatically animated in the stage.
+Isaac Sim에서 extension 활성화 후 **Start Live** 버튼 → `http://l40s-ip:8765` 입력.
 
 ---
 
-## Product thesis
+## 연동 현황 및 남은 갭
 
-The core question is not “can we render the lakehouse in 3D?” The core question
-is:
+### 현재 작동 중
 
-> **Can the twin help users find usable data faster than a table/list UI alone?**
+| 항목 | 상태 |
+|---|---|
+| twin-hub fixture 모드 | 완료 — 토큰 없이 오프라인 테스트 가능 |
+| twin-hub live 모드 | 완료 — stats-service `/catalog/overview`, `/catalog/datasets`, `/collection` 읽기 |
+| Isaac Sim extension polling | 완료 — Kit update loop, 스레딩 없음 (크래시 없음) |
+| USD `trident:entity_id` 매핑 | 완료 — `_build_index()`로 stage 순회 후 entity_id → prim path 인덱스 |
+| 실제 live 데이터 반영 확인 | 완료 — `Live 7/25 prims updated` (7개 매칭) |
 
-A useful Trident-Twin should answer these questions at a glance:
+### 남은 갭 (우선순위 순)
 
-1. **What data exists?** — raw files, metadata files, Iceberg tables, derived collections.
-2. **How much exists?** — object count, table count, rows, namespace/component density.
-3. **How refined is it?** — schema readiness, Iceberg table state, quality score, lineage.
-4. **Which readiness bars are complete?** — schema, quality, semantic, location/share, policy, freshness, cache.
-5. **What is ready to use now?** — hot datasets, Dataset Basket items, recommended bundles, materialized collections.
-6. **Where can it be used?** — AI / HPC / HPDA workload delivery packages and snippets.
+#### 1순위: entity_id 정렬 (현재 7/25만 매칭)
 
-This makes the twin an **operational decision interface**, not a decorative
-viewer. The spatial layout exists to make readiness, missing bars, hot
-resources, and workload fit easier to compare.
+**원인**: USD 씬의 entity_id가 fixture 네임스페이스(`camera`, `lidar`)를 사용하는데,
+실제 Lakehouse 데이터는 `autonomous_test`, `autonomous_weather` 네임스페이스를 사용.
 
----
+**해결 방법**:
+- stats-service에서 실제 네임스페이스/테이블명을 읽어서 `create_scene.py`의
+  `inventory_specs`를 동적으로 생성하는 스크립트 추가
+- 또는 twin-hub가 entity_id를 USD 씬의 prim 이름 패턴에 맞게 매핑하는 변환 레이어 추가
 
-## Concept model
+```python
+# twin-hub가 생성하는 entity_id 예시 (현재)
+"table.autonomous_test.sensor_frames"
 
-```text
-Raw Bucket
-  → Refinement Pipeline
-      ├─ Step 1 audit_run → raw object
-      ├─ Step 2 catalog_dataset_upsert → catalog.datasets row
-      ├─ Step 3 schema_snapshot_recorded → schema_versions snapshot
-      ├─ Step 4 semantic_location_policy_attached → Milvus/Redis/policy bars
-      ├─ Step 5 search_index_refreshed → searchable index
-      ├─ Step 6 collection_or_join_created → ready bundle / CTAS collection
-      └─ Step 7 workload_delivery_snippet → AI/HPC/HPDA snippet
-  → Lakehouse Inventory
-      ├─ table crates by namespace / component
-      ├─ compact readiness bars: schema, quality, semantic, location, policy
-      └─ usage heat / freshness / cache state
-  → Staging / Ready Bundles
-      ├─ hot datasets
-      ├─ Dataset Basket candidates
-      ├─ recommended joins / collections
-      └─ workload-ready packages
-  → Search & Workload Delivery
-      ├─ highlight candidate data
-      ├─ compare readiness
-      ├─ explain missing tags / bottlenecks
-      └─ deliver URI / SQL / Spark snippets to AI · HPC · HPDA
+# USD 씬에 있어야 할 trident:entity_id (현재는 fixture)
+"table.camera.frames"
 ```
 
-### Lakehouse Inventory vs Staging
+**단기 해결책**: `create_scene.py`를 stats-service 데이터 기반으로 재생성하는
+`scripts/sync_scene_from_live.py` 스크립트 작성.
 
-Do **not** merge Lakehouse and Staging into one vague warehouse.
+#### 2순위: Keycloak 토큰 자동 갱신 (현재 1시간 TTL)
 
-| Layer | Meaning | What users learn |
-| --- | --- | --- |
-| **Lakehouse Inventory** | Full refined data inventory; close to Iceberg/Nessie source of truth | What exists, how much exists, how it is organized, and what metadata is attached |
-| **Staging / Ready Bundles** | Curated usage layer; Portal basket / hot collection / recommended combination / materialized collection | What is likely useful now, what can be selected quickly, and which workload it fits |
+**원인**: `trident-baseline-runner` client_credentials 토큰은 1시간 후 만료.
+twin-hub 재시작 없이는 401 에러 발생.
 
-They may be physically close in the scene, but conceptually they must remain
-separate: **Inventory shows all refined resources; Staging shows fast-use
-candidates.**
+**해결 방법**: twin-hub 내부에 토큰 갱신 로직 추가.
 
----
-
-## Visual grammar
-
-The figures and future USD scene should use a stable vocabulary so users can
-read the twin quickly.
-
-| Visual object | Meaning | Quantity / density | Tags shown |
-| --- | --- | --- | --- |
-| Brown raw box | Source object without useful metadata | raw object count, namespace piles | source, size, arrival time |
-| Silver table crate | Refined Iceberg table | table count, row/object volume, partition density | schema, quality, Nessie commit |
-| Blue top bar | schema/table registered | Iceberg/catalog presence | table, schema, Nessie commit |
-| Yellow top bar | quality/integrity measured | rule pass / integrity percentage | health, row/file count |
-| Purple top bar | Milvus semantic metadata | embedding/vector coverage | topic, modality, similarity |
-| Cyan top bar | Redis/location/path metadata | URI count, cache hit/freshness | location, cache, published/private |
-| Green top bar | policy/readiness OK | readiness score / policy pass | allowed, quality passed, lineage tracked |
-| Yellow/gold bundle | Staging ready-to-use candidate | basket size, access frequency | workload fit, confidence, last used |
-| Workload cart/truck | AI/HPC/HPDA delivery package | delivery queue/state | URI, SQL, Spark snippet, owner |
-
-This is the main value: “many boxes” should not be decoration. It should mean
-resource volume, metadata coverage, readiness, or usage pressure.
-
----
-
-## Data Readiness layout — 8 zones
-
-| # | Zone | Role | Center (x, y) | Stage |
-| --- | --- | --- | --- | --- |
-| 1 | **TRUCK YARD** | Raw data arrives from inbound sources via truck + inbound conveyor | (-22, 0) | Bronze intake |
-| 2 | **RAW BUCKET ZONE** | Warehouse with 5 directory sub-zones; untagged brown boxes pile up inside | (-4, 11) | Bronze raw |
-| 3 | **ACCUMULATION ZONE** | 5 security-gate checkpoints spanning both conveyor belts; badge color = operation type | (+13, 0) | Silver refinement |
-| 4 | **LAKEHOUSE ZONE** | Unified warehouse — lower half: storage tables with Iceberg boxes; upper half: bookshelf staging units | (+29, 11) | Silver inventory + Gold staging |
-| 5 | **SEARCH ZONE** | Lobby + search counter; user intent highlights candidates and compares readiness | (+44, +10) | Selection |
-| 6 | **DELIVERY ZONE** | Big consolidation table → 3 outgoing belts → AI/HPC/HPDA trucks | (+59, +10) | Usage |
-| 7 | **CONTROL TOWER** | Operator view of readiness, bottlenecks, and live state | (-22, +25) | Monitoring |
-
----
-
-## Current usability
-
-### Usable now
-
-The repository is currently useful for:
-
-- **Explaining the thesis** to a professor/reviewer: why the twin has value beyond visualization.
-- **Showing a design direction** with concrete diagrams, not only text.
-- **Demonstrating a PoC flow** from raw data to refined inventory to ready bundles to workload delivery.
-- **Keeping an executable skeleton**: USD scene generation, mock event replay, and a stub `twin-hub` API.
-
-### Not yet production-usable
-
-It is **not yet** a real operational data-finding tool because these parts are
-still missing or stubbed:
-
-- production deployment of live source bindings from Trident Portal stats-service;
-- real table/object/row counts flowing into the scene;
-- richer metadata coverage details from Milvus/Redis/PostgreSQL beyond the current stats-service adapter;
-- Portal search selection ↔ Omniverse prim highlight synchronization;
-- ready bundle generation from real Dataset Basket / collection / access-frequency data;
-- WebSocket stream from live Trident events;
-- persistent deployment wiring so the Isaac extension polls/streams `twin-hub` automatically.
-
-### Practical verdict
-
-**For presentation / design review: yes, this is usable.**
-
-It now clearly shows the intended value: helping users quickly find, compare,
-and use ready data.
-
-**For real users operating Trident today: not yet.**
-
-The next engineering step is to connect the visual grammar to real backend
-signals so that boxes and tags are not hand-authored diagrams but live state.
-
----
-
-## Implementation status
-
-Completed in this repository:
-
-- Data Readiness / Usage Optimization concept documented in `README.md`.
-- Regenerated schematic figures:
-  - `overview.png`
-  - `docs/site-plan.png`
-  - `docs/elevation.png`
-  - `docs/screenshots/00_overview.png … 08_tower.png`
-- Matplotlib diagram generators:
-  - `scripts/draw_overview.py`
-  - `scripts/draw_site_plan.py`
-  - `scripts/draw_elevation.py`
-  - `scripts/render_topdown_diagrams.py`
-- Data Readiness USD prim vocabulary is now implemented in the scene generator:
-  - `/World/DataReadiness/RawObjects/*`
-  - `/World/DataReadiness/ProcessFlow/Step_*`
-  - `/World/DataReadiness/Inventory/*`
-  - `/World/DataReadiness/ReadyBundles/*`
-  - `/World/DataReadiness/SearchSelection/*`
-  - `/World/DataReadiness/WorkloadDelivery/*`
-- Fixture data and replay now carry readiness fields such as `semantic_ready`,
-  `location_ready`, `policy_ready`, `readiness_score`, `workload_fit`,
-  `selected_bundle`, and `delivery_package`.
-- Existing Isaac Sim / USD PoC assets remain under `stages/`; regenerate them
-  with Isaac Sim Python after pulling the latest generator changes.
-- Existing `twin-hub` FastAPI service now has two modes:
-  - fixture mode for offline replay;
-  - live mode via `TRIDENT_STATS_BASE_URL`, reading Trident Portal stats-service
-    endpoints: `/api/v1/catalog/overview`, `/api/v1/catalog/datasets`, and
-    `/collection`.
-
-Next implementation targets:
-
-1. Regenerate `stages/trident_lakehouse_twin.usda` and
-   `stages/trident_lakehouse_twin_replay.usda` inside the Isaac Sim container.
-2. Run `twin-hub` next to the Portal stats-service with `TRIDENT_STATS_BASE_URL`
-   configured and point the Isaac extension at `/api/twin/state`.
-3. Add Portal ↔ Twin synchronization: search result selection highlights
-   matching prims; selected bundles move to delivery.
-4. Add WebSocket streaming for live state diffs.
-5. Add direct Milvus/Redis/PostgreSQL detail enrichers only if stats-service
-   does not expose enough metadata.
-
----
-
-## Repository contents
-
-| Path | Description |
-| --- | --- |
-| `README.md` | Current product/design source of truth |
-| `overview.png` | Data Readiness / Usage Optimization concept overview |
-| `docs/site-plan.png` | Top-down data readiness site plan |
-| `docs/elevation.png` | Side-view readiness elevation |
-| `docs/screenshots/00_overview.png … 08_tower.png` | Zone-level schematic top-down diagrams |
-| `scripts/draw_overview.py` | Generates `overview.png` |
-| `scripts/draw_site_plan.py` | Generates `docs/site-plan.png` |
-| `scripts/draw_elevation.py` | Generates `docs/elevation.png` |
-| `scripts/render_topdown_diagrams.py` | Generates schematic zone PNGs |
-| `scripts/create_scene.py` | Isaac Sim Python USD scene generator |
-| `scripts/replay_events.py` | Applies mock event replay into USD |
-| `data/twin_entities.json` | Fixture entity definitions |
-| `data/mock_twin_events.json` | Fixture event timeline |
-| `twin-hub/` | FastAPI read-only state adapter stub |
-| `exts/trident.twin/` | Omniverse Kit extension skeleton |
-| `stages/` | Generated USD stages |
-
----
-
-## Regenerate diagrams
-
-```bash
-cd /home/chang/git/Trident-Twin
-
-python3 scripts/draw_overview.py
-python3 scripts/draw_site_plan.py
-python3 scripts/draw_elevation.py
-python3 scripts/render_topdown_diagrams.py
+```python
+# twin-hub/app.py에 추가할 토큰 관리
+class TokenCache:
+    def __init__(self):
+        self._token = os.getenv("TRIDENT_STATS_TOKEN", "")
+        self._expires_at = 0.0
+    
+    def get(self) -> str:
+        if time.time() < self._expires_at - 60:
+            return self._token
+        # client_credentials grant로 재발급
+        ...
 ```
 
-## Regenerate USD stage
+#### 3순위: Portal WebRTC ↔ USD prim 선택 동기화
 
-Isaac Sim Python is required because normal Python usually does not provide
-`pxr`/USD bindings.
+**현재**: Portal Digital Twin 탭은 Isaac Sim WebRTC 스트림을 iframe으로 표시.
+사용자가 Portal에서 데이터셋을 선택해도 USD 씬에서 해당 prim이 하이라이트되지 않음.
 
-```bash
-cd /home/chang/git/Trident-Twin
+**해결 방법**:
+- twin-hub에 `POST /api/twin/select` 엔드포인트 추가
+- Isaac Sim extension에서 해당 entity_id의 prim을 선택/하이라이트
+- Portal 검색 결과 클릭 → twin-hub → extension → USD prim 하이라이트
 
-/home/chang/isaac-sim/python.sh scripts/create_scene.py
-/home/chang/isaac-sim/python.sh scripts/replay_events.py
-```
+#### 4순위: WebSocket 스트림 (현재 HTTP polling)
 
-Open the replay stage in Isaac Sim:
-
-```text
-File → Open → /home/chang/git/Trident-Twin/stages/trident_lakehouse_twin_replay.usda
-```
-
-## Run twin-hub stub
-
-```bash
-cd /home/chang/git/Trident-Twin/twin-hub
-uvicorn app:app --reload --port 8765
-```
-
-Endpoints:
-
-| Method | Path | Returns |
-| --- | --- | --- |
-| GET | `/api/twin/health` | liveness |
-| GET | `/api/twin/entities` | fixture entity list |
-| GET | `/api/twin/state` | latest `trident:*` state snapshot |
-| GET | `/api/twin/events?since=<ts>` | event timeline filter |
+**현재**: extension이 매 N초마다 `/api/twin/state` HTTP GET.
+**개선**: `/api/twin/ws` WebSocket으로 diff만 푸시 → 반응 지연 제거.
 
 ---
 
-## Verification
+## USD `trident:*` 속성 계약
 
-```bash
-cd /home/chang/git/Trident-Twin
+twin-hub `/api/twin/state`가 반환하는 entity_id → 속성 딕셔너리가
+Isaac Sim extension에 의해 USD prim의 custom attribute로 기록됨.
 
-python3 -m json.tool data/twin_entities.json >/dev/null
-python3 -m json.tool data/mock_twin_events.json >/dev/null
-python3 -m py_compile \
-  scripts/draw_overview.py \
-  scripts/draw_site_plan.py \
-  scripts/draw_elevation.py \
-  scripts/render_topdown_diagrams.py \
-  scripts/create_scene.py \
-  scripts/replay_events.py \
-  exts/trident.twin/trident/twin/extension.py
-python3 twin-hub/test_stub.py
-test -s stages/trident_lakehouse_twin.usda
-test -s stages/trident_lakehouse_twin_replay.usda
+| USD 경로 패턴 | entity_id 패턴 | 주요 속성 |
+|---|---|---|
+| `/World/DataReadiness/RawObjects/RawObject_*` | `raw.object.01` ~ `raw.object.20` | `trident:object_count`, `trident:stage` |
+| `/World/DataReadiness/ProcessFlow/Step_*` | `operation.01.audit_run` ~ `operation.05.*` | `trident:status`, `trident:step_no` |
+| `/World/DataReadiness/Inventory/*/*` | `table.<namespace>.<component>` | `trident:row_count`, `trident:readiness_score`, `trident:quality_score` |
+| `/World/DataReadiness/ReadyBundles/*` | `bundle.<name>` | `trident:confidence`, `trident:workload_fit` |
+| `/World/DataReadiness/SearchSelection/*` | `search.intent.*` | `trident:candidate_count`, `trident:selection_state` |
+| `/World/DataReadiness/WorkloadDelivery/*` | `delivery.package.<type>.*` | `trident:delivery_ready`, `trident:snippet_type` |
+
+---
+
+## 실제 stats-service 엔드포인트
+
+| 엔드포인트 | 용도 | twin-hub 매핑 |
+|---|---|---|
+| `GET /api/v1/catalog/overview` | 전체 데이터셋 요약 + pipeline_runs | `_operation_entities()` |
+| `GET /api/v1/catalog/datasets?limit=100` | 상세 테이블 정보 (row_count, tags, nessie_commit) | `_dataset_entity()` |
+| `GET /collection` | Redis 기반 materialized collection 목록 | `_collection_entities()` |
+| `POST /audit/run?namespace=<ns>` | 카탈로그 갱신 트리거 (Spark job) | twin-hub 미구현, 수동 호출 |
+
+현재 Nessie 카탈로그에는 `autonomous_test`, `autonomous_weather` 2개 네임스페이스,
+총 95개 엔트리 등록됨 (2026-05-28 기준).
+
+---
+
+## 시각 문법
+
+| 시각 객체 | 의미 | 수량/밀도 |
+|---|---|---|
+| 갈색 박스 | 메타데이터 없는 원시 소스 오브젝트 | raw object count |
+| 흰색 테이블 + Iceberg 박스 | 정제된 Iceberg 테이블 | 테이블 수, row/object 볼륨 |
+| 보안검색대 게이트 | 파이프라인 작업 체크포인트 | 배지 색 = 작업 종류 |
+| 책꽂이 선반 + 박스 | 스테이징된 레디 번들 / 컬렉션 | 선반 = 네임스페이스, 박스 = 테이블 |
+| 금색/노란 번들 트레이 | 사용 준비된 큐레이션 번들 | 신뢰도 배지 |
+| 보라색 패키지 | AI/HPC/HPDA 워크로드 딜리버리 패키지 | 딜리버리 큐 상태 |
+
+---
+
+## 저장소 구조
+
+| 경로 | 설명 |
+|---|---|
+| `README.md` | 설계 및 연동 명세 |
+| `scripts/create_scene.py` | Isaac Sim Python USD 씬 생성기 |
+| `scripts/replay_events.py` | mock 이벤트 리플레이 적용 |
+| `twin-hub/app.py` | FastAPI 상태 어댑터 (fixture + live 모드) |
+| `twin-hub/run_live.sh` | stats-service 연결 live 실행 스크립트 |
+| `exts/trident.twin/trident/twin/extension.py` | Omniverse Kit extension (polling loop) |
+| `data/twin_entities.json` | fixture entity 정의 |
+| `data/mock_twin_events.json` | fixture 이벤트 타임라인 |
+| `stages/` | 생성된 USD 씬 파일들 |
+
+---
+
+## 제품 명제
+
+핵심 질문은 "레이크하우스를 3D로 렌더링할 수 있는가?"가 아니다.
+
+> **트윈이 테이블/리스트 UI만으로는 불가능한, 더 빠른 데이터 탐색 의사결정을 가능하게 하는가?**
+
+유용한 Trident-Twin이 한눈에 답해야 하는 질문:
+
+1. **어떤 데이터가 있는가?** — raw 파일, Iceberg 테이블, 파생 컬렉션
+2. **얼마나 있는가?** — object count, 테이블 수, row 수, 네임스페이스/컴포넌트 밀도
+3. **얼마나 정제되어 있는가?** — 스키마 레디니스, Iceberg 상태, quality score
+4. **지금 바로 쓸 수 있는 것은?** — hot 데이터셋, Dataset Basket 항목, 레디 번들
+5. **어디에 쓸 수 있는가?** — AI / HPC / HPDA 워크로드 딜리버리 패키지
+
+---
+
+## 연동 관련 다른 저장소
+
+| 저장소 | 역할 |
+|---|---|
+| `Trident-Portal` | 검색, Dataset Basket, 워크로드 딜리버리, WebRTC 뷰어, stats-service |
+| `TwinX-Ops` | Kubernetes / ArgoCD 배포 소스 오브 트루스 |
+| `Trident-Twin` | 데이터 레디니스 트윈, USD 씬, 이벤트 리플레이, 라이브 상태 투영 |
+
+---
+
+## 설계 원칙
+
+Omniverse는 소스 오브 트루스가 아니다.
+
 ```
-
----
-
-## Integration with other repositories
-
-| Repository | Role |
-| --- | --- |
-| `Trident-Portal` | Search, Dataset Basket, workload delivery, WebRTC viewer, stats-service |
-| `TwinX-Ops` | Kubernetes / ArgoCD deployment source of truth |
-| `Trident-Twin` | Data readiness twin, USD scene, event replay, live state projection |
-
----
-
-## Design principle
-
-Omniverse is not the source of truth.
-
-```text
-Source of truth:
+소스 오브 트루스:
   Iceberg / Nessie / Redis / Milvus / PostgreSQL / Stats Service / Portal
 
-Twin role:
-  spatial projection of readiness, metadata coverage, usage pressure,
-  candidate bundles, bottlenecks, and workload delivery state
+트윈의 역할:
+  레디니스, 메타데이터 커버리지, 사용 압력, 후보 번들,
+  병목, 워크로드 딜리버리 상태의 공간적 투영
 ```
 
-The twin becomes valuable only when it helps users make a faster and better data
-selection decision.
-
----
-
-## Legacy render references
-
-The following images are retained as references for the current physical USD
-layout, but they are no longer the primary explanation of the product value:
-
-- `docs/screenshots/Obli_Overview.png`
-- `docs/screenshots/Top_Overview.png`
-
-They should be regenerated after the USD scene adopts the Data Readiness visual
-grammar.
+트윈은 사용자가 더 빠르고 나은 데이터 선택 결정을 내릴 수 있을 때만 가치 있다.
