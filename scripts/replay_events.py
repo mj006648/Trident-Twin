@@ -47,6 +47,13 @@ def main():
     metadata_attr = dataset.GetAttribute("trident:metadata_status") or dataset.CreateAttribute("trident:metadata_status", Sdf.ValueTypeNames.String)
     sharing_attr = dataset.GetAttribute("trident:sharing_status") or dataset.CreateAttribute("trident:sharing_status", Sdf.ValueTypeNames.String)
     access_attr = dataset.GetAttribute("trident:access_frequency") or dataset.CreateAttribute("trident:access_frequency", Sdf.ValueTypeNames.Int)
+    semantic_attr = dataset.GetAttribute("trident:semantic_ready") or dataset.CreateAttribute("trident:semantic_ready", Sdf.ValueTypeNames.Bool)
+    location_attr = dataset.GetAttribute("trident:location_ready") or dataset.CreateAttribute("trident:location_ready", Sdf.ValueTypeNames.Bool)
+    policy_attr = dataset.GetAttribute("trident:policy_ready") or dataset.CreateAttribute("trident:policy_ready", Sdf.ValueTypeNames.Bool)
+    readiness_attr = dataset.GetAttribute("trident:readiness_score") or dataset.CreateAttribute("trident:readiness_score", Sdf.ValueTypeNames.Float)
+    fit_attr = dataset.GetAttribute("trident:workload_fit") or dataset.CreateAttribute("trident:workload_fit", Sdf.ValueTypeNames.String)
+    bundle_attr = dataset.GetAttribute("trident:selected_bundle") or dataset.CreateAttribute("trident:selected_bundle", Sdf.ValueTypeNames.String)
+    delivery_attr = dataset.GetAttribute("trident:delivery_package") or dataset.CreateAttribute("trident:delivery_package", Sdf.ValueTypeNames.String)
     event_attr = dataset.GetAttribute("trident:last_event") or dataset.CreateAttribute("trident:last_event", Sdf.ValueTypeNames.String)
 
     for event in timeline:
@@ -57,6 +64,13 @@ def main():
         metadata_attr.Set(event.get("metadata_status", "none"), t)
         sharing_attr.Set(event.get("sharing_status", "private"), t)
         access_attr.Set(int(event.get("access_frequency", 0)), t)
+        semantic_attr.Set(bool(event.get("semantic_ready", False)), t)
+        location_attr.Set(bool(event.get("location_ready", False)), t)
+        policy_attr.Set(bool(event.get("policy_ready", False)), t)
+        readiness_attr.Set(float(event.get("readiness_score", 0.0)), t)
+        fit_attr.Set(str(event.get("workload_fit", "none")), t)
+        bundle_attr.Set(str(event.get("selected_bundle", "")), t)
+        delivery_attr.Set(str(event.get("delivery_package", "")), t)
         event_attr.Set(event["event"], t)
 
     # Static material binding uses final/served material. Runtime extension can switch material per event.

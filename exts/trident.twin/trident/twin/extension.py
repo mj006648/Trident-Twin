@@ -66,6 +66,13 @@ class TridentTwinExtension(omni.ext.IExt):
             ("trident:zone", event["zone"], Sdf.ValueTypeNames.String),
             ("trident:metadata_status", event.get("metadata_status", "none"), Sdf.ValueTypeNames.String),
             ("trident:sharing_status", event.get("sharing_status", "private"), Sdf.ValueTypeNames.String),
+            ("trident:semantic_ready", bool(event.get("semantic_ready", False)), Sdf.ValueTypeNames.Bool),
+            ("trident:location_ready", bool(event.get("location_ready", False)), Sdf.ValueTypeNames.Bool),
+            ("trident:policy_ready", bool(event.get("policy_ready", False)), Sdf.ValueTypeNames.Bool),
+            ("trident:readiness_score", float(event.get("readiness_score", 0.0)), Sdf.ValueTypeNames.Float),
+            ("trident:workload_fit", event.get("workload_fit", "none"), Sdf.ValueTypeNames.String),
+            ("trident:selected_bundle", event.get("selected_bundle", ""), Sdf.ValueTypeNames.String),
+            ("trident:delivery_package", event.get("delivery_package", ""), Sdf.ValueTypeNames.String),
             ("trident:last_event", event["event"], Sdf.ValueTypeNames.String),
         ]:
             attr = prim.GetAttribute(name) or prim.CreateAttribute(name, type_name)

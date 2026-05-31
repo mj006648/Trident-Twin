@@ -1,21 +1,18 @@
 """
-Trident-Twin v3 scene generator.
+Trident-Twin Data Readiness scene generator.
 
-Key design moves from v2.5:
-  - No signposts / no rooftop banners. Each zone is identified by a colored
-    floor pad slab directly beneath it.
-  - Raw Bucket / Lakehouse / Showcase are all the SAME size (10 x 7 x 5).
-  - Lakehouse and Showcase are placed SIDE-BY-SIDE on the Y axis
-    (Lakehouse at Y=-7, Showcase at Y=+7) — same X range, parallel.
-  - Lakehouse interior: simple storage tables with iceberg boxes on top.
-  - Showcase interior: real glass display cabinets with spotlit boxes
-    (no more pedestal cylinders).
-  - Two separate delivery conveyor trunks:
-      * COLD trunk (Lakehouse -> 3 docks, runs along Y=-9)
-      * HOT  trunk (Showcase  -> 3 docks, runs along Y=+9)
-    Each dock receives both belts.
-  - Promotion belt connects Lakehouse to Showcase (Y axis belt between them).
-  - Zone 0 Lobby relocated next to Control Tower at the far south-west.
+The scene vocabulary follows README.md:
+  - Raw Bucket contains untagged brown source-object boxes.
+  - Refinement Pipeline turns raw objects into Iceberg table crates and attaches
+    schema / quality / semantic / location / policy readiness signals.
+  - Lakehouse Inventory exposes actual resource inventory prims grouped by
+    namespace/component, with counts, metadata coverage, freshness, quality,
+    and workload fit stored as trident:* custom attributes.
+  - Staging / Ready Bundles is not a second warehouse; it is a curated
+    ready-to-use shelf for Portal Dataset Basket, hot collections, recommended
+    joins, and materialized collections.
+  - Search / Selection and Workload Delivery prims are explicit handoff surfaces
+    for future Portal <-> Twin synchronization.
 """
 
 from isaacsim import SimulationApp
@@ -135,6 +132,17 @@ COLORS = {
     # Legacy / replay
     "metadata_explain":   ((0.10, 0.35, 0.95), 1.00),
     "metadata_share":     ((0.10, 0.65, 0.35), 1.00),
+    # Data Readiness vocabulary
+    "semantic_tag":       ((0.55, 0.25, 0.85), 1.00),
+    "location_tag":       ((0.90, 0.10, 0.22), 1.00),
+    "policy_tag":         ((0.15, 0.75, 0.25), 1.00),
+    "freshness_tag":      ((0.10, 0.70, 0.95), 1.00),
+    "quality_badge":      ((0.20, 0.95, 0.30), 1.00),
+    "bundle_tray":        ((1.00, 0.78, 0.15), 1.00),
+    "bundle_payload":     ((1.00, 0.93, 0.55), 1.00),
+    "search_highlight":   ((0.05, 0.75, 0.90), 0.38),
+    "bottleneck_warn":    ((1.00, 0.55, 0.05), 1.00),
+    "delivery_package":   ((0.60, 0.35, 0.95), 1.00),
     "dataset_raw":        ((0.42, 0.28, 0.16), 1.00),
     "dataset_explained":  ((0.10, 0.35, 0.95), 1.00),
     "dataset_shared":     ((0.10, 0.70, 0.35), 1.00),
@@ -196,6 +204,33 @@ def sphere(stage, path, pos, radius, material):
     UsdGeom.XformCommonAPI(prim).SetTranslate(Gf.Vec3d(*pos))
     UsdShade.MaterialBindingAPI(prim).Bind(material)
     return prim
+
+
+def set_trident_attrs(prim, **attrs):
+    """Attach stable Trident metadata to a USD prim."""
+    p = prim.GetPrim() if hasattr(prim, "GetPrim") else prim
+    for key, value in attrs.items():
+        if value is None:
+            continue
+        name = key if key.startswith("trident:") else f"trident:{key}"
+        if isinstance(value, bool):
+            t = Sdf.ValueTypeNames.Bool
+        elif isinstance(value, int) and not isinstance(value, bool):
+            t = Sdf.ValueTypeNames.Int
+        elif isinstance(value, float):
+            t = Sdf.ValueTypeNames.Float
+        else:
+            t = Sdf.ValueTypeNames.String
+            value = str(value)
+        attr = p.GetAttribute(name) or p.CreateAttribute(name, t)
+        attr.Set(value)
+    return p
+
+
+def define_scope(stage, path, **attrs):
+    scope = UsdGeom.Scope.Define(stage, path)
+    set_trident_attrs(scope, **attrs)
+    return scope
 
 
 def zone_pad(stage, path, center, size, color_mat):
@@ -297,6 +332,99 @@ def make_iceberg_box(stage, path, pos, scale, mats, led="green"):
         (pos[0] - sx * 0.30, pos[1] - sy * 0.30, pos[2] + sz / 2 + 0.018),
         0.025, 0.025, "Z", led_mat)
 
+
+
+
+def make_readiness_table_crate(stage, path, pos, scale, mats, *,
+                               entity_id, namespace, component, row_count,
+                               object_count, quality_score, access_frequency,
+                               semantic=True, location=True, policy=True,
+                               freshness="fresh", workload_fit="AI"):
+    """Create a live-bindable Lakehouse Inventory table crate.
+
+    The body is the refined Iceberg table; colored tags are independent child
+    prims so future live bindings can show/hide or recolor them without moving
+    the table crate itself.
+    """
+    UsdGeom.Xform.Define(stage, path)
+    sx, sy, sz = scale
+    body = cube(stage, f"{path}/TableCrate", pos, scale, mats["iceberg_box"],
+                name=f"{namespace}.{component} table crate",
+                entity_id=entity_id, entity_type="iceberg_table",
+                stage_name="lakehouse_inventory")
+    set_trident_attrs(
+        body, zone="zone.lakehouse_inventory", namespace=namespace,
+        component=component, row_count=row_count, object_count=object_count,
+        quality_score=quality_score, access_frequency=access_frequency,
+        semantic_ready=semantic, location_ready=location, policy_ready=policy,
+        freshness=freshness, workload_fit=workload_fit, readiness_score=quality_score,
+    )
+    if semantic:
+        cube(stage, f"{path}/Tags/Semantic_Milvus",
+             (pos[0], pos[1] + sy / 2 + 0.035, pos[2] + sz * 0.10),
+             (sx * 0.62, 0.035, sz * 0.35), mats["semantic_tag"],
+             name="Milvus semantic tag", entity_id=f"{entity_id}.tag.semantic",
+             entity_type="metadata_tag", stage_name="semantic_ready")
+    if location:
+        cube(stage, f"{path}/Tags/Location_Redis",
+             (pos[0] + sx * 0.22, pos[1], pos[2] + sz / 2 + 0.025),
+             (sx * 0.42, sy * 0.50, 0.035), mats["location_tag"],
+             name="Redis location/share tag", entity_id=f"{entity_id}.tag.location",
+             entity_type="metadata_tag", stage_name="location_ready")
+    badge_mat = mats["policy_tag"] if policy else mats["bottleneck_warn"]
+    cyl(stage, f"{path}/Tags/PolicyReadinessBadge",
+        (pos[0] - sx * 0.34, pos[1] - sy * 0.30, pos[2] + sz / 2 + 0.045),
+        0.055, 0.04, "Z", badge_mat)
+    set_trident_attrs(stage.GetPrimAtPath(f"{path}/Tags/PolicyReadinessBadge"),
+                      entity_id=f"{entity_id}.tag.policy", entity_type="metadata_tag",
+                      policy_ready=policy, readiness_score=quality_score)
+    return body
+
+
+def make_ready_bundle(stage, path, pos, mats, *, entity_id, name, components,
+                      workload_fit, confidence, access_frequency, policy_ready=True):
+    """Create a Staging / Ready Bundles tray for fast user selection."""
+    UsdGeom.Xform.Define(stage, path)
+    tray = cube(stage, f"{path}/Tray", pos, (1.65, 0.95, 0.12), mats["bundle_tray"],
+                name=name, entity_id=entity_id, entity_type="ready_bundle",
+                stage_name="ready_bundle")
+    set_trident_attrs(tray, zone="zone.staging_ready_bundles",
+                      components=components, workload_fit=workload_fit,
+                      confidence=confidence, access_frequency=access_frequency,
+                      policy_ready=policy_ready, readiness_score=confidence)
+    # Payload blocks show the joined/curated datasets inside the bundle.
+    for i, comp in enumerate(components.split("+")):
+        cube(stage, f"{path}/Payload/{comp.strip().title()}_{i + 1}",
+             (pos[0] - 0.45 + i * 0.45, pos[1], pos[2] + 0.22),
+             (0.34, 0.42, 0.28), mats["bundle_payload"],
+             name=f"{comp.strip()} payload", entity_id=f"{entity_id}.payload.{comp.strip()}",
+             entity_type="bundle_payload", stage_name="ready_bundle")
+    cyl(stage, f"{path}/ConfidenceBadge",
+        (pos[0] + 0.68, pos[1] + 0.35, pos[2] + 0.35),
+        0.08, 0.05, "Z", mats["quality_badge" if confidence >= 0.85 else "bottleneck_warn"])
+    set_trident_attrs(stage.GetPrimAtPath(f"{path}/ConfidenceBadge"),
+                      entity_id=f"{entity_id}.confidence", entity_type="readiness_badge",
+                      confidence=confidence, workload_fit=workload_fit)
+    return tray
+
+
+def make_search_highlight(stage, path, pos, scale, mats, *, entity_id, query, candidate_count):
+    prim = cube(stage, path, pos, scale, mats["search_highlight"],
+                name=f"Search intent highlight: {query}", entity_id=entity_id,
+                entity_type="search_highlight", stage_name="selection")
+    set_trident_attrs(prim, zone="zone.search_selection", query=query,
+                      candidate_count=candidate_count, selection_state="candidate_highlight")
+    return prim
+
+
+def make_delivery_package(stage, path, pos, mats, *, entity_id, workload_type, snippet_type, source_bundle):
+    prim = cube(stage, path, pos, (0.72, 0.48, 0.36), mats["delivery_package"],
+                name=f"{workload_type} delivery package", entity_id=entity_id,
+                entity_type="workload_delivery_package", stage_name="workload_delivery")
+    set_trident_attrs(prim, zone="zone.workload_delivery", workload_type=workload_type,
+                      snippet_type=snippet_type, source_bundle=source_bundle,
+                      delivery_ready=True)
+    return prim
 
 # ============================================================================
 # Storage table (Lakehouse interior)
@@ -1127,10 +1255,23 @@ def main():
         "/World/Delivery", "/World/DeliveryYard", "/World/WorkloadInterfaces",
         "/World/ControlTower", "/World/Operations",
         "/World/Datasets", "/World/Avatars",
+        "/World/DataReadiness",
+        "/World/DataReadiness/RawObjects",
+        "/World/DataReadiness/Refinement",
+        "/World/DataReadiness/Inventory",
+        "/World/DataReadiness/ReadyBundles",
+        "/World/DataReadiness/SearchSelection",
+        "/World/DataReadiness/WorkloadDelivery",
     ]:
         UsdGeom.Scope.Define(stage, scope)
 
     mats = {k: create_mat(stage, k, c, o) for k, (c, o) in COLORS.items()}
+
+    set_trident_attrs(stage.GetPrimAtPath("/World/DataReadiness"),
+                      entity_id="twin.data_readiness",
+                      entity_type="readiness_twin_root",
+                      purpose="spatial decision map for finding usable data",
+                      source_of_truth="Iceberg/Nessie/Redis/Milvus/PostgreSQL/Stats Service")
 
     # ===== Environment =====
     cube(stage, "/World/Environment/Floor", (25, 8, -0.05),
@@ -1177,16 +1318,16 @@ def main():
                 "INGEST ZONE",      (-22.0,  -4.7, 0.025), mats, pixel=0.14)
     render_text(stage, "/World/ZonePads/Labels/RawBucket",
                 "RAW BUCKET ZONE",  ( -4.0,  -7.6, 0.025), mats, pixel=0.14)
-    render_text(stage, "/World/ZonePads/Labels/Accumulation",
-                "ACCUMULATION ZONE",(+13.0,  -4.3, 0.025), mats, pixel=0.10)
+    render_text(stage, "/World/ZonePads/Labels/Refinement",
+                "METADATA TAGS",    (+13.0,  -4.3, 0.025), mats, pixel=0.10)
     render_text(stage, "/World/ZonePads/Labels/Lakehouse",
-                "LAKEHOUSE ZONE",   (+29.0,  -7.6, 0.025), mats, pixel=0.14)
+                "LAKEHOUSE DATA",   (+29.0,  -7.6, 0.025), mats, pixel=0.13)
     render_text(stage, "/World/ZonePads/Labels/Staging",
-                "STAGING ZONE",     (+29.0, +14.4, 0.025), mats, pixel=0.14)
+                "BUNDLES",          (+29.0, +14.4, 0.025), mats, pixel=0.15)
     render_text(stage, "/World/ZonePads/Labels/Search",
-                "SEARCH ZONE",      (+44.0,  +4.0, 0.025), mats, pixel=0.12)
+                "SEARCH SELECT",    (+44.0,  +4.0, 0.025), mats, pixel=0.10)
     render_text(stage, "/World/ZonePads/Labels/Delivery",
-                "DELIVERY ZONE",    (+59.0,  +2.6, 0.025), mats, pixel=0.14)
+                "AI HPC HPDA",      (+59.0,  +2.6, 0.025), mats, pixel=0.13)
     render_text(stage, "/World/ZonePads/Labels/Tower",
                 "TOWER",            (-22.0, +22.4, 0.025), mats, pixel=0.14)
 
@@ -1295,8 +1436,16 @@ def main():
         (-2.0,  0.5, 0.40, 0.6, 0.6, 0.6, False),
     ]
     for i, (x, y, z, sx, sy, sz, dark) in enumerate(raw_layout):
-        make_raw_box(stage, f"/World/Lake/Contents/Raw_{i + 1}",
-                     (x, y, z), (sx, sy, sz), mats, dark=dark)
+        raw = make_raw_box(stage, f"/World/DataReadiness/RawObjects/RawObject_{i + 1:02d}",
+                           (x, y, z), (sx, sy, sz), mats, dark=dark)
+        set_trident_attrs(raw, entity_id=f"raw.object.{i + 1:02d}",
+                          entity_type="raw_object", zone="zone.raw_bucket",
+                          stage="raw", metadata_status="none",
+                          semantic_ready=False, location_ready=False,
+                          policy_ready=False, readiness_score=0.05)
+    # Compatibility aliases under the older /World/Lake path are intentionally
+    # not created as separate boxes; /World/DataReadiness/RawObjects is the
+    # canonical raw-object vocabulary for live bindings.
 
     # No conveyor inside Raw Bucket — boxes simply rest there as storage.
     # Two parallel SAME-SIZE belts (Main + Express) start at Raw east wall
@@ -1393,6 +1542,48 @@ def main():
                                 f"/World/Lakehouse/Tables/Table_{table_idx}",
                                 (tx, ty), mats,
                                 n_boxes=n_boxes, leds=led_choice)
+    # Canonical Data Readiness inventory crates: these are the prims future
+    # twin-hub live state should update (count, tags, readiness, workload fit).
+    define_scope(stage, "/World/DataReadiness/Inventory/Camera",
+                 entity_id="inventory.namespace.camera", entity_type="inventory_namespace",
+                 namespace="camera", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Lidar",
+                 entity_id="inventory.namespace.lidar", entity_type="inventory_namespace",
+                 namespace="lidar", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Weather",
+                 entity_id="inventory.namespace.weather", entity_type="inventory_namespace",
+                 namespace="weather", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Gps",
+                 entity_id="inventory.namespace.gps", entity_type="inventory_namespace",
+                 namespace="gps", zone="zone.lakehouse_inventory")
+
+    inventory_specs = [
+        ("Camera/Frames", "table.camera.frames", "camera", "frames",
+         (22.0, -4.9, 1.45), 12_400_000, 380, 0.91, 42, True, True, True, "fresh", "AI+HPDA"),
+        ("Camera/Objects", "table.camera.objects", "camera", "objects",
+         (25.6, -4.9, 1.45), 2_100_000, 92, 0.87, 18, True, True, True, "fresh", "AI"),
+        ("Lidar/Points", "table.lidar.points", "lidar", "points",
+         (22.0, -1.7, 1.45), 38_000_000, 740, 0.84, 31, True, True, True, "warm", "AI+HPC"),
+        ("Lidar/Tracks", "table.lidar.tracks", "lidar", "tracks",
+         (25.6, -1.7, 1.45), 4_700_000, 140, 0.78, 9, True, False, True, "warm", "HPDA"),
+        ("Weather/Grid", "table.weather.grid", "weather", "grid",
+         (22.0, 1.7, 1.45), 980_000, 36, 0.72, 6, False, True, True, "stale", "HPDA"),
+        ("Gps/Trajectory", "table.gps.trajectory", "gps", "trajectory",
+         (25.6, 1.7, 1.45), 8_300_000, 210, 0.89, 22, True, True, True, "fresh", "HPC+HPDA"),
+        ("Fusion/CameraLidar", "table.fusion.camera_lidar", "fusion", "camera_lidar",
+         (31.8, -1.7, 1.45), 1_800_000, 74, 0.93, 57, True, True, True, "fresh", "AI+HPDA"),
+        ("Fusion/WeatherGps", "table.fusion.weather_gps", "fusion", "weather_gps",
+         (31.8, 1.7, 1.45), 760_000, 28, 0.80, 12, True, True, True, "warm", "HPDA"),
+    ]
+    for rel_path, eid, ns, comp, pos, rows, objects, quality, access, semantic, location, policy, freshness, fit in inventory_specs:
+        make_readiness_table_crate(
+            stage, f"/World/DataReadiness/Inventory/{rel_path}", pos,
+            (0.82, 0.58, 0.48), mats, entity_id=eid, namespace=ns,
+            component=comp, row_count=rows, object_count=objects,
+            quality_score=quality, access_frequency=access, semantic=semantic,
+            location=location, policy=policy, freshness=freshness, workload_fit=fit,
+        )
+
     # Lineage rays demo — only the white table-lineage beam remains
     UsdGeom.Scope.Define(stage, "/World/Lakehouse/LineageRays")
     cube(stage, "/World/Lakehouse/LineageRays/Ray_Table_1",
@@ -1454,6 +1645,25 @@ def main():
                                cab_w=4.5, cab_d=0.8, cab_h=2.4,
                                facing="north", popularity=pop)
 
+    # Canonical Staging / Ready Bundle prims. These are the targets for Portal
+    # Dataset Basket, hot collection, recommended join, and materialized view
+    # signals.
+    ready_specs = [
+        ("CameraLidarAI", "bundle.camera_lidar.ai", "Camera + LiDAR AI bundle",
+         "camera+lidar", "AI", 0.92, 57, (23.5, 23.8, 1.35)),
+        ("WeatherGpsHPDA", "bundle.weather_gps.hpda", "Weather + GPS HPDA bundle",
+         "weather+gps", "HPDA", 0.80, 12, (28.8, 23.8, 1.35)),
+        ("HotBasket", "bundle.hot_basket.portal", "Portal hot Dataset Basket",
+         "camera+lidar+gps", "AI+HPDA", 0.88, 73, (34.0, 23.8, 1.35)),
+        ("MaterializedCollection", "bundle.materialized.collection", "Materialized collection candidate",
+         "fusion+weather", "HPC+HPDA", 0.84, 21, (28.8, 20.1, 1.35)),
+    ]
+    for slug, eid, name, comps, fit, confidence, access, pos in ready_specs:
+        make_ready_bundle(stage, f"/World/DataReadiness/ReadyBundles/{slug}",
+                          pos, mats, entity_id=eid, name=name,
+                          components=comps, workload_fit=fit,
+                          confidence=confidence, access_frequency=access)
+
     # ===== Lakehouse -> Showcase promotion belt (GOLD frame) =====
     # Belt runs Y from +6 (LH north wall) to +16 (SC south wall) at X=23
     # (shifted west so it does not cover the STAGING ZONE floor label)
@@ -1473,6 +1683,18 @@ def main():
          (0.10, 0.10, 0.10), mats["operator"],
          name="Customer Desk (Lobby + Search Counter)",
          entity_id="customer.desk", entity_type="customer", stage_name="delivery")
+    make_search_highlight(stage, "/World/DataReadiness/SearchSelection/Intent_Camera_Lidar",
+                          (44.0, 10.4, 0.08), (7.2, 6.4, 0.04), mats,
+                          entity_id="search.intent.camera_lidar",
+                          query="camera + lidar", candidate_count=4)
+    cube(stage, "/World/DataReadiness/SearchSelection/ReadinessComparePanel",
+         (44.0, 13.6, 2.6), (2.8, 0.08, 0.9), mats["monitor_screen"],
+         name="Readiness Compare Panel", entity_id="search.panel.readiness",
+         entity_type="search_panel", stage_name="selection")
+    set_trident_attrs(stage.GetPrimAtPath("/World/DataReadiness/SearchSelection/ReadinessComparePanel"),
+                      query="camera + lidar", compares="quality,policy,semantic,location,cache",
+                      explains_missing_metadata=True)
+
     build_mannequin(stage, "/World/Avatars/Avatar_Admin",
                     (ls_cx - 2.5, ls_cy - 2.0, 0.10), "admin", mats)
     build_mannequin(stage, "/World/Avatars/Avatar_Researcher",
@@ -1533,6 +1755,23 @@ def main():
         make_iceberg_box(stage, f"/World/DeliveryYard/BigTable/Box_{i + 1}",
                          (big_table_cx + dx, dy, box_top_z),
                          (0.50, 0.36, 0.40), mats, led=led)
+
+    # Canonical workload delivery packages generated from selected ready bundles.
+    make_delivery_package(stage, "/World/DataReadiness/WorkloadDelivery/AI_Package",
+                          (56.7, 6.0, 1.10), mats,
+                          entity_id="delivery.package.ai.camera_lidar",
+                          workload_type="AI", snippet_type="PyTorch URI list",
+                          source_bundle="bundle.camera_lidar.ai")
+    make_delivery_package(stage, "/World/DataReadiness/WorkloadDelivery/HPC_Package",
+                          (56.7, 10.0, 1.10), mats,
+                          entity_id="delivery.package.hpc.materialized",
+                          workload_type="HPC", snippet_type="FUSE mount",
+                          source_bundle="bundle.materialized.collection")
+    make_delivery_package(stage, "/World/DataReadiness/WorkloadDelivery/HPDA_Package",
+                          (56.7, 14.0, 1.10), mats,
+                          entity_id="delivery.package.hpda.weather_gps",
+                          workload_type="HPDA", snippet_type="Trino SQL",
+                          source_bundle="bundle.weather_gps.hpda")
 
     # ---- ONE LH belt -> big table (south edge) — SILVER ----
     big_t_south = big_table_cy - big_table_d / 2  # +5.0

@@ -181,19 +181,30 @@ Completed in this repository:
   - `scripts/draw_site_plan.py`
   - `scripts/draw_elevation.py`
   - `scripts/render_topdown_diagrams.py`
-- Existing Isaac Sim / USD PoC assets:
-  - `scripts/create_scene.py`
-  - `scripts/replay_events.py`
-  - `stages/trident_lakehouse_twin.usda`
-  - `stages/trident_lakehouse_twin_replay.usda`
-- Existing `twin-hub` FastAPI stub that serves fixture-backed state.
+- Data Readiness USD prim vocabulary is now implemented in the scene generator:
+  - `/World/DataReadiness/RawObjects/*`
+  - `/World/DataReadiness/Inventory/*`
+  - `/World/DataReadiness/ReadyBundles/*`
+  - `/World/DataReadiness/SearchSelection/*`
+  - `/World/DataReadiness/WorkloadDelivery/*`
+- Fixture data and replay now carry readiness fields such as `semantic_ready`,
+  `location_ready`, `policy_ready`, `readiness_score`, `workload_fit`,
+  `selected_bundle`, and `delivery_package`.
+- Existing Isaac Sim / USD PoC assets remain under `stages/`; regenerate them
+  with Isaac Sim Python after pulling the latest generator changes.
+- Existing `twin-hub` FastAPI stub now emits the expanded Data Readiness state
+  contract while still serving fixtures.
 
 Next implementation targets:
 
-1. Update USD scene primitives to match the visual grammar: raw boxes, table crates, metadata tags, ready bundles.
-2. Add live inventory metrics to `twin-hub`: table count, row/object volume, freshness, quality, access frequency, cache state.
-3. Bind `twin-hub` to real sources: Nessie, PostgreSQL catalog/governance, Redis, Milvus, and Trident Portal stats-service.
-4. Add Portal ↔ Twin synchronization: search result selection highlights matching prims; selected bundles move to delivery.
+1. Regenerate `stages/trident_lakehouse_twin.usda` and
+   `stages/trident_lakehouse_twin_replay.usda` inside the Isaac Sim container.
+2. Add live inventory metrics to `twin-hub`: table count, row/object volume,
+   freshness, quality, access frequency, cache state.
+3. Bind `twin-hub` to real sources: Nessie, PostgreSQL catalog/governance,
+   Redis, Milvus, and Trident Portal stats-service.
+4. Add Portal ↔ Twin synchronization: search result selection highlights
+   matching prims; selected bundles move to delivery.
 5. Use WebSocket streaming for live state diffs.
 
 ---

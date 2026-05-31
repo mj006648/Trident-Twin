@@ -1,112 +1,175 @@
 {
   "zones": [
     {
-      "id": "zone.lake",
-      "name": "Lake Zone",
-      "description": "Area inside the Trident Lakehouse where raw/bronze files are stored in Ceph buckets without any metadata. Same storage, no context yet."
+      "id": "zone.raw_bucket",
+      "name": "Raw Bucket",
+      "description": "Untagged source-object area. Brown boxes show raw object count and low readiness."
     },
     {
-      "id": "zone.accumulation",
-      "name": "Accumulation Zone",
-      "description": "Workshop area that turns Lake files into Iceberg tables and attaches Milvus explaining metadata + Redis sharing metadata. This is the step that promotes Lake content into Lakehouse content."
+      "id": "zone.refinement_pipeline",
+      "name": "Refinement Pipeline",
+      "description": "Schema detection, Iceberg table creation, quality/lineage checks, and semantic/location/policy tag attachment."
     },
     {
-      "id": "zone.staging",
-      "name": "Staging Zone",
-      "description": "Frequently used datasets are placed on shelves for fast pickup (Silver Iceberg + Redis hot partition cache)."
+      "id": "zone.lakehouse_inventory",
+      "name": "Lakehouse Inventory",
+      "description": "Refined table inventory grouped by namespace/component with counts, volume, freshness, metadata coverage, quality, and workload fit."
     },
     {
-      "id": "zone.delivery",
-      "name": "Delivery Zone",
-      "description": "Customer Desk receives user queries and either (a) looks up datasets via Milvus metadata or (b) picks from staging shelves, then hands data off to AI/HPC/HPDA/M&S workload docks."
+      "id": "zone.staging_ready_bundles",
+      "name": "Staging / Ready Bundles",
+      "description": "Curated usage layer for hot datasets, Dataset Basket candidates, recommended joins, and materialized collections."
+    },
+    {
+      "id": "zone.search_selection",
+      "name": "Search / Selection",
+      "description": "User intent highlights candidates, compares readiness, and explains missing metadata before selection."
+    },
+    {
+      "id": "zone.workload_delivery",
+      "name": "Workload Delivery",
+      "description": "Selected datasets and bundles become AI/HPC/HPDA packages with URI, SQL, Spark, or FUSE snippets."
     }
   ],
   "entities": [
     {
       "id": "dataset.sample.001",
       "type": "dataset",
-      "name": "Sample Climate Dataset",
+      "name": "Sample Camera + LiDAR Dataset",
       "stage": "raw",
-      "zone": "zone.lake",
+      "zone": "zone.raw_bucket",
       "metadata_status": "none",
       "sharing_status": "private",
-      "quality_score": 0.71,
+      "semantic_ready": false,
+      "location_ready": false,
+      "policy_ready": false,
+      "quality_score": 0.05,
+      "readiness_score": 0.05,
       "access_frequency": 0
     },
     {
-      "id": "lake.bronze",
-      "type": "storage_zone",
-      "name": "Bronze Lake",
-      "stage": "accumulation",
-      "zone": "zone.lake"
+      "id": "table.camera.frames",
+      "type": "iceberg_table",
+      "name": "camera.frames",
+      "namespace": "camera",
+      "component": "frames",
+      "zone": "zone.lakehouse_inventory",
+      "row_count": 12400000,
+      "object_count": 380,
+      "quality_score": 0.91,
+      "readiness_score": 0.91,
+      "semantic_ready": true,
+      "location_ready": true,
+      "policy_ready": true,
+      "freshness": "fresh",
+      "access_frequency": 42,
+      "workload_fit": "AI+HPDA"
     },
     {
-      "id": "station.metadata.explaining",
-      "type": "metadata_station",
-      "name": "Explaining Metadata Station (Milvus)",
-      "stage": "explaining",
-      "zone": "zone.accumulation"
+      "id": "table.lidar.points",
+      "type": "iceberg_table",
+      "name": "lidar.points",
+      "namespace": "lidar",
+      "component": "points",
+      "zone": "zone.lakehouse_inventory",
+      "row_count": 38000000,
+      "object_count": 740,
+      "quality_score": 0.84,
+      "readiness_score": 0.84,
+      "semantic_ready": true,
+      "location_ready": true,
+      "policy_ready": true,
+      "freshness": "warm",
+      "access_frequency": 31,
+      "workload_fit": "AI+HPC"
     },
     {
-      "id": "station.metadata.sharing",
-      "type": "metadata_station",
-      "name": "Sharing Metadata Station (Redis)",
-      "stage": "sharing",
-      "zone": "zone.accumulation"
+      "id": "table.weather.grid",
+      "type": "iceberg_table",
+      "name": "weather.grid",
+      "namespace": "weather",
+      "component": "grid",
+      "zone": "zone.lakehouse_inventory",
+      "row_count": 980000,
+      "object_count": 36,
+      "quality_score": 0.72,
+      "readiness_score": 0.72,
+      "semantic_ready": false,
+      "location_ready": true,
+      "policy_ready": true,
+      "freshness": "stale",
+      "access_frequency": 6,
+      "workload_fit": "HPDA"
     },
     {
-      "id": "lakehouse.silver",
-      "type": "storage_zone",
-      "name": "Silver Lakehouse",
-      "stage": "staging",
-      "zone": "zone.staging"
+      "id": "bundle.camera_lidar.ai",
+      "type": "ready_bundle",
+      "name": "Camera + LiDAR AI Bundle",
+      "zone": "zone.staging_ready_bundles",
+      "components": "camera+lidar",
+      "workload_fit": "AI",
+      "confidence": 0.92,
+      "readiness_score": 0.92,
+      "access_frequency": 57,
+      "policy_ready": true
     },
     {
-      "id": "customer.desk",
-      "type": "customer",
-      "name": "Customer Desk",
-      "stage": "delivery",
-      "zone": "zone.delivery",
-      "description": "User search/request intake. Routes to Milvus metadata lookup or Staging shelf pickup."
+      "id": "bundle.weather_gps.hpda",
+      "type": "ready_bundle",
+      "name": "Weather + GPS HPDA Bundle",
+      "zone": "zone.staging_ready_bundles",
+      "components": "weather+gps",
+      "workload_fit": "HPDA",
+      "confidence": 0.8,
+      "readiness_score": 0.8,
+      "access_frequency": 12,
+      "policy_ready": true
     },
     {
-      "id": "workload.ai.001",
-      "type": "workload_interface",
-      "name": "AI Workload Interface (PyTorch SDK)",
+      "id": "search.intent.camera_lidar",
+      "type": "search_highlight",
+      "name": "Search intent: camera + lidar",
+      "zone": "zone.search_selection",
+      "query": "camera + lidar",
+      "candidate_count": 4,
+      "selection_state": "candidate_highlight"
+    },
+    {
+      "id": "delivery.package.ai.camera_lidar",
+      "type": "workload_delivery_package",
+      "name": "AI delivery package for camera + lidar",
+      "zone": "zone.workload_delivery",
       "workload_type": "AI",
-      "zone": "zone.delivery",
-      "requested_dataset": null
+      "snippet_type": "PyTorch URI list",
+      "source_bundle": "bundle.camera_lidar.ai",
+      "delivery_ready": true
     },
     {
-      "id": "workload.hpc.001",
-      "type": "workload_interface",
-      "name": "HPC Workload Interface (FUSE mount)",
+      "id": "delivery.package.hpc.materialized",
+      "type": "workload_delivery_package",
+      "name": "HPC delivery package for materialized collection",
+      "zone": "zone.workload_delivery",
       "workload_type": "HPC",
-      "zone": "zone.delivery",
-      "requested_dataset": null
+      "snippet_type": "FUSE mount",
+      "source_bundle": "bundle.materialized.collection",
+      "delivery_ready": true
     },
     {
-      "id": "workload.hpda.001",
-      "type": "workload_interface",
-      "name": "HPDA Workload Interface (Trino SQL)",
+      "id": "delivery.package.hpda.weather_gps",
+      "type": "workload_delivery_package",
+      "name": "HPDA delivery package for weather + gps",
+      "zone": "zone.workload_delivery",
       "workload_type": "HPDA",
-      "zone": "zone.delivery",
-      "requested_dataset": null
-    },
-    {
-      "id": "workload.ms.001",
-      "type": "workload_interface",
-      "name": "M&S Workload Interface (Modeling & Simulation)",
-      "workload_type": "MS",
-      "zone": "zone.delivery",
-      "requested_dataset": null
+      "snippet_type": "Trino SQL",
+      "source_bundle": "bundle.weather_gps.hpda",
+      "delivery_ready": true
     },
     {
       "id": "operator.control",
       "type": "operator",
-      "name": "System Operator Desk",
-      "zone": "cross",
-      "description": "System administrator console. Separate from Customer Desk."
+      "name": "Readiness Control Tower",
+      "zone": "zone.search_selection",
+      "description": "Operator view of readiness, bottlenecks, live state, and workload delivery flow."
     }
   ]
 }

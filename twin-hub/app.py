@@ -38,31 +38,43 @@ def load_events() -> dict[str, Any]:
         return json.load(f)
 
 
+STATE_KEYS = {
+    "stage", "zone", "metadata_status", "sharing_status",
+    "semantic_ready", "location_ready", "policy_ready",
+    "quality_score", "readiness_score", "access_frequency",
+    "freshness", "workload_fit", "selected_bundle", "delivery_package",
+    "query", "candidate_count", "selection_state", "snippet_type",
+    "source_bundle", "delivery_ready", "namespace", "component",
+    "row_count", "object_count", "confidence", "components",
+}
+
+
+def _copy_trident_fields(bucket: dict[str, Any], source: dict[str, Any]) -> None:
+    for key, value in source.items():
+        if key in {"id", "type"}:
+            continue
+        if key in STATE_KEYS:
+            bucket[f"trident:{key}"] = value
+
+
 def compute_state() -> dict[str, Any]:
     """Reduce the event timeline into the latest trident:* attribute snapshot
-    per entity. In Phase 5 stub mode this just folds the fixture timeline.
+    per entity. In stub mode this folds the fixture timeline, but the schema is
+    already aligned with the live Data Readiness vocabulary.
     """
     state: dict[str, dict[str, Any]] = {}
     for entity in load_entities()["entities"]:
-        state[entity["id"]] = {
+        bucket = {
             "trident:entity_id": entity["id"],
             "trident:entity_type": entity["type"],
-            "trident:stage": entity.get("stage"),
-            "trident:zone": entity.get("zone"),
-            "trident:metadata_status": entity.get("metadata_status"),
-            "trident:sharing_status": entity.get("sharing_status"),
+            "trident:name": entity.get("name", entity["id"]),
         }
+        _copy_trident_fields(bucket, entity)
+        state[entity["id"]] = bucket
     for ev in load_events()["timeline"]:
         target = ev["target"]
         bucket = state.setdefault(target, {"trident:entity_id": target})
-        bucket["trident:stage"] = ev.get("stage", bucket.get("trident:stage"))
-        bucket["trident:zone"] = ev.get("zone", bucket.get("trident:zone"))
-        bucket["trident:metadata_status"] = ev.get(
-            "metadata_status", bucket.get("trident:metadata_status")
-        )
-        bucket["trident:sharing_status"] = ev.get(
-            "sharing_status", bucket.get("trident:sharing_status")
-        )
+        _copy_trident_fields(bucket, ev)
         bucket["trident:last_event"] = ev["event"]
         bucket["trident:source_timestamp"] = ev["time"]
     return {"entities": state}
