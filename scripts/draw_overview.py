@@ -198,7 +198,7 @@ def main() -> None:
             C_BRONZE_FILL, C_BRONZE)
     add_box(ax, (2.75, 2.35), 1.9, 2.6, "REFINE", "schema detect\nIceberg table\nquality check",
             "#f1f5f9", C_SILVER)
-    add_box(ax, (5.05, 2.35), 1.95, 2.6, "INVENTORY", "namespace/table\ncomponent volume\nmetadata tags",
+    add_box(ax, (5.05, 2.35), 1.95, 2.6, "INVENTORY", "namespace/table\ncomponent volume\nreadiness bars",
             C_SILVER_FILL, C_SILVER)
     add_box(ax, (7.35, 2.35), 1.95, 2.6, "STAGING", "hot datasets\nrecommended bundles\nDataset Basket",
             C_GOLD_FILL, C_GOLD)
@@ -224,7 +224,7 @@ def main() -> None:
                                          facecolor="#0f172a", edgecolor="#0f172a",
                                          linewidth=1.0, zorder=3))
     ax.text(7, 0.76,
-            "Twin value = faster data choice: volume + metadata tags + readiness + workload fit in one spatial map",
+            "Twin value = faster data choice: volume + pipeline steps + readiness bars + workload fit in one spatial map",
             ha="center", va="center", fontsize=10.5, color="white",
             fontweight="bold", zorder=4)
 

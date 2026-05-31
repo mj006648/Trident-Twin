@@ -3,8 +3,7 @@ Trident-Twin Data Readiness scene generator.
 
 The scene vocabulary follows README.md:
   - Raw Bucket contains untagged brown source-object boxes.
-  - Refinement Pipeline turns raw objects into Iceberg table crates and attaches
-    schema / quality / semantic / location / policy readiness signals.
+  - Refinement Pipeline shows seven compact operation steps from audit/catalog to bundle/delivery; table crates carry thin readiness bars.
   - Lakehouse Inventory exposes actual resource inventory prims grouped by
     namespace/component, with counts, metadata coverage, freshness, quality,
     and workload fit stored as trident:* custom attributes.
@@ -133,11 +132,16 @@ COLORS = {
     "metadata_explain":   ((0.10, 0.35, 0.95), 1.00),
     "metadata_share":     ((0.10, 0.65, 0.35), 1.00),
     # Data Readiness vocabulary
-    "semantic_tag":       ((0.55, 0.25, 0.85), 1.00),
-    "location_tag":       ((0.90, 0.10, 0.22), 1.00),
-    "policy_tag":         ((0.15, 0.75, 0.25), 1.00),
+    "schema_bar":         ((0.10, 0.45, 0.95), 1.00),  # blue: Iceberg schema/table appears
+    "quality_bar":        ((0.95, 0.82, 0.12), 1.00),  # yellow: quality/integrity measured
+    "semantic_tag":       ((0.55, 0.25, 0.85), 1.00),  # purple: Milvus semantic index
+    "location_tag":       ((0.10, 0.70, 0.95), 1.00),  # cyan: location/path metadata
+    "policy_tag":         ((0.15, 0.75, 0.25), 1.00),  # green: policy/share-ready
     "freshness_tag":      ((0.10, 0.70, 0.95), 1.00),
     "quality_badge":      ((0.20, 0.95, 0.30), 1.00),
+    "process_step":       ((0.22, 0.24, 0.28), 1.00),
+    "process_output":     ((0.94, 0.95, 0.97), 1.00),
+    "process_pending":    ((0.35, 0.35, 0.38), 1.00),
     "bundle_tray":        ((1.00, 0.78, 0.15), 1.00),
     "bundle_payload":     ((1.00, 0.93, 0.55), 1.00),
     "search_highlight":   ((0.05, 0.75, 0.90), 0.38),
@@ -342,9 +346,7 @@ def make_readiness_table_crate(stage, path, pos, scale, mats, *,
                                freshness="fresh", workload_fit="AI"):
     """Create a live-bindable Lakehouse Inventory table crate.
 
-    The body is the refined Iceberg table; colored tags are independent child
-    prims so future live bindings can show/hide or recolor them without moving
-    the table crate itself.
+    The body is the refined Iceberg table; thin top bars show schema, quality, semantic, location, and policy readiness without cluttering each crate.
     """
     UsdGeom.Xform.Define(stage, path)
     sx, sy, sz = scale
@@ -359,25 +361,27 @@ def make_readiness_table_crate(stage, path, pos, scale, mats, *,
         semantic_ready=semantic, location_ready=location, policy_ready=policy,
         freshness=freshness, workload_fit=workload_fit, readiness_score=quality_score,
     )
-    if semantic:
-        cube(stage, f"{path}/Tags/Semantic_Milvus",
-             (pos[0], pos[1] + sy / 2 + 0.035, pos[2] + sz * 0.10),
-             (sx * 0.62, 0.035, sz * 0.35), mats["semantic_tag"],
-             name="Milvus semantic tag", entity_id=f"{entity_id}.tag.semantic",
-             entity_type="metadata_tag", stage_name="semantic_ready")
-    if location:
-        cube(stage, f"{path}/Tags/Location_Redis",
-             (pos[0] + sx * 0.22, pos[1], pos[2] + sz / 2 + 0.025),
-             (sx * 0.42, sy * 0.50, 0.035), mats["location_tag"],
-             name="Redis location/share tag", entity_id=f"{entity_id}.tag.location",
-             entity_type="metadata_tag", stage_name="location_ready")
-    badge_mat = mats["policy_tag"] if policy else mats["bottleneck_warn"]
-    cyl(stage, f"{path}/Tags/PolicyReadinessBadge",
-        (pos[0] - sx * 0.34, pos[1] - sy * 0.30, pos[2] + sz / 2 + 0.045),
-        0.055, 0.04, "Z", badge_mat)
-    set_trident_attrs(stage.GetPrimAtPath(f"{path}/Tags/PolicyReadinessBadge"),
-                      entity_id=f"{entity_id}.tag.policy", entity_type="metadata_tag",
-                      policy_ready=policy, readiness_score=quality_score)
+    # Keep table readiness readable instead of attaching bulky tag plaques to
+    # every crate. Thin top bars mirror the real code path: schema/table,
+    # integrity quality, semantic index, location/path metadata, policy/share.
+    bar_specs = [
+        ("SchemaTable", "schema_bar", True, "iceberg_table_created"),
+        ("Quality", "quality_bar", quality_score >= 0.75, "integrity_reported"),
+        ("Semantic", "semantic_tag", semantic, "semantic_indexed"),
+        ("Location", "location_tag", location, "location_metadata_attached"),
+        ("Policy", "policy_tag", policy, "policy_share_ready"),
+    ]
+    for i, (bar_name, mat_key, is_ready, operation) in enumerate(bar_specs):
+        y = pos[1] - sy * 0.40 + i * (sy * 0.20)
+        bar = cube(stage, f"{path}/ReadinessBars/{bar_name}",
+                   (pos[0], y, pos[2] + sz / 2 + 0.028),
+                   (sx * 0.86, sy * 0.055, 0.028),
+                   mats[mat_key if is_ready else "process_pending"],
+                   name=f"{bar_name} readiness bar",
+                   entity_id=f"{entity_id}.bar.{bar_name.lower()}",
+                   entity_type="readiness_bar", stage_name=operation)
+        set_trident_attrs(bar, source_operation=operation, ready=is_ready,
+                          table_entity=entity_id, readiness_score=quality_score)
     return body
 
 
@@ -425,6 +429,36 @@ def make_delivery_package(stage, path, pos, mats, *, entity_id, workload_type, s
                       snippet_type=snippet_type, source_bundle=source_bundle,
                       delivery_ready=True)
     return prim
+
+def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label, operation, output_kind, output_entity, bar_mat_key):
+    """Compact visual contract for the real Portal/Lakehouse code path.
+
+    Each step is a small base plate with one colored bar above it and exactly
+    one output block. This replaces the earlier cluttered metadata-tag area.
+    """
+    UsdGeom.Xform.Define(stage, path)
+    base = cube(stage, f"{path}/Base", pos, (1.05, 0.52, 0.08), mats["process_step"],
+                name=f"Step {step_no}: {operation}",
+                entity_id=f"operation.{step_no:02d}.{operation}",
+                entity_type="pipeline_operation", stage_name=operation)
+    set_trident_attrs(base, step_no=step_no, operation=operation,
+                      output_kind=output_kind, output_entity=output_entity,
+                      zone="zone.refinement_pipeline")
+    bar = cube(stage, f"{path}/StatusBar", (pos[0], pos[1], pos[2] + 0.22),
+               (0.96, 0.48, 0.045), mats[bar_mat_key],
+               name=f"{code_label} operation status bar",
+               entity_id=f"operation.{step_no:02d}.{operation}.bar",
+               entity_type="operation_bar", stage_name=operation)
+    set_trident_attrs(bar, step_no=step_no, operation=operation, output_entity=output_entity)
+    output = cube(stage, f"{path}/Output", (pos[0], pos[1], pos[2] + 0.48),
+                  (0.34, 0.24, 0.18), mats["process_output"],
+                  name=f"{output_kind}: {output_entity}",
+                  entity_id=output_entity, entity_type=output_kind,
+                  stage_name=operation)
+    set_trident_attrs(output, step_no=step_no, operation=operation, produced_by=f"operation.{step_no:02d}.{operation}")
+    render_text(stage, f"{path}/Label", code_label,
+                (pos[0], pos[1] - 0.62, pos[2] + 0.12), mats, pixel=0.045, height_z=0.012)
+    return base
 
 # ============================================================================
 # Storage table (Lakehouse interior)
@@ -1258,6 +1292,7 @@ def main():
         "/World/DataReadiness",
         "/World/DataReadiness/RawObjects",
         "/World/DataReadiness/Refinement",
+        "/World/DataReadiness/ProcessFlow",
         "/World/DataReadiness/Inventory",
         "/World/DataReadiness/ReadyBundles",
         "/World/DataReadiness/SearchSelection",
@@ -1319,7 +1354,7 @@ def main():
     render_text(stage, "/World/ZonePads/Labels/RawBucket",
                 "RAW BUCKET ZONE",  ( -4.0,  -7.6, 0.025), mats, pixel=0.14)
     render_text(stage, "/World/ZonePads/Labels/Refinement",
-                "METADATA TAGS",    (+13.0,  -4.3, 0.025), mats, pixel=0.10)
+                "PIPELINE STEPS",   (+13.0,  -4.3, 0.025), mats, pixel=0.085)
     render_text(stage, "/World/ZonePads/Labels/Lakehouse",
                 "LAKEHOUSE DATA",   (+29.0,  -7.6, 0.025), mats, pixel=0.13)
     render_text(stage, "/World/ZonePads/Labels/Staging",
@@ -1488,6 +1523,24 @@ def main():
          name="Sharing Metadata Station (Redis)",
          entity_id="station.metadata.sharing",
          entity_type="metadata_station", stage_name="sharing")
+    # Compact pipeline operation cards aligned with the actual Portal/stats-service flow:
+    # ingest audit -> catalog rows -> schema snapshot -> integrity quality ->
+    # Milvus/Redis searchable metadata -> curated collection/bundle -> workload snippet.
+    operation_specs = [
+        (1, "INGEST", "audit_run", "raw_object", "object.raw.batch", "metal_bronze", (5.8, 3.05, 0.72)),
+        (2, "STAGE", "catalog_dataset_upsert", "catalog_dataset", "catalog.datasets", "schema_bar", (8.2, 3.05, 0.72)),
+        (3, "CLEAN", "schema_snapshot_recorded", "schema_version", "catalog.schema_versions", "quality_bar", (10.6, 3.05, 0.72)),
+        (4, "TAG", "semantic_location_policy_attached", "metadata_tags", "milvus.redis.policy", "semantic_tag", (13.0, 3.05, 0.72)),
+        (5, "CATALOG", "search_index_refreshed", "search_index", "trident_semantic_catalog", "location_tag", (15.4, 3.05, 0.72)),
+        (6, "BUNDLE", "collection_or_join_created", "ready_bundle", "collection.redis.ctas", "bundle_tray", (17.8, 3.05, 0.72)),
+        (7, "SERVE", "workload_delivery_snippet", "delivery_package", "ai.hpc.hpda.snippet", "delivery_package", (20.2, 3.05, 0.72)),
+    ]
+    for step_no, code_label, operation, output_kind, output_entity, mat_key, pos in operation_specs:
+        make_pipeline_operation_step(
+            stage, f"/World/DataReadiness/ProcessFlow/Step_{step_no:02d}_{code_label}",
+            pos, mats, step_no=step_no, code_label=code_label, operation=operation,
+            output_kind=output_kind, output_entity=output_entity, bar_mat_key=mat_key,
+        )
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor",
          (22.0, 0.0, 0.65), (0.06, 0.06, 0.06), mats["conveyor_belt"],
          name="To Lakehouse Conveyor (anchor)",
@@ -1543,7 +1596,7 @@ def main():
                                 (tx, ty), mats,
                                 n_boxes=n_boxes, leds=led_choice)
     # Canonical Data Readiness inventory crates: these are the prims future
-    # twin-hub live state should update (count, tags, readiness, workload fit).
+    # twin-hub live state should update (count, readiness bars, readiness, workload fit).
     define_scope(stage, "/World/DataReadiness/Inventory/Camera",
                  entity_id="inventory.namespace.camera", entity_type="inventory_namespace",
                  namespace="camera", zone="zone.lakehouse_inventory")
@@ -1848,16 +1901,21 @@ def main():
     dp.CreateAttribute("trident:sharing_status", Sdf.ValueTypeNames.String).Set("private")
     dp.CreateAttribute("trident:quality_score", Sdf.ValueTypeNames.Float).Set(0.71)
     dp.CreateAttribute("trident:access_frequency", Sdf.ValueTypeNames.Int).Set(0)
-    cube(stage, "/World/Datasets/DatasetPackage001/ExplainingMetadataTag",
-         (0, 0.52, 0.46), (0.30, 0.05, 0.22), mats["metadata_explain"],
-         name="Explaining Metadata Tag",
-         entity_id="metadata.explaining.dataset.sample.001",
-         entity_type="metadata", stage_name="explaining")
-    cube(stage, "/World/Datasets/DatasetPackage001/SharingMetadataTag",
-         (0, -0.52, 0.46), (0.30, 0.05, 0.22), mats["metadata_share"],
-         name="Sharing Metadata Tag",
-         entity_id="metadata.sharing.dataset.sample.001",
-         entity_type="metadata", stage_name="sharing")
+    # A single moving package stays uncluttered; bars appear on top as the replay
+    # reaches schema / quality / semantic / policy readiness milestones.
+    for i, (bar_name, mat_key, operation) in enumerate([
+        ("SchemaBar", "schema_bar", "iceberg_table_created"),
+        ("QualityBar", "quality_bar", "integrity_reported"),
+        ("SemanticBar", "semantic_tag", "semantic_metadata_attached"),
+        ("PolicyBar", "policy_tag", "location_policy_tags_attached"),
+    ]):
+        bar = cube(stage, f"/World/Datasets/DatasetPackage001/{bar_name}",
+                   (-0.30 + i * 0.20, 0.0, 0.46),
+                   (0.08, 0.30, 0.035), mats[mat_key],
+                   name=f"Dataset {bar_name}",
+                   entity_id=f"dataset.sample.001.bar.{bar_name.lower()}",
+                   entity_type="readiness_bar", stage_name=operation)
+        set_trident_attrs(bar, source_operation=operation, table_entity="dataset.sample.001")
 
     # ===== Top-down (90deg) per-zone capture cameras =====
     # Position above each zone center, looking straight down. Default camera

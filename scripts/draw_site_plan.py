@@ -51,7 +51,7 @@ ZONE_PADS = [
     (-22, +25, 6, 6, "#c3d0e4", C_TOWER, "Zone 7\nControl Tower"),
     (-22, 0, 14, 8, C_BRONZE_FILL, C_BRONZE, "Zone 1 Data Ingest"),
     (-4, 0, 19, 14, C_BRONZE_FILL, C_BRONZE, "Zone 2  Raw Bucket  (Bronze)"),
-    (13, 0, 22, 7, C_SILVER_FILL, C_SILVER, "Zone 3  Refinement Pipeline"),
+    (13, 0, 22, 7, C_SILVER_FILL, C_SILVER, "Zone 3  Pipeline Steps"),
     (29, 0, 19, 14, C_SILVER_FILL, C_SILVER, "Zone 4  Lakehouse Inventory"),
     (29, 22, 19, 14, C_GOLD_FILL, C_GOLD, "Zone 5  Staging / Ready Bundles"),
     (44, 10, 10, 11, C_LOBBY_FILL, "#222222", "Zone 6\nSearch + Select"),
@@ -260,7 +260,7 @@ def draw_search_decision_panel(ax) -> None:
 def draw_readiness_callouts(ax) -> None:
     callouts = [
         (11, 4.7, "Refinement adds\nschema · quality · lineage", C_SILVER),
-        (18.5, -6.6, "Bottleneck visible:\nraw high, tags missing", C_WARN),
+        (18.5, -6.6, "Bottleneck visible:\nraw high, bars missing", C_WARN),
         (43.5, 2.1, "Twin value:\nfaster choice, not just 3D view", C_LOBBY),
         (58.8, 1.3, "Delivery outputs:\nURI · SQL · Spark snippet", C_DELIVERY),
     ]
@@ -420,7 +420,7 @@ def main() -> None:
 
     ax.set_title(
         "Trident-Twin Site Plan — Data Readiness / Usage Optimization Map (Top View)\n"
-        "Bronze raw objects → Silver refined inventory with metadata tags → Gold ready bundles → Search/Selection → AI/HPC/HPDA delivery\n"
+        "Bronze raw objects → Silver operation steps + inventory bars → Gold ready bundles → Search/Selection → AI/HPC/HPDA delivery\n"
         "1 unit = 1 m  ·  matches scripts/create_scene.py",
         fontsize=13, fontweight="bold", pad=14,
     )

@@ -55,6 +55,8 @@ def main():
     bundle_attr = dataset.GetAttribute("trident:selected_bundle") or dataset.CreateAttribute("trident:selected_bundle", Sdf.ValueTypeNames.String)
     delivery_attr = dataset.GetAttribute("trident:delivery_package") or dataset.CreateAttribute("trident:delivery_package", Sdf.ValueTypeNames.String)
     event_attr = dataset.GetAttribute("trident:last_event") or dataset.CreateAttribute("trident:last_event", Sdf.ValueTypeNames.String)
+    operation_attr = dataset.GetAttribute("trident:source_operation") or dataset.CreateAttribute("trident:source_operation", Sdf.ValueTypeNames.String)
+    operation_desc_attr = dataset.GetAttribute("trident:operation_description") or dataset.CreateAttribute("trident:operation_description", Sdf.ValueTypeNames.String)
 
     for event in timeline:
         t = Usd.TimeCode(event["time"])
@@ -72,6 +74,8 @@ def main():
         bundle_attr.Set(str(event.get("selected_bundle", "")), t)
         delivery_attr.Set(str(event.get("delivery_package", "")), t)
         event_attr.Set(event["event"], t)
+        operation_attr.Set(str(event.get("source_operation", event["event"])), t)
+        operation_desc_attr.Set(str(event.get("operation_description", "")), t)
 
     # Static material binding uses final/served material. Runtime extension can switch material per event.
     mat_path = COLOR_TO_MATERIAL[timeline[-1].get("color", "served")]

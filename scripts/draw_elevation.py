@@ -45,7 +45,7 @@ C_DELIVERY = "#8862e0"
 # Heights are real z (m). Warehouses are 6m tall, on a floor pad ~0.1m thick.
 BUILDINGS = [
     (-4, 0.1, 17, 6.0, C_BRONZE, C_BRONZE_FILL, "Raw Bucket\n(Bronze warehouse)"),
-    (29, 0.1, 17, 6.0, C_SILVER, C_SILVER_FILL, "Lakehouse Inventory\n(table crates + tags)"),
+    (29, 0.1, 17, 6.0, C_SILVER, C_SILVER_FILL, "Lakehouse Inventory\n(table crates + bars)"),
 ]
 
 # Showcase shown as DASHED behind LH (Y=+22) — annotation only
@@ -262,7 +262,7 @@ def draw_tower(ax) -> None:
 
 
 def draw_readiness_layers(ax) -> None:
-    # Small table crates inside the inventory warehouse, with colored tags.
+    # Small table crates inside the inventory warehouse, with compact readiness bars.
     for i, x in enumerate([24.0, 25.4, 26.8, 28.2, 29.6, 31.0, 32.4, 33.8]):
         y = 1.0 + (i % 3) * 0.75
         ax.add_patch(mpatches.Rectangle((x - 0.35, y), 0.7, 0.45,
@@ -372,7 +372,7 @@ def main() -> None:
 
     ax.set_title(
         "Trident-Twin Data Readiness Elevation View (Side, looking from -Y)\n"
-        "Raw boxes become table crates with metadata tags; Staging is a ready-to-use curated shelf, not a second warehouse.\n"
+        "Raw boxes pass through code-shaped operation steps; tables carry compact readiness bars; Staging is a ready-to-use curated shelf, not a second warehouse.\n"
         "Vertical exaggeration applied for clarity  ·  matches scripts/create_scene.py",
         fontsize=12, fontweight="bold", pad=14,
     )

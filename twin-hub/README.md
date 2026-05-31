@@ -20,27 +20,52 @@ extension using the same schema as the PoC fixtures
 | WS | `/api/twin/stream` | Push state diffs as they happen |
 | GET | `/api/twin/health` | Liveness probe |
 
-## Source bindings (planned)
+## Source bindings
 
-| Source | Maps to |
+`twin-hub` now supports a stats-service live adapter. The adapter intentionally
+uses the Portal API instead of reaching into other people's Lakehouse containers.
+
+| Source endpoint | Maps to twin state |
 | --- | --- |
-| Nessie REST API | `trident:nessie_commit`, table count -> Lakehouse scale |
-| PostgreSQL `catalog.*` | governance/lineage events, audit stream |
-| Redis SCAN | partition cache freshness, URI list size |
-| Milvus collection stats | vector count -> Explaining Station pulse |
-| Trident-Portal stats-service | Spark job activity, workload sessions |
+| `/api/v1/catalog/overview` | datasets, integrity, pipeline runs, Nessie commit |
+| `/api/v1/catalog/datasets` | table name, namespace, row count, tags, owner, freshness |
+| `/collection` | ready bundles / materialized collections from Redis |
 
-## Phase 5 stub mode
+The visual scene mirrors the current code path as seven operation cards:
 
-If the upstream sources are unavailable, the hub serves the PoC fixtures
-directly so the Kit extension keeps working end-to-end during development.
-The contract stays identical; only the source switches.
+1. `audit_run` → raw object
+2. `catalog_dataset_upsert` → `catalog.datasets` row
+3. `schema_snapshot_recorded` → `catalog.schema_versions` snapshot
+4. `semantic_location_policy_attached` → Milvus/Redis/policy readiness bars
+5. `search_index_refreshed` → searchable catalog index
+6. `collection_or_join_created` → ready bundle / CTAS collection
+7. `workload_delivery_snippet` → AI/HPC/HPDA usage package
 
-## Run (planned)
+## Modes
+
+### Fixture mode
+
+If `TRIDENT_STATS_BASE_URL` is unset, the hub serves the PoC fixtures directly so
+the Kit extension keeps working offline.
 
 ```bash
 cd twin-hub
 uvicorn app:app --reload --port 8765
 ```
 
-Files will be added incrementally as bindings are wired up.
+### Live stats-service mode
+
+```bash
+cd twin-hub
+TRIDENT_STATS_BASE_URL=http://<trident-portal-stats-service>:<port> \
+uvicorn app:app --host 0.0.0.0 --port 8765
+```
+
+Optional if the stats-service requires a bearer token:
+
+```bash
+export TRIDENT_STATS_TOKEN=<token>
+```
+
+The HTTP contract remains `/api/twin/entities`, `/api/twin/state`,
+`/api/twin/events`, and `/api/twin/health`; only the source switches.

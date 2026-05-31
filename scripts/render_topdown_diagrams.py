@@ -42,7 +42,7 @@ VIEWS = [
     ("00_overview",     "Overall — Data Readiness / Usage Optimization Map", -30, +72, -18, +35),
     ("01_ingest",       "Zone 1 INGEST (Bronze) — Raw Arrival",    -32, -12,  -7,  +7),
     ("02_raw_bucket",   "Zone 2 RAW BUCKET — Untagged Object Count", -16,  +8,  -10, +10),
-    ("03_accumulation", "Zone 3 REFINEMENT — Schema / Quality / Metadata",   0, +26, -8,  +8),
+    ("03_accumulation", "Zone 3 PIPELINE STEPS — Audit / Catalog / Schema / Tag / Index / Bundle / Serve",   0, +26, -8,  +8),
     ("04_lakehouse",    "Zone 4 LAKEHOUSE INVENTORY — Count + Tags + Readiness", +18, +40, -10, +10),
     ("05_staging",      "Zone 5 STAGING — Ready-to-use Bundles",   +18, +40, +12, +32),
     ("06_search",       "Zone 6 SEARCH — Intent, Candidate Highlight, Readiness Compare",  +37, +52,  +2, +18),

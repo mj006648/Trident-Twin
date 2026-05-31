@@ -74,6 +74,8 @@ class TridentTwinExtension(omni.ext.IExt):
             ("trident:selected_bundle", event.get("selected_bundle", ""), Sdf.ValueTypeNames.String),
             ("trident:delivery_package", event.get("delivery_package", ""), Sdf.ValueTypeNames.String),
             ("trident:last_event", event["event"], Sdf.ValueTypeNames.String),
+            ("trident:source_operation", event.get("source_operation", event["event"]), Sdf.ValueTypeNames.String),
+            ("trident:operation_description", event.get("operation_description", ""), Sdf.ValueTypeNames.String),
         ]:
             attr = prim.GetAttribute(name) or prim.CreateAttribute(name, type_name)
             attr.Set(value)

@@ -27,12 +27,13 @@ def main() -> None:
 
     evs = app.load_events()
     assert_contains(evs, "timeline")
-    assert evs["timeline"][0]["event"] == "raw_arrived"
+    assert evs["timeline"][0]["event"] == "audit_run"
 
     st = app.compute_state()
     bucket = st["entities"]["dataset.sample.001"]
     assert bucket["trident:last_event"] == "served_to_workload"
     assert bucket["trident:stage"] == "served"
+    assert bucket["trident:source_operation"] == "served_to_workload"
 
     filtered = app.filter_events(since=75)
     assert all(e["time"] > 75 for e in filtered["timeline"])

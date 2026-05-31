@@ -7,8 +7,8 @@
     },
     {
       "id": "zone.refinement_pipeline",
-      "name": "Refinement Pipeline",
-      "description": "Schema detection, Iceberg table creation, quality/lineage checks, and semantic/location/policy tag attachment."
+      "name": "Pipeline Steps",
+      "description": "Compact operation cards mirroring the real Portal/stats-service path: ingest audit, catalog upsert, schema snapshot, quality check, Milvus/Redis metadata, collection bundle, workload delivery."
     },
     {
       "id": "zone.lakehouse_inventory",
@@ -170,6 +170,90 @@
       "name": "Readiness Control Tower",
       "zone": "zone.search_selection",
       "description": "Operator view of readiness, bottlenecks, live state, and workload delivery flow."
+    },
+    {
+      "id": "operation.01.audit_run",
+      "type": "pipeline_operation",
+      "name": "Step 1: audit_run",
+      "zone": "zone.refinement_pipeline",
+      "stage": "audit_run",
+      "step_no": 1,
+      "operation": "audit_run",
+      "output_kind": "raw_object",
+      "output_entity": "object.raw.batch",
+      "status": "observed"
+    },
+    {
+      "id": "operation.02.catalog_dataset_upsert",
+      "type": "pipeline_operation",
+      "name": "Step 2: catalog_dataset_upsert",
+      "zone": "zone.refinement_pipeline",
+      "stage": "catalog_dataset_upsert",
+      "step_no": 2,
+      "operation": "catalog_dataset_upsert",
+      "output_kind": "catalog_dataset",
+      "output_entity": "catalog.datasets",
+      "status": "observed"
+    },
+    {
+      "id": "operation.03.schema_snapshot_recorded",
+      "type": "pipeline_operation",
+      "name": "Step 3: schema_snapshot_recorded",
+      "zone": "zone.refinement_pipeline",
+      "stage": "schema_snapshot_recorded",
+      "step_no": 3,
+      "operation": "schema_snapshot_recorded",
+      "output_kind": "schema_version",
+      "output_entity": "catalog.schema_versions",
+      "status": "observed"
+    },
+    {
+      "id": "operation.04.semantic_location_policy_attached",
+      "type": "pipeline_operation",
+      "name": "Step 4: semantic_location_policy_attached",
+      "zone": "zone.refinement_pipeline",
+      "stage": "semantic_location_policy_attached",
+      "step_no": 4,
+      "operation": "semantic_location_policy_attached",
+      "output_kind": "metadata_tags",
+      "output_entity": "milvus.redis.policy",
+      "status": "observed"
+    },
+    {
+      "id": "operation.05.search_index_refreshed",
+      "type": "pipeline_operation",
+      "name": "Step 5: search_index_refreshed",
+      "zone": "zone.refinement_pipeline",
+      "stage": "search_index_refreshed",
+      "step_no": 5,
+      "operation": "search_index_refreshed",
+      "output_kind": "search_index",
+      "output_entity": "trident_semantic_catalog",
+      "status": "observed"
+    },
+    {
+      "id": "operation.06.collection_or_join_created",
+      "type": "pipeline_operation",
+      "name": "Step 6: collection_or_join_created",
+      "zone": "zone.refinement_pipeline",
+      "stage": "collection_or_join_created",
+      "step_no": 6,
+      "operation": "collection_or_join_created",
+      "output_kind": "ready_bundle",
+      "output_entity": "collection.redis.ctas",
+      "status": "observed"
+    },
+    {
+      "id": "operation.07.workload_delivery_snippet",
+      "type": "pipeline_operation",
+      "name": "Step 7: workload_delivery_snippet",
+      "zone": "zone.refinement_pipeline",
+      "stage": "workload_delivery_snippet",
+      "step_no": 7,
+      "operation": "workload_delivery_snippet",
+      "output_kind": "delivery_package",
+      "output_entity": "ai.hpc.hpda.snippet",
+      "status": "observed"
     }
   ]
 }
