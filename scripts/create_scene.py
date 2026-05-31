@@ -17,11 +17,13 @@ The scene vocabulary follows README.md:
 from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": True})
 
+from datetime import datetime
 from pathlib import Path
 from pxr import Usd, UsdGeom, UsdShade, UsdLux, Sdf, Gf
 
 BASE = Path(__file__).resolve().parents[1]
-OUT = BASE / "stages" / "trident_lakehouse_twin.usda"
+_ts = datetime.now().strftime("%Y%m%d_%H%M")
+OUT = BASE / "stages" / f"trident_lakehouse_twin_{_ts}.usda"
 
 # ============================================================================
 # Material palette
@@ -431,34 +433,37 @@ def make_delivery_package(stage, path, pos, mats, *, entity_id, workload_type, s
     return prim
 
 def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label, operation, output_kind, output_entity, bar_mat_key):
-    """Compact visual contract for the real Portal/Lakehouse code path.
+    """Security-gate style checkpoint on the belt.
 
-    Each step is a small base plate with one colored bar above it and exactly
-    one output block. This replaces the earlier cluttered metadata-tag area.
+    Visual: two upright pillars straddling the belt + horizontal crossbar +
+    a colored tag badge hanging from the crossbar. No text labels.
+    trident:* attributes are stamped on the gate root prim for live binding.
     """
     UsdGeom.Xform.Define(stage, path)
-    base = cube(stage, f"{path}/Base", pos, (1.05, 0.52, 0.08), mats["process_step"],
+    x, y, z = pos
+
+    # Gate root — carries all trident:* attrs for live binding
+    gate = cube(stage, f"{path}/Gate", (x, y, z - 0.3), (0.05, 0.05, 0.05), mats["process_step"],
                 name=f"Step {step_no}: {operation}",
                 entity_id=f"operation.{step_no:02d}.{operation}",
                 entity_type="pipeline_operation", stage_name=operation)
-    set_trident_attrs(base, step_no=step_no, operation=operation,
+    set_trident_attrs(gate, step_no=step_no, operation=operation,
                       output_kind=output_kind, output_entity=output_entity,
                       zone="zone.refinement_pipeline")
-    bar = cube(stage, f"{path}/StatusBar", (pos[0], pos[1], pos[2] + 0.22),
-               (0.96, 0.48, 0.045), mats[bar_mat_key],
-               name=f"{code_label} operation status bar",
-               entity_id=f"operation.{step_no:02d}.{operation}.bar",
-               entity_type="operation_bar", stage_name=operation)
-    set_trident_attrs(bar, step_no=step_no, operation=operation, output_entity=output_entity)
-    output = cube(stage, f"{path}/Output", (pos[0], pos[1], pos[2] + 0.48),
-                  (0.34, 0.24, 0.18), mats["process_output"],
-                  name=f"{output_kind}: {output_entity}",
-                  entity_id=output_entity, entity_type=output_kind,
-                  stage_name=operation)
-    set_trident_attrs(output, step_no=step_no, operation=operation, produced_by=f"operation.{step_no:02d}.{operation}")
-    render_text(stage, f"{path}/Label", code_label,
-                (pos[0], pos[1] - 0.62, pos[2] + 0.12), mats, pixel=0.045, height_z=0.012)
-    return base
+
+    # Pillars span both belts (belt centers at y=-0.7 and y=+0.7 relative to gate center y=0)
+    # Outer edge of rails ≈ y=±1.25; pillars placed at y=±1.8 for clearance.
+    cube(stage, f"{path}/PillarL", (x, y - 1.8, z + 1.25), (0.14, 0.14, 2.5), mats["steel_frame"])
+    cube(stage, f"{path}/PillarR", (x, y + 1.8, z + 1.25), (0.14, 0.14, 2.5), mats["steel_frame"])
+    # Crossbar at z=2.5+0.07=2.57 → top of pillars
+    cube(stage, f"{path}/Crossbar", (x, y, z + 2.57), (0.12, 3.8, 0.12), mats["steel_frame"])
+    # Colored badge hanging center of crossbar
+    cube(stage, f"{path}/Badge", (x, y, z + 2.20), (0.40, 0.40, 0.40), mats[bar_mat_key],
+         name=f"{operation} badge",
+         entity_id=f"operation.{step_no:02d}.{operation}.badge",
+         entity_type="operation_badge", stage_name=operation)
+
+    return gate
 
 # ============================================================================
 # Storage table (Lakehouse interior)
@@ -1339,30 +1344,34 @@ def main():
 
     # ===== Zone floor pads (colored identification) + flat ground labels =====
     # Pads were widened in Y so the painted text fits comfortably below the zone content.
-    zone_pad(stage, "/World/ZonePads/Tower",       (-22,  +25), (6,  6),  mats["zone_color_9"])
-    zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,    0), (16, 11), mats["metal_bronze"])
-    zone_pad(stage, "/World/ZonePads/RawBucket",   ( -4,    0), (19, 17), mats["metal_bronze"])
+    # Warehouse: center=(cx,11), sy=32 → Y: -5~+27
+    # Zone pads extend south to include label area (label at y=-7.5 → pad south edge at -9)
+    # pad cy = (-9 + 27)/2 = 9, pad sy = 36
+    zone_pad(stage, "/World/ZonePads/Tower",       (-22,  +25), (6,   6),  mats["zone_color_9"])
+    # TruckYard: only the truck parking area
+    zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,   0),  (16,  8), mats["metal_bronze"])
+    # RawBucket pad: south edge at y=-9 (covers label at -7.5), north edge at +27
+    zone_pad(stage, "/World/ZonePads/RawBucket",   (-4.0,  9.0), (21.0, 38.0), mats["metal_bronze"])
     zone_pad(stage, "/World/ZonePads/Pipeline",    (+13,    0), (16, 10), mats["metal_silver"])
-    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29,    0), (19, 17), mats["metal_silver"])
-    zone_pad(stage, "/World/ZonePads/Showcase",    (+29,  +22), (19, 17), mats["metal_gold"])
-    zone_pad(stage, "/World/ZonePads/LobbySearch", (+44, +10), (10, 14), mats["zone_color_0"])
-    zone_pad(stage, "/World/ZonePads/Delivery",    (+59,  +10), (22, 17), mats["zone_color_8"])
+    # Lakehouse pad: same logic
+    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29.0, 9.0), (21.0, 38.0), mats["metal_silver"])
+    zone_pad(stage, "/World/ZonePads/LobbySearch", (+44,  +10), (10, 14), mats["zone_color_0"])
+    # Delivery pad: covers label(y~+3) + trucks(y=6~14, cab to x~68) + DELIVERY ZONE text
+    # Delivery pad: trucks at y=6~14, label at y~+3, add margin → y=+2~+17
+    zone_pad(stage, "/World/ZonePads/Delivery",    (+59,  +9.5), (22, 20), mats["zone_color_8"])
 
-    # ----- Painted zone-name labels (black), flat on the ground, at south edge -----
-    render_text(stage, "/World/ZonePads/Labels/Ingest",
-                "INGEST ZONE",      (-22.0,  -4.7, 0.025), mats, pixel=0.14)
+    # ----- Zone labels painted OUTSIDE (south of) each warehouse -----
+    # Warehouse south edge: cy - sy/2 = 11 - 16 = -5. Labels at y=-7 (outside wall).
     render_text(stage, "/World/ZonePads/Labels/RawBucket",
-                "RAW BUCKET ZONE",  ( -4.0,  -7.6, 0.025), mats, pixel=0.14)
+                "RAW BUCKET ZONE",  (-4.0,  -7.5, 0.025), mats, pixel=0.13)
     render_text(stage, "/World/ZonePads/Labels/Refinement",
-                "PIPELINE STEPS",   (+13.0,  -4.3, 0.025), mats, pixel=0.085)
+                "ACCUMULATION ZONE", (+13.0, -4.3, 0.025), mats, pixel=0.075)
     render_text(stage, "/World/ZonePads/Labels/Lakehouse",
-                "LAKEHOUSE DATA",   (+29.0,  -7.6, 0.025), mats, pixel=0.13)
-    render_text(stage, "/World/ZonePads/Labels/Staging",
-                "BUNDLES",          (+29.0, +14.4, 0.025), mats, pixel=0.15)
+                "LAKEHOUSE ZONE",   (+29.0, -7.5, 0.025), mats, pixel=0.12)
     render_text(stage, "/World/ZonePads/Labels/Search",
-                "SEARCH SELECT",    (+44.0,  +4.0, 0.025), mats, pixel=0.10)
+                "SEARCH ZONE",      (+44.0,  +4.0, 0.025), mats, pixel=0.10)
     render_text(stage, "/World/ZonePads/Labels/Delivery",
-                "AI HPC HPDA",      (+59.0,  +2.6, 0.025), mats, pixel=0.13)
+                "DELIVERY ZONE",    (+59.0,  +2.6, 0.025), mats, pixel=0.13)
     render_text(stage, "/World/ZonePads/Labels/Tower",
                 "TOWER",            (-22.0, +22.4, 0.025), mats, pixel=0.14)
 
@@ -1387,9 +1396,10 @@ def main():
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_bronze")
 
-    # ===== Zone 2: Raw Bucket Warehouse (17 x 12 x 6) =====
-    raw_cx, raw_cy, raw_cz = -4.0, 0.0, 0.10
-    raw_sx, raw_sy, raw_sz = 17.0, 12.0, 6.0
+    # ===== Zone 2: Raw Bucket Warehouse (19 x 32 x 6, center Y=11) =====
+    # Y range: 11-16=-5 ~ 11+16=+27. Labels at Y=-7.6 are visible south of warehouse.
+    raw_cx, raw_cy, raw_cz = -4.0, 11.0, 0.10
+    raw_sx, raw_sy, raw_sz = 19.0, 32.0, 6.0
     cube(stage, "/World/Lake/BronzeLake",
          (raw_cx, raw_cy, raw_cz),
          (raw_sx, raw_sy, 0.18), mats["concrete"],
@@ -1401,74 +1411,51 @@ def main():
                     wall_mat=mats["glass_lake"], frame_mat=mats["steel_frame"],
                     left_gap=(0.0, 1.4, 1.1), right_gap=(0.0, 1.4, 1.1))
     # Brown raw boxes piled inside (Data Swamp visualization)
+    # Warehouse: center=(-4, 11), size=(19, 38) => X: -13~+5, Y: -8~+30
+    # Five directory zones with thin dividers between them.
     UsdGeom.Scope.Define(stage, "/World/Lake/Contents")
+    # Warehouse interior X: -4±9=-13~+5, Y: 11±16=-5~+27 (keep 1m from walls)
+    # Safe box range: X -12~+4, Y -4~+26
+    # Zone dividers at Y boundaries inside warehouse
+    for div_i, div_y in enumerate([1.0, 7.0, 13.0, 19.0]):
+        cube(stage, f"/World/DataReadiness/RawObjects/Divider_{div_i + 1}",
+             (-4.0, div_y, 0.15), (17.0, 0.05, 0.3), mats["concrete"])
     raw_layout = [
-        # ----- South wall row (Y=-5), 3-tall stacks at west, dense west-to-east -----
-        (-11.5, -5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-11.5, -5.0, 1.15, 0.7, 0.7, 0.7, True),
-        (-11.5, -5.0, 1.90, 0.6, 0.6, 0.6, False),
-        (-10.7, -5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-10.7, -5.0, 1.15, 0.6, 0.6, 0.6, False),
-        (-9.9,  -5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-9.9,  -5.0, 1.15, 0.6, 0.6, 0.6, True),
-        (-9.1,  -5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-9.1,  -5.0, 1.15, 0.6, 0.6, 0.6, False),
-        (-8.3,  -5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-7.5,  -5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-6.7,  -5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-5.9,  -5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-5.1,  -5.0, 0.40, 0.6, 0.6, 0.6, False),
-        (-4.3,  -5.0, 0.40, 0.6, 0.6, 0.6, True),
-        (-3.5,  -5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-2.7,  -5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-1.9,  -5.0, 0.40, 0.6, 0.6, 0.6, False),
-        (-1.1,  -5.0, 0.40, 0.6, 0.6, 0.6, True),
-        # ----- North wall row (Y=+5) -----
-        (-11.5, 5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-11.5, 5.0, 1.15, 0.6, 0.6, 0.6, False),
-        (-10.7, 5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-10.7, 5.0, 1.15, 0.7, 0.7, 0.7, True),
-        (-9.9,  5.0, 0.40, 0.6, 0.6, 0.6, True),
-        (-9.1,  5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-9.1,  5.0, 1.15, 0.6, 0.6, 0.6, True),
-        (-8.3,  5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-7.5,  5.0, 0.40, 0.6, 0.6, 0.6, False),
-        (-6.7,  5.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-5.9,  5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-5.1,  5.0, 0.40, 0.6, 0.6, 0.6, True),
-        (-4.3,  5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-3.5,  5.0, 0.40, 0.6, 0.6, 0.6, True),
-        (-2.7,  5.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-1.9,  5.0, 0.40, 0.6, 0.6, 0.6, True),
-        # ----- Middle clusters -----
-        (-10.5, -2.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-10.5, -2.5, 1.05, 0.6, 0.6, 0.6, False),
-        (-9.5,  -2.5, 0.40, 0.7, 0.7, 0.7, False),
-        (-8.5,  -2.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-7.5,  -2.5, 0.40, 0.7, 0.7, 0.7, True),
-        (-6.5,  -2.5, 0.40, 0.6, 0.6, 0.6, False),
-        (-5.5,  -2.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-4.5,  -2.5, 0.40, 0.7, 0.7, 0.7, False),
-        (-3.5,  -2.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-10.5,  2.5, 0.40, 0.6, 0.6, 0.6, False),
-        (-10.5,  2.5, 1.05, 0.6, 0.6, 0.6, True),
-        (-9.5,   2.5, 0.40, 0.7, 0.7, 0.7, True),
-        (-8.5,   2.5, 0.40, 0.6, 0.6, 0.6, False),
-        (-7.5,   2.5, 0.40, 0.7, 0.7, 0.7, False),
-        (-6.5,   2.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-5.5,   2.5, 0.40, 0.7, 0.7, 0.7, True),
-        (-4.5,   2.5, 0.40, 0.6, 0.6, 0.6, False),
-        (-3.5,   2.5, 0.40, 0.7, 0.7, 0.7, False),
-        # ----- Central aisle scatter -----
-        (-9.0,  0.0, 0.40, 0.6, 0.6, 0.6, True),
-        (-7.0,  0.0, 0.40, 0.7, 0.7, 0.7, False),
-        (-5.0,  0.0, 0.40, 0.6, 0.6, 0.6, True),
-        (-3.0,  0.0, 0.40, 0.7, 0.7, 0.7, True),
-        (-10.0, 1.2, 0.40, 0.5, 0.5, 0.5, False),
-        (-8.0, -1.2, 0.40, 0.5, 0.5, 0.5, True),
-        (-6.0,  1.2, 0.40, 0.5, 0.5, 0.5, False),
-        (-4.0, -1.2, 0.40, 0.5, 0.5, 0.5, True),
-        (-2.0,  0.5, 0.40, 0.6, 0.6, 0.6, False),
+        # ----- Zone 1 (Y: -4~0): autonomous_test -----
+        (-11.0, -3.5, 0.40, 0.7, 0.7, 0.7, False),
+        (-11.0, -3.5, 1.15, 0.7, 0.7, 0.7, True),
+        ( -9.0, -3.5, 0.40, 0.7, 0.7, 0.7, True),
+        ( -7.0, -3.5, 0.40, 0.6, 0.6, 0.6, False),
+        ( -5.0, -3.5, 0.40, 0.7, 0.7, 0.7, True),
+        (-11.0, -0.5, 0.40, 0.6, 0.6, 0.6, True),
+        ( -9.0, -0.5, 0.40, 0.7, 0.7, 0.7, False),
+        ( -9.0, -0.5, 1.15, 0.6, 0.6, 0.6, True),
+        ( -7.0, -0.5, 0.40, 0.7, 0.7, 0.7, True),
+        ( -5.0, -0.5, 0.40, 0.6, 0.6, 0.6, False),
+        # ----- Zone 2 (Y: +2~+6): autonomous_weather -----
+        (-11.0,  2.5, 0.40, 0.7, 0.7, 0.7, False),
+        ( -9.0,  2.5, 0.40, 0.6, 0.6, 0.6, True),
+        ( -7.0,  2.5, 0.40, 0.7, 0.7, 0.7, False),
+        (-11.0,  5.5, 0.40, 0.6, 0.6, 0.6, True),
+        (-11.0,  5.5, 1.05, 0.6, 0.6, 0.6, False),
+        # ----- Zone 3 (Y: +8~+12): raw_data_1 -----
+        (-11.0,  8.5, 0.40, 0.7, 0.7, 0.7, True),
+        (-11.0,  8.5, 1.15, 0.6, 0.6, 0.6, False),
+        ( -9.0,  8.5, 0.40, 0.7, 0.7, 0.7, False),
+        ( -7.0,  8.5, 0.40, 0.6, 0.6, 0.6, True),
+        ( -5.0,  8.5, 0.40, 0.7, 0.7, 0.7, False),
+        (-11.0, 11.5, 0.40, 0.6, 0.6, 0.6, False),
+        ( -9.0, 11.5, 0.40, 0.7, 0.7, 0.7, True),
+        ( -7.0, 11.5, 0.40, 0.6, 0.6, 0.6, False),
+        # ----- Zone 4 (Y: +14~+18): raw_data_2 -----
+        (-11.0, 14.5, 0.40, 0.7, 0.7, 0.7, False),
+        ( -9.0, 14.5, 0.40, 0.6, 0.6, 0.6, True),
+        (-11.0, 17.5, 0.40, 0.7, 0.7, 0.7, True),
+        ( -9.0, 17.5, 0.40, 0.6, 0.6, 0.6, False),
+        # ----- Zone 5 (Y: +20~+25): misc -----
+        (-11.0, 20.5, 0.40, 0.7, 0.7, 0.7, False),
+        ( -9.0, 20.5, 0.40, 0.6, 0.6, 0.6, True),
+        ( -7.0, 23.5, 0.40, 0.7, 0.7, 0.7, False),
     ]
     for i, (x, y, z, sx, sy, sz, dark) in enumerate(raw_layout):
         raw = make_raw_box(stage, f"/World/DataReadiness/RawObjects/RawObject_{i + 1:02d}",
@@ -1486,13 +1473,11 @@ def main():
     # Two parallel SAME-SIZE belts (Main + Express) start at Raw east wall
     # and run all the way through the pipeline stations to Lakehouse west.
 
-    # ===== Zone 3: Pipeline (main + express) =====
+    # ===== Zone 3: Accumulation Zone =====
+    # 5 security gates, one per station_x position, straddling BOTH belts together.
+    # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
     station_x = [7.0, 10.0, 13.0, 16.0, 19.0]
-    build_station_probing(stage,  "/World/Pipeline/Station_Probing",   station_x[0], mats)
-    build_station_architect(stage, "/World/Pipeline/Station_Architect", station_x[1], mats)
-    build_station_iceberg(stage,  "/World/Pipeline/Station_Iceberg",   station_x[2], mats)
-    build_station_milvus(stage,   "/World/Pipeline/Station_Milvus",    station_x[3], mats)
-    build_station_redis(stage,    "/World/Pipeline/Station_Redis",     station_x[4], mats)
+    UsdGeom.Scope.Define(stage, "/World/Pipeline")
 
     # Main belt — starts at Raw east wall (+4.7), Y=-0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/InputConveyor",
@@ -1504,43 +1489,39 @@ def main():
     p.CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("pipeline")
     p.CreateAttribute("trident:stage", Sdf.ValueTypeNames.String).Set("accumulation")
     p.CreateAttribute("trident:name", Sdf.ValueTypeNames.String).Set("Pipeline Main Line (Full Mode)")
-    # Express belt — SAME size as main, parallel at Y=+0.7. SILVER frame.
+    # Express belt — parallel at Y=+0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/ExpressLine",
                    x_start=4.7, x_end=20.4, y_center=+0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
-    # Replay-compat metadata station anchors
-    cube(stage, "/World/Metadata/ExplainingStation",
-         (station_x[3], 0.0, 0.04),
-         (1.6, 3.0, 0.04), mats["concrete"],
-         name="Explaining Metadata Station (Milvus)",
-         entity_id="station.metadata.explaining",
-         entity_type="metadata_station", stage_name="explaining")
-    cube(stage, "/World/Metadata/SharingStation",
-         (station_x[4], 0.0, 0.04),
-         (1.6, 3.0, 0.04), mats["concrete"],
-         name="Sharing Metadata Station (Redis)",
-         entity_id="station.metadata.sharing",
-         entity_type="metadata_station", stage_name="sharing")
-    # Compact pipeline operation cards aligned with the actual Portal/stats-service flow:
-    # ingest audit -> catalog rows -> schema snapshot -> integrity quality ->
-    # Milvus/Redis searchable metadata -> curated collection/bundle -> workload snippet.
+
+    # 5 gates at station_x positions, each spanning both belts.
+    # Pillars at y=±1.8 (outside both belt rails), crossbar at z=2.5 (tall).
     operation_specs = [
-        (1, "INGEST", "audit_run", "raw_object", "object.raw.batch", "metal_bronze", (5.8, 3.05, 0.72)),
-        (2, "STAGE", "catalog_dataset_upsert", "catalog_dataset", "catalog.datasets", "schema_bar", (8.2, 3.05, 0.72)),
-        (3, "CLEAN", "schema_snapshot_recorded", "schema_version", "catalog.schema_versions", "quality_bar", (10.6, 3.05, 0.72)),
-        (4, "TAG", "semantic_location_policy_attached", "metadata_tags", "milvus.redis.policy", "semantic_tag", (13.0, 3.05, 0.72)),
-        (5, "CATALOG", "search_index_refreshed", "search_index", "trident_semantic_catalog", "location_tag", (15.4, 3.05, 0.72)),
-        (6, "BUNDLE", "collection_or_join_created", "ready_bundle", "collection.redis.ctas", "bundle_tray", (17.8, 3.05, 0.72)),
-        (7, "SERVE", "workload_delivery_snippet", "delivery_package", "ai.hpc.hpda.snippet", "delivery_package", (20.2, 3.05, 0.72)),
+        (1, "INGEST",   "audit_run",                       "raw_object",    "object.raw.batch",           "metal_bronze"),
+        (2, "STAGE",    "catalog_dataset_upsert",          "catalog_dataset","catalog.datasets",           "schema_bar"),
+        (3, "CLEAN",    "schema_snapshot_recorded",        "schema_version", "catalog.schema_versions",    "quality_bar"),
+        (4, "TAG",      "semantic_location_policy_attached","metadata_tags", "milvus.redis.policy",        "semantic_tag"),
+        (5, "CATALOG",  "search_index_refreshed",          "search_index",  "trident_semantic_catalog",   "policy_tag"),
     ]
-    for step_no, code_label, operation, output_kind, output_entity, mat_key, pos in operation_specs:
+    for step_no, code_label, operation, output_kind, output_entity, mat_key in operation_specs:
+        gx = station_x[step_no - 1]
         make_pipeline_operation_step(
             stage, f"/World/DataReadiness/ProcessFlow/Step_{step_no:02d}_{code_label}",
-            pos, mats, step_no=step_no, code_label=code_label, operation=operation,
+            (gx, 0.0, 0.0), mats, step_no=step_no, code_label=code_label, operation=operation,
             output_kind=output_kind, output_entity=output_entity, bar_mat_key=mat_key,
         )
+
+    # Metadata station anchors (tiny floor anchors for live binding compat)
+    cube(stage, "/World/Metadata/ExplainingStation",
+         (station_x[3], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
+         name="Explaining Metadata Station", entity_id="station.metadata.explaining",
+         entity_type="metadata_station", stage_name="explaining")
+    cube(stage, "/World/Metadata/SharingStation",
+         (station_x[4], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
+         name="Sharing Metadata Station", entity_id="station.metadata.sharing",
+         entity_type="metadata_station", stage_name="sharing")
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor",
          (22.0, 0.0, 0.65), (0.06, 0.06, 0.06), mats["conveyor_belt"],
          name="To Lakehouse Conveyor (anchor)",
@@ -1559,44 +1540,43 @@ def main():
                      frame_mat_key="metal_silver",
                      belt_mat_key="conveyor_belt_express")
 
-    # ===== Zone 4: Lakehouse (Y=0, 17 x 12 x 6) — aligned with Raw on Y=0 =====
-    lh_cx, lh_cy, lh_cz = 29.0, 0.0, 0.10
-    lh_sx, lh_sy, lh_sz = 17.0, 12.0, 6.0
+    # ===== Zone 4+5: Lakehouse unified (Y=11, 19 x 32 x 6) =====
+    # Y range: 11-16=-5 ~ 11+16=+27. Labels at Y=-7.6 are visible south of warehouse.
+    # Bottom half (Y: -5~+11) = TABLE STORE; Top half (Y: +11~+27) = STAGING
+    lh_cx, lh_cy, lh_cz = 29.0, 11.0, 0.10
+    lh_sx, lh_sy, lh_sz = 19.0, 32.0, 6.0
     cube(stage, "/World/Lakehouse/SilverLakehouse",
          (lh_cx, lh_cy, lh_cz),
          (lh_sx, lh_sy, 0.18), mats["concrete"],
          name="Silver Lakehouse", entity_id="lakehouse.silver",
          entity_type="storage_zone", stage_name="staging")
-    # Lakehouse openings:
-    #   left  (X-): for audit incoming at Y=0
-    #   right (X+): for cold belt outgoing to docks at Y=0
-    #   back  (Y+): for promotion belt up to Showcase at X=23 (gx_c=-6 from LH cx=29)
     build_warehouse(stage, "/World/Lakehouse",
                     center=(lh_cx, lh_cy, lh_cz + 0.10),
                     size=(lh_sx, lh_sy, lh_sz),
                     wall_mat=mats["glass_lakehouse"], frame_mat=mats["steel_frame"],
                     left_gap=(0.0, 1.4, 1.1),
-                    right_gap=(0.0, 1.4, 1.1),
-                    back_gap=(-6.0, 1.4, 1.1))
-    # Storage tables inside (5 cols x 4 rows = 20 tables) — fills the larger warehouse
+                    right_gap=(0.0, 1.4, 1.1))
+    # Open floor plan — no internal divider between table zone and staging zone.
+    # ===== TABLE STORE (lower half, Y: -4 ~ +10) =====
+    # Actual tables with boxes on top. 4 columns x 4 rows.
     UsdGeom.Scope.Define(stage, "/World/Lakehouse/Tables")
-    table_xs = [lh_cx - 7.5, lh_cx - 3.75, lh_cx, lh_cx + 3.75, lh_cx + 7.5]
-    table_ys = [lh_cy - 5.0, lh_cy - 1.7, lh_cy + 1.7, lh_cy + 5.0]
+    # Table zone: lower half only (Y: -4 ~ +9.5, i.e. lh_cy-15 ~ lh_cy-1.5)
+    # Expanding DOWNWARD only — do not cross staging boundary at lh_cy+11=+22
+    table_xs = [lh_cx - 6.5, lh_cx - 2.5, lh_cx + 2.5, lh_cx + 6.5]
+    table_ys = [lh_cy - 14.5, lh_cy - 11.5, lh_cy - 8.5, lh_cy - 5.5, lh_cy - 2.5, lh_cy + 0.5]
     table_idx = 0
     for ri, ty in enumerate(table_ys):
         for ci, tx in enumerate(table_xs):
             table_idx += 1
-            led_choice = (["green", "green", "yellow"]
-                          if (ri + ci) % 4 == 0 else
-                          (["green", "red", "green"] if (ri + ci) % 7 == 0 else
-                           ["green", "green", "green"]))
+            led_choice = (["green", "green", "yellow"] if (ri + ci) % 4 == 0
+                          else ["green", "red", "green"] if (ri + ci) % 7 == 0
+                          else ["green", "green", "green"])
             n_boxes = 3 if (ri + ci) % 2 == 0 else 2
             build_storage_table(stage,
                                 f"/World/Lakehouse/Tables/Table_{table_idx}",
-                                (tx, ty), mats,
-                                n_boxes=n_boxes, leds=led_choice)
-    # Canonical Data Readiness inventory crates: these are the prims future
-    # twin-hub live state should update (count, readiness bars, readiness, workload fit).
+                                (tx, ty), mats, n_boxes=n_boxes, leds=led_choice)
+
+    # Namespace scope anchors for live binding (no visual — just trident:* attrs)
     define_scope(stage, "/World/DataReadiness/Inventory/Camera",
                  entity_id="inventory.namespace.camera", entity_type="inventory_namespace",
                  namespace="camera", zone="zone.lakehouse_inventory")
@@ -1610,106 +1590,57 @@ def main():
                  entity_id="inventory.namespace.gps", entity_type="inventory_namespace",
                  namespace="gps", zone="zone.lakehouse_inventory")
 
-    inventory_specs = [
-        ("Camera/Frames", "table.camera.frames", "camera", "frames",
-         (22.0, -4.9, 1.45), 12_400_000, 380, 0.91, 42, True, True, True, "fresh", "AI+HPDA"),
-        ("Camera/Objects", "table.camera.objects", "camera", "objects",
-         (25.6, -4.9, 1.45), 2_100_000, 92, 0.87, 18, True, True, True, "fresh", "AI"),
-        ("Lidar/Points", "table.lidar.points", "lidar", "points",
-         (22.0, -1.7, 1.45), 38_000_000, 740, 0.84, 31, True, True, True, "warm", "AI+HPC"),
-        ("Lidar/Tracks", "table.lidar.tracks", "lidar", "tracks",
-         (25.6, -1.7, 1.45), 4_700_000, 140, 0.78, 9, True, False, True, "warm", "HPDA"),
-        ("Weather/Grid", "table.weather.grid", "weather", "grid",
-         (22.0, 1.7, 1.45), 980_000, 36, 0.72, 6, False, True, True, "stale", "HPDA"),
-        ("Gps/Trajectory", "table.gps.trajectory", "gps", "trajectory",
-         (25.6, 1.7, 1.45), 8_300_000, 210, 0.89, 22, True, True, True, "fresh", "HPC+HPDA"),
-        ("Fusion/CameraLidar", "table.fusion.camera_lidar", "fusion", "camera_lidar",
-         (31.8, -1.7, 1.45), 1_800_000, 74, 0.93, 57, True, True, True, "fresh", "AI+HPDA"),
-        ("Fusion/WeatherGps", "table.fusion.weather_gps", "fusion", "weather_gps",
-         (31.8, 1.7, 1.45), 760_000, 28, 0.80, 12, True, True, True, "warm", "HPDA"),
-    ]
-    for rel_path, eid, ns, comp, pos, rows, objects, quality, access, semantic, location, policy, freshness, fit in inventory_specs:
-        make_readiness_table_crate(
-            stage, f"/World/DataReadiness/Inventory/{rel_path}", pos,
-            (0.82, 0.58, 0.48), mats, entity_id=eid, namespace=ns,
-            component=comp, row_count=rows, object_count=objects,
-            quality_score=quality, access_frequency=access, semantic=semantic,
-            location=location, policy=policy, freshness=freshness, workload_fit=fit,
-        )
-
-    # Lineage rays demo — only the white table-lineage beam remains
-    UsdGeom.Scope.Define(stage, "/World/Lakehouse/LineageRays")
-    cube(stage, "/World/Lakehouse/LineageRays/Ray_Table_1",
-         (lh_cx - 1.6, lh_cy - 2.2, lh_cz + 1.20),
-         (3.0, 0.04, 0.04), mats["lineage_table"])
-    # Legacy compat shelves (tiny anchors)
-    cube(stage, "/World/Lakehouse/StagingShelf1", (lh_cx, lh_cy - 2.2, 1.20),
-         (0.05, 0.05, 0.05), mats["table_top"],
-         name="Staging Shelf 1", entity_id="shelf.silver.1",
-         entity_type="staging_shelf", stage_name="staging")
-    cube(stage, "/World/Lakehouse/StagingShelf2", (lh_cx, lh_cy + 0.0, 1.20),
-         (0.05, 0.05, 0.05), mats["table_top"],
-         name="Staging Shelf 2", entity_id="shelf.silver.2",
-         entity_type="staging_shelf", stage_name="staging")
-    cube(stage, "/World/Lakehouse/StagingShelf3", (lh_cx, lh_cy + 2.2, 1.20),
-         (0.05, 0.05, 0.05), mats["table_top"],
-         name="Staging Shelf 3", entity_id="shelf.silver.3",
-         entity_type="staging_shelf", stage_name="staging")
-
-    # ===== Zone 5: Showcase (Y=+22, 17 x 12 x 6) — pushed further north so HPDA truck fits =====
-    sc_cx, sc_cy, sc_cz = 29.0, 22.0, 0.10
-    sc_sx, sc_sy, sc_sz = 17.0, 12.0, 6.0
-    cube(stage, "/World/Showcase/Floor",
-         (sc_cx, sc_cy, sc_cz),
-         (sc_sx, sc_sy, 0.18), mats["white_panel"])
-    # Showcase needs: south wall opening (front gap, Y- side) for incoming from Lakehouse promotion belt,
-    #                 east wall opening for outgoing to docks (hot path)
-    build_warehouse(stage, "/World/Showcase",
-                    center=(sc_cx, sc_cy, sc_cz + 0.10),
-                    size=(sc_sx, sc_sy, sc_sz),
-                    wall_mat=mats["glass_showcase"], frame_mat=mats["steel_frame"],
-                    right_gap=(0.0, 1.4, 1.1),
-                    front_gap=(-6.0, 1.4, 1.1))  # south opening at X=23 (gx_c=-6 from SC cx=29)
-    # Living-room style cabinets — distributed across 3 rows (north wall, middle
-    # freestanding, south wall) so the showcase doesn't feel wall-hugging only.
+    # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
+    # Bookshelf-style shelving units: 3 rows of shelf units, each with 3 shelves + boxes.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")
-    # North row (against +Y wall, facing south)
-    north_y = sc_cy + sc_sy / 2 - 0.9
-    for i, (dx, pop) in enumerate([(sc_cx - 5.5, 5), (sc_cx + 5.5, 5)]):
-        build_showcase_cabinet(stage,
-                               f"/World/Showcase/Displays/CabinetN_{i + 1}",
-                               dx, north_y, mats,
-                               cab_w=4.5, cab_d=0.8, cab_h=2.4,
-                               facing="south", popularity=pop)
-    # Middle freestanding row (at sc_cy, facing south toward visitor approach)
-    middle_y = sc_cy
-    for i, (dx, pop) in enumerate([(sc_cx - 6.0, 4), (sc_cx, 5), (sc_cx + 6.0, 4)]):
-        build_showcase_cabinet(stage,
-                               f"/World/Showcase/Displays/CabinetM_{i + 1}",
-                               dx, middle_y, mats,
-                               cab_w=4.5, cab_d=0.8, cab_h=2.4,
-                               facing="south", popularity=pop)
-    # South row (against -Y wall, facing north)
-    south_y = sc_cy - sc_sy / 2 + 0.9
-    for i, (dx, pop) in enumerate([(sc_cx - 5.5, 4), (sc_cx + 5.5, 5)]):
-        build_showcase_cabinet(stage,
-                               f"/World/Showcase/Displays/CabinetS_{i + 1}",
-                               dx, south_y, mats,
-                               cab_w=4.5, cab_d=0.8, cab_h=2.4,
-                               facing="north", popularity=pop)
+    UsdGeom.Scope.Define(stage, "/World/Lakehouse/Staging")
+    shelf_unit_positions = [
+        (22.0, 14.5), (27.0, 14.5), (32.0, 14.5), (37.0, 14.5),
+        (22.0, 19.5), (27.0, 19.5), (32.0, 19.5), (37.0, 19.5),
+        (22.0, 24.5), (27.0, 24.5), (32.0, 24.5), (37.0, 24.5),
+    ]
+    for ui, (scx, scy) in enumerate(shelf_unit_positions):
+        rp = f"/World/Lakehouse/Staging/Shelf_{ui + 1}"
+        UsdGeom.Scope.Define(stage, rp)
+        unit_w, unit_d, unit_h = 3.8, 0.9, 3.2
+        side_t = 0.08
+        # Side panels
+        cube(stage, f"{rp}/SideL",
+             (scx - unit_w / 2 + side_t / 2, scy, 0.1 + unit_h / 2),
+             (side_t, unit_d, unit_h), mats["table_top"])
+        cube(stage, f"{rp}/SideR",
+             (scx + unit_w / 2 - side_t / 2, scy, 0.1 + unit_h / 2),
+             (side_t, unit_d, unit_h), mats["table_top"])
+        # Back panel
+        cube(stage, f"{rp}/Back",
+             (scx, scy + unit_d / 2 - 0.03, 0.1 + unit_h / 2),
+             (unit_w, 0.04, unit_h), mats["table_leg"])
+        # 3 shelves
+        shelf_zs = [0.1 + 0.5, 0.1 + 1.3, 0.1 + 2.1]
+        for si, sz in enumerate(shelf_zs):
+            cube(stage, f"{rp}/Shelf_{si + 1}",
+                 (scx, scy, sz), (unit_w - side_t * 2, unit_d, 0.06),
+                 mats["table_top"])
+            # 3 boxes per shelf
+            for bi in range(3):
+                bx = scx - 1.1 + bi * 1.1
+                led = ["green", "yellow", "green"][bi % 3] if (ui + si) % 3 != 0 else ["green", "red", "green"][bi % 3]
+                make_iceberg_box(stage, f"{rp}/Shelf_{si + 1}/Box_{bi + 1}",
+                                 (bx, scy - 0.05, sz + 0.03 + 0.20),
+                                 (0.55, 0.38, 0.40), mats, led=led)
 
     # Canonical Staging / Ready Bundle prims. These are the targets for Portal
     # Dataset Basket, hot collection, recommended join, and materialized view
     # signals.
     ready_specs = [
         ("CameraLidarAI", "bundle.camera_lidar.ai", "Camera + LiDAR AI bundle",
-         "camera+lidar", "AI", 0.92, 57, (23.5, 23.8, 1.35)),
+         "camera+lidar", "AI", 0.92, 57, (23.0, 15.0, 1.35)),
         ("WeatherGpsHPDA", "bundle.weather_gps.hpda", "Weather + GPS HPDA bundle",
-         "weather+gps", "HPDA", 0.80, 12, (28.8, 23.8, 1.35)),
+         "weather+gps", "HPDA", 0.80, 12, (27.0, 15.0, 1.35)),
         ("HotBasket", "bundle.hot_basket.portal", "Portal hot Dataset Basket",
-         "camera+lidar+gps", "AI+HPDA", 0.88, 73, (34.0, 23.8, 1.35)),
+         "camera+lidar+gps", "AI+HPDA", 0.88, 73, (31.0, 15.0, 1.35)),
         ("MaterializedCollection", "bundle.materialized.collection", "Materialized collection candidate",
-         "fusion+weather", "HPC+HPDA", 0.84, 21, (28.8, 20.1, 1.35)),
+         "fusion+weather", "HPC+HPDA", 0.84, 21, (27.0, 19.0, 1.35)),
     ]
     for slug, eid, name, comps, fit, confidence, access, pos in ready_specs:
         make_ready_bundle(stage, f"/World/DataReadiness/ReadyBundles/{slug}",
@@ -1717,13 +1648,7 @@ def main():
                           components=comps, workload_fit=fit,
                           confidence=confidence, access_frequency=access)
 
-    # ===== Lakehouse -> Showcase promotion belt (GOLD frame) =====
-    # Belt runs Y from +6 (LH north wall) to +16 (SC south wall) at X=23
-    # (shifted west so it does not cover the STAGING ZONE floor label)
-    build_conveyor_Y(stage, "/World/Lakehouse/PromotionConveyor",
-                     y_start=+6.0, y_end=+16.0, x_center=23.0,
-                     z_top=0.7, width=0.9, mats=mats,
-                     frame_mat_key="metal_gold")
+    # Lakehouse -> Showcase promotion belt removed; zones are now unified as LAKEHOUSE ZONE.
 
     # ===== Zone 0+7 MERGED: Lobby + Search Counter (previous design restored,
     # only X position moved into the open corridor between LH/SC east wall and

@@ -46,8 +46,8 @@ This is the current working deployment used during the May 31, 2026 iteration.
 | Isaac container used for this project | `isaac-sim-ICH-strongest` |
 | Portal WebRTC endpoint | `10.38.38.197:49100` |
 | Persistent project path inside container | `/mnt/Trident-Twin-520d314` |
-| Open this for presentation/review | `/mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_replay.usda` |
-| Static non-replay scene | `/mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin.usda` |
+| Latest generated scene | `stages/trident_lakehouse_twin_<timestamp>.usda` |
+| Replay scene | `/mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_replay.usda` |
 
 Use the `/mnt/...` path, not `/isaac-sim/...`, because `/mnt` is mounted from
 the host and survives container restart/recreation. Files copied only inside the
@@ -86,33 +86,33 @@ individual metadata stickers. Instead, it shows **what operation happened** and
 **what new artifact/bar appeared**. This matches the code path better and keeps
 the stage readable.
 
-### Seven operation cards shown in the USD
+### Five security-gate checkpoints in the Accumulation Zone
 
-| Step | Operation | New thing represented in the twin | Portal/Lakehouse source |
+Each gate straddles both conveyor belts simultaneously. Pillars rise from the
+floor, crossbar spans both lanes, and a colored badge identifies the step.
+
+| Step | Operation | Badge color | New artifact |
 | --- | --- | --- | --- |
-| 1 | `audit_run` | raw object / ingest result | `stats-service/routers/ingest.py` audit flow |
-| 2 | `catalog_dataset_upsert` | `catalog.datasets` row | `stats-service/hooks.py` catalog hook |
-| 3 | `schema_snapshot_recorded` | `catalog.schema_versions` snapshot | schema/version insert in catalog hook |
-| 4 | `semantic_location_policy_attached` | semantic/location/policy readiness bars | Milvus + Redis + policy metadata exposed through stats-service |
-| 5 | `search_index_refreshed` | searchable catalog index | `stats-service/routers/search.py` |
-| 6 | `collection_or_join_created` | ready bundle / materialized CTAS collection | `stats-service/routers/collection.py` |
-| 7 | `workload_delivery_snippet` | AI/HPC/HPDA URI/SQL/Spark snippet | Portal search delivery panels |
+| 1 | `audit_run` | Bronze | raw object / ingest result |
+| 2 | `catalog_dataset_upsert` | Blue | `catalog.datasets` row |
+| 3 | `schema_snapshot_recorded` | Yellow | `catalog.schema_versions` snapshot |
+| 4 | `semantic_location_policy_attached` | Purple | Milvus/Redis/policy bars |
+| 5 | `search_index_refreshed` | Green | searchable catalog index |
 
 ### Regenerate the USD in the container
 
 ```bash
-ssh netai@l40s
-docker exec -it isaac-sim-ICH-strongest bash
-cd /mnt/Trident-Twin-520d314
-/isaac-sim/python.sh scripts/create_scene.py
-/isaac-sim/python.sh scripts/replay_events.py
+# From host
+cat scripts/create_scene.py | ssh netai@l40s "sudo tee /mnt/Trident-Twin-520d314/scripts/create_scene.py > /dev/null"
+ssh netai@l40s "sudo docker exec isaac-sim-ICH-strongest bash -c \
+  'cd /mnt/Trident-Twin-520d314 && /isaac-sim/python.sh scripts/create_scene.py'"
 ```
 
-Expected outputs:
+Output: `stages/trident_lakehouse_twin_<YYYYMMDD_HHMM>.usda`
 
+Open in Isaac Sim WebRTC:
 ```text
-stages/trident_lakehouse_twin.usda
-stages/trident_lakehouse_twin_replay.usda
+File > Open > /mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_<timestamp>.usda
 ```
 
 ### Live Trident Lakehouse binding
@@ -246,14 +246,13 @@ resource volume, metadata coverage, readiness, or usage pressure.
 
 | # | Zone | Role | Center (x, y) | Stage |
 | --- | --- | --- | --- | --- |
-| 1 | **INGEST** | Raw data arrives from inbound sources | (-22, 0) | Bronze intake |
-| 2 | **RAW BUCKET** | Untagged source objects; quantity visible, metadata mostly missing | (-4, 0) | Bronze raw |
-| 3 | **PIPELINE STEPS** | Seven visible operations matching the current Portal/stats-service path: audit, catalog, schema, quality, metadata/index, bundle, delivery | (+13, 0) | Silver refinement |
-| 4 | **LAKEHOUSE INVENTORY** | Refined tables grouped by namespace/component with count, volume, freshness, quality, tags | (+29, 0) | Silver inventory |
-| 5 | **STAGING / READY BUNDLES** | Dataset Basket, hot datasets, recommended joins, materialized collections | (+29, +22) | Gold ready-to-use |
-| 6 | **SEARCH / SELECTION** | User intent highlights candidates, compares readiness, explains missing metadata | (+44, +10) | Selection |
-| 7 | **WORKLOAD DELIVERY** | Selected datasets/collections become AI/HPC/HPDA packages and snippets | (+59, +10) | Usage |
-| 8 | **CONTROL TOWER** | Operator view of readiness, bottlenecks, and live state | (-22, +25) | Monitoring |
+| 1 | **TRUCK YARD** | Raw data arrives from inbound sources via truck + inbound conveyor | (-22, 0) | Bronze intake |
+| 2 | **RAW BUCKET ZONE** | Warehouse with 5 directory sub-zones; untagged brown boxes pile up inside | (-4, 11) | Bronze raw |
+| 3 | **ACCUMULATION ZONE** | 5 security-gate checkpoints spanning both conveyor belts; badge color = operation type | (+13, 0) | Silver refinement |
+| 4 | **LAKEHOUSE ZONE** | Unified warehouse — lower half: storage tables with Iceberg boxes; upper half: bookshelf staging units | (+29, 11) | Silver inventory + Gold staging |
+| 5 | **SEARCH ZONE** | Lobby + search counter; user intent highlights candidates and compares readiness | (+44, +10) | Selection |
+| 6 | **DELIVERY ZONE** | Big consolidation table → 3 outgoing belts → AI/HPC/HPDA trucks | (+59, +10) | Usage |
+| 7 | **CONTROL TOWER** | Operator view of readiness, bottlenecks, and live state | (-22, +25) | Monitoring |
 
 ---
 
