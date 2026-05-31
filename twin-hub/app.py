@@ -16,7 +16,9 @@ from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
+import urllib.parse
 import urllib.request
 from datetime import datetime
 from pathlib import Path
@@ -33,8 +35,57 @@ ENTITIES_FILE = REPO_ROOT / "data" / "twin_entities.json"
 EVENTS_FILE = REPO_ROOT / "data" / "mock_twin_events.json"
 
 TRIDENT_STATS_BASE_URL = os.getenv("TRIDENT_STATS_BASE_URL", "").rstrip("/")
-TRIDENT_STATS_TOKEN = os.getenv("TRIDENT_STATS_TOKEN", "")
 HTTP_TIMEOUT_SECONDS = float(os.getenv("TRIDENT_TWIN_HTTP_TIMEOUT", "4"))
+
+# Keycloak client_credentials 자동 갱신 설정
+# TRIDENT_STATS_TOKEN을 직접 지정하면 자동 갱신 없이 해당 토큰 사용.
+# TRIDENT_KC_* 환경변수를 설정하면 만료 60초 전에 자동으로 재발급.
+_KC_URL = os.getenv("TRIDENT_KC_URL", "")           # e.g. http://10.38.38.220:8080/realms/trident/protocol/openid-connect/token
+_KC_CLIENT_ID = os.getenv("TRIDENT_KC_CLIENT_ID", "trident-baseline-runner")
+_KC_CLIENT_SECRET = os.getenv("TRIDENT_KC_CLIENT_SECRET", "")
+_STATIC_TOKEN = os.getenv("TRIDENT_STATS_TOKEN", "")
+
+
+class _TokenCache:
+    """Keycloak client_credentials 토큰을 캐싱하고 만료 전에 자동 갱신한다."""
+
+    def __init__(self) -> None:
+        self._token: str = _STATIC_TOKEN
+        self._expires_at: float = 0.0  # 정적 토큰이면 갱신 안 함
+
+    def get(self) -> str:
+        # 정적 토큰이 설정되어 있고 KC URL이 없으면 갱신 없이 반환
+        if self._token and not _KC_URL:
+            return self._token
+        # 만료 60초 전에 갱신
+        if time.monotonic() < self._expires_at - 60:
+            return self._token
+        return self._refresh()
+
+    def _refresh(self) -> str:
+        if not _KC_URL or not _KC_CLIENT_SECRET:
+            return self._token  # KC 설정 없으면 기존 토큰 유지
+        data = urllib.parse.urlencode({
+            "grant_type": "client_credentials",
+            "client_id": _KC_CLIENT_ID,
+            "client_secret": _KC_CLIENT_SECRET,
+        }).encode()
+        req = urllib.request.Request(
+            _KC_URL, data=data,
+            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=8.0) as r:
+                payload = json.loads(r.read().decode())
+            self._token = payload["access_token"]
+            ttl = int(payload.get("expires_in", 3600))
+            self._expires_at = time.monotonic() + ttl
+            return self._token
+        except Exception as e:
+            raise LiveSourceError(f"Keycloak 토큰 갱신 실패: {e}") from e
+
+
+_token_cache = _TokenCache()
 
 
 class LiveSourceError(RuntimeError):
@@ -77,8 +128,9 @@ def _fetch_json(path: str) -> dict[str, Any]:
     if not TRIDENT_STATS_BASE_URL:
         raise LiveSourceError("TRIDENT_STATS_BASE_URL is not configured")
     req = urllib.request.Request(f"{TRIDENT_STATS_BASE_URL}{path}")
-    if TRIDENT_STATS_TOKEN:
-        req.add_header("Authorization", f"Bearer {TRIDENT_STATS_TOKEN}")
+    token = _token_cache.get()
+    if token:
+        req.add_header("Authorization", f"Bearer {token}")
     try:
         with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT_SECONDS) as r:
             return json.loads(r.read().decode("utf-8"))
