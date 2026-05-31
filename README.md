@@ -4,26 +4,87 @@
 
 ![Trident Twin Conceptual Overview](overview.png)
 
-> Conceptual Overview — Trident Lakehouse를 항만·창고·진열대·고객 응대로 비유한 개념도.
-> Lake(트럭 유입) → Accumulation(컨베이어 위 메타 부여) → Lakehouse 진열대(Staging) → Adaptive Workload Interfaces(카트로 픽업하는 Delivery) → Operator(관제탑) 흐름을 보여준다.
+> Conceptual Overview — Trident-Twin을 단순 3D 시각화가 아니라 **Data Readiness / Usage Optimization Twin**으로 재정의한 개념도.
+> 핵심 흐름은 `Raw 수집` → `정제/메타데이터 부착` → `Lakehouse Inventory 적재` → `Staging/Ready Bundle 큐레이션` → `Search & Workload 활용`이다.
+> 사용자는 박스의 종류·개수·태그·readiness를 보고 “어떤 데이터를 지금 바로 쓸 수 있는지” 빠르게 판단한다.
 
 ![Trident Twin Site Plan](docs/site-plan.png)
 
-> v11.1 Site Plan — 3-stage metallic 모델을 정확한 좌표 위에 매핑한 기술 평면도(탑뷰, X-Y).
-> Bronze(Raw) → Silver(Pipeline + Lakehouse) → Gold(Showcase) → Big Consolidation Table → 3 dock trucks.
-> 좌표는 `scripts/create_scene.py`의 USD stage와 1:1 일치 (1 unit = 1 m).
+> Site Plan — 같은 좌표계 위에 Data Readiness 가치를 더한 기술 평면도(탑뷰, X-Y).
+> Bronze raw object count → Silver refined inventory(table/volume/tag/readiness) → Gold ready bundle → Search/Selection → AI/HPC/HPDA delivery.
+> 좌표는 `scripts/create_scene.py`의 USD stage와 1:1 대응하되, README figure는 다음 scene 고도화를 위한 제품 의도를 함께 표시한다.
 > 재생성: `python3 scripts/draw_site_plan.py`
 
-![Trident Twin — Isaac Sim RTX render (oblique)](docs/screenshots/Obli_Overview.png)
+![Trident Twin Readiness Elevation](docs/elevation.png)
 
-> 실제 Isaac Sim RTX 렌더 (45° 부감) — v11.1 facility 전체 조감.
-> 좌측 Ingest / Raw Bucket(🟫 Bronze) → 중앙 Accumulation / Lakehouse(🟦 Silver) → 상단 Staging / Showcase(🟨 Gold) → 우측 Search · Delivery, 좌상단 Control Tower.
+> Elevation — raw box가 refinement pipeline을 거쳐 table crate와 metadata tag를 얻고, Lakehouse Inventory에서 readiness가 보이는 구조를 측면에서 설명한다.
+> Staging은 두 번째 창고가 아니라 Y=+22에 있는 ready bundle / curated shelf로 표시한다.
 
-![Trident Twin — Isaac Sim RTX render (top-down)](docs/screenshots/Top_Overview.png)
+![Trident Twin Readiness Overview](docs/screenshots/00_overview.png)
 
-> 동일 씬 90° 탑다운 RTX 렌더 — 위 Site Plan과 같은 탑뷰 구도로 8개 zone 배치를 한눈에 보여준다.
+> Top-down schematic overview — 8개 zone을 Data Readiness 관점으로 다시 annotated한 전체 지도.
+> 실제 Isaac Sim RTX 렌더(`docs/screenshots/Obli_Overview.png`, `docs/screenshots/Top_Overview.png`)는 현재 USD 물리 배치 참고용으로 유지하고, 제품 의도는 schematic diagram에 우선 반영한다.
 
 ---
+
+## Product Thesis — what this twin is for
+
+Trident-Twin의 본질은 “예쁜 3D 창고”가 아니라, **Trident Portal 사용자가 필요한 데이터를 더 빨리 찾고, 상태를 이해하고, 바로 AI/HPC/HPDA workload에 활용하도록 돕는 spatial data operation map**이다.
+
+사용자는 Twin에서 다음 질문에 즉시 답할 수 있어야 한다.
+
+1. **어떤 데이터가 들어왔는가?** — raw file / metadata file / derived table의 종류와 양.
+2. **얼마나 정제되었는가?** — Iceberg table화, schema 확정, quality score, lineage, governance 상태.
+3. **어떤 메타데이터 태그가 붙었는가?** — Milvus explaining metadata, Redis location/sharing metadata, PostgreSQL policy/audit metadata.
+4. **어디에 얼마나 적재되어 있는가?** — Lakehouse inventory의 namespace/table/component별 박스 개수와 밀도.
+5. **지금 무엇이 자주 쓰이고 바로 쓸 수 있는가?** — Staging/Showcase에 올라온 hot dataset, 추천 조합, Dataset Basket, materialized collection.
+6. **어느 workload로 가져갈 수 있는가?** — AI / HPC / HPDA dock별 사용 가능한 delivery package와 실행 snippet.
+
+따라서 figure와 scene은 단순히 “창고에서 가져와 진열한다”가 아니라, **데이터가 정제되면서 찾기 쉬워지고, 조합되면서 바로 활용 가능한 자원이 되는 과정**을 보여줘야 한다.
+
+### Terminology refinement
+
+| 기존 표현 | 문제 | 권장 표현 | Twin에서 보여줄 것 |
+| --- | --- | --- | --- |
+| 정리 | 너무 일반적이고 직관이 약함 | **정제 / 구조화 / 메타데이터 부착** | raw box가 Iceberg table box로 바뀌고 schema/quality/lineage tag가 붙음 |
+| 사용 | 너무 넓음 | **탐색 / 선택 / 활용 / workload delivery** | 사용자가 검색하고, Basket/Showcase에서 고르고, AI/HPC/HPDA dock으로 가져감 |
+| 창고 | 저장만 강조됨 | **Lakehouse Inventory** | namespace/table/component별로 얼마나 적재되어 있는지 한눈에 보임 |
+| 진열대 | 예쁘게 꺼내놓는 느낌이 강함 | **Staging / Showcase / Curated Bundle** | 자주 쓰일 조합, 추천 collection, hot dataset을 빠르게 선택 |
+
+### Lakehouse vs Staging decision
+
+현재처럼 Lakehouse와 Staging을 완전히 없애서 하나로 합치기보다는, **같은 Lakehouse 운영 체계 안의 두 레이어로 재정의**하는 편이 낫다.
+
+- **Lakehouse Inventory**: 정제된 모든 데이터가 적재되는 본 저장 공간. Iceberg/Nessie 기준의 source of truth에 가깝다. 사용자는 여기서 “무엇이 얼마나 있고, 어떤 상태인지”를 본다.
+- **Staging / Showcase**: Portal 관점의 `자주 사용할 것 같은 조합`, `검색 결과에서 바로 쓸 수 있는 후보`, `Dataset Basket / materialized collection`을 올려두는 빠른 선택 공간이다. 저장소를 하나 더 만든다는 의미가 아니라, **사용 최적화를 위해 큐레이션된 view/cache/shelf**에 가깝다.
+
+즉, 물리적으로는 붙어 있거나 한 건물 안의 구역처럼 보여도 되고, 개념적으로는 반드시 분리되어야 한다.
+
+```text
+Raw Bucket
+  → Refinement Pipeline
+  → Lakehouse Inventory       # 정제된 전체 자원: namespace/table/component/volume/status
+      ├─ table boxes by schema/component
+      ├─ metadata tags: quality, lineage, policy, semantic, location
+      └─ usage heat / freshness / cache state
+  → Staging / Showcase        # 빠른 활용 후보: hot dataset, 추천 조합, basket, collection
+  → Search & Workload Delivery # AI / HPC / HPDA로 바로 가져가기
+```
+
+### Visual grammar for the next figure
+
+다음 figure/scene 고도화에서는 고정된 박스 vocabulary를 먼저 정하고, 사용자가 박스의 **종류·개수·태그·위치**만 봐도 현재 자원 상태를 이해하게 한다.
+
+| Visual object | 의미 | 수량/밀도 표현 | 붙일 태그 |
+| --- | --- | --- | --- |
+| Brown raw box | 아직 설명/공유 메타데이터가 없는 원천 파일 | raw object 수, namespace별 더미 | source, size, arrival time |
+| Silver table crate | Iceberg table로 정제된 데이터 | table 수, row/object volume, partition density | schema, quality, Nessie commit |
+| Purple semantic tag | Milvus explaining metadata | embedding/vector coverage | topic, modality, similarity |
+| Red sharing/location tag | Redis sharing/location metadata | cache hit/freshness, URI count | location, cache, published/private |
+| Gold bundle tray | Staging/Showcase의 추천 조합 또는 hot collection | basket size, access frequency | workload fit, confidence, last used |
+| Workload cart/truck | AI/HPC/HPDA로 전달되는 사용 패키지 | delivery count, queue/state | snippet type, owner, policy result |
+
+이 vocabulary가 정해져야 “박스가 많다/적다”가 단순 장식이 아니라, **현재 Trident resource inventory와 사용 가능성을 빠르게 판단하는 UI**가 된다.
 
 ## Concept — Bronze → Silver → Gold metallic lifecycle
 
@@ -49,8 +110,8 @@
 | Stage | 색 | 공간 | 데이터 상태 | 책임 컴포넌트 |
 |------|---|-------|----------|-----------|
 | 🟫 **Bronze** | 브론즈 | Raw Bucket 창고 | 메타데이터 없는 갈색 무지 박스 (Data Swamp 표현) | Ceph S3 Raw Bucket |
-| 🟦 **Silver** | 실버 | Pipeline + Lakehouse | Iceberg 포장 + 보라 라벨 + 빨강 카드 + 상태 LED, storage table에 적재 | Iceberg + Nessie + Milvus + Redis + PostgreSQL catalog |
-| 🟨 **Gold** | 골드 | Showcase | 거실형 글래스 캐비닛에 핫 데이터 진열 | Redis hot key, Dataset Basket, access_audit |
+| 🟦 **Silver** | 실버 | Refinement Pipeline + Lakehouse Inventory | Iceberg table crate로 정제 + schema/quality/lineage tag 부착 + namespace/table/component별 적재량 표시 | Iceberg + Nessie + Milvus + Redis + PostgreSQL catalog |
+| 🟨 **Gold** | 골드 | Staging / Showcase | 자주 쓰는 hot dataset, 추천 조합, Dataset Basket, materialized collection을 빠르게 선택 가능한 bundle tray로 표시 | Redis hot key, Dataset Basket, access_audit, workload delivery evidence |
 
 ---
 
@@ -60,7 +121,7 @@
 
 - **공간**: 각 zone과 entity를 USD prim으로 배치 (Site Plan과 1:1)
 - **상태**: 각 prim에 `trident:*` custom attribute로 현재 상태(stage/zone/metadata_status/sharing_status/last_event 등)를 기록
-- **흐름**: Dataset Package가 Raw → Pipeline → Lakehouse → (Promotion) → Showcase → Big Table → Truck을 거치는 lifecycle을 mock event로 재생 (향후 Stats Service / twin-hub 실 source로 교체)
+- **흐름**: Dataset Package가 Raw → Refinement Pipeline → Lakehouse Inventory → Staging/Showcase → Search/Delivery를 거치며 “찾기 쉬운 자원”이 되는 lifecycle을 mock event로 재생 (향후 Stats Service / twin-hub 실 source로 교체)
 - **렌더**: Isaac Sim Kit extension이 상태 변화를 USD 속성에 반영, WebRTC로 Trident Portal에 스트리밍
 
 핵심 분담:
@@ -81,10 +142,10 @@
 | 1 | **INGEST** | Inbound Truck Yard + Bronze 인입 컨베이어 | (-22, 0) | asphalt 14×8 / pad 16×11 | 🟫 Bronze 진입 |
 | 2 | **RAW BUCKET** | Bronze 창고 (Data Swamp) | (-4, 0) | 17×12×6 | 🟫 Bronze |
 | 3 | **ACCUMULATION** | 5-station 파이프라인 (Main + Express 병렬) | (+13, 0) | pad 16×10, stations X=7/10/13/16/19 | 🟦 Silver 가공 |
-| 4 | **LAKEHOUSE** | Silver 저장 창고 (5×4 = 20 테이블) | (+29, 0) | 17×12×6 | 🟦 Silver |
-| 5 | **STAGING** | Showcase / Gold 진열장 (거실형 캐비닛 7개) | (+29, +22) | 17×12×6 | 🟨 Gold |
-| 6 | **SEARCH** | Lobby + Search Counter 통합 plaza | (+44, +10) | plaza 10×14 | 질의 접수 |
-| 7 | **DELIVERY** | Big Consolidation Table + AI/HPC/HPDA 트럭 3대 | (+59, +10) | asphalt 22×17, table 4×11 | 출고 / 서빙 |
+| 4 | **LAKEHOUSE INVENTORY** | Silver 정제 데이터 적재 구역 (5×4 = 20 테이블). namespace/table/component별 박스 개수, row/object volume, freshness, quality를 보여줘야 함 | (+29, 0) | 17×12×6 | 🟦 Silver |
+| 5 | **STAGING / SHOWCASE** | Portal의 Dataset Basket / 추천 조합 / hot collection을 올려두는 빠른 선택 구역. 별도 저장소라기보다 Lakehouse 위의 curated view/cache/shelf | (+29, +22) | 17×12×6 | 🟨 Gold |
+| 6 | **SEARCH** | 사용자가 필요한 데이터를 탐색하고 후보를 비교하는 plaza. semantic search, filter, policy/quality evidence가 보이는 곳 | (+44, +10) | plaza 10×14 | 탐색 / 선택 |
+| 7 | **DELIVERY** | Big Consolidation Table + AI/HPC/HPDA 트럭 3대. 선택한 dataset/collection을 workload별 패키지와 snippet으로 활용 | (+59, +10) | asphalt 22×17, table 4×11 | 활용 / 서빙 |
 | 8 | **TOWER** | Twin Control Tower (운영자) | (-22, +25) | 3.2×3.2 base + 9m shaft + glass deck + 안테나 | 관제 |
 
 > **v11 → v11.1 변경점**:
@@ -154,8 +215,8 @@ Camera_Delivery   Big Table + 3 truck 도크 클로즈업
 - 5-station pipeline with parallel Main + Express belts
 - Big Consolidation Table + 3 straight outgoing belts
 - Lobby + Search Counter 통합 SEARCH plaza
-- 거실형 Showcase 캐비닛 7개 (북벽 2 + 중간 3 + 남벽 2)
-- Lakehouse storage table 그리드 (5×4 = 20 tables)
+- 거실형 Showcase 캐비닛 7개 (북벽 2 + 중간 3 + 남벽 2) — 다음 단계에서 Dataset Basket / 추천 조합 / hot collection 의미로 재정의 필요
+- Lakehouse storage table 그리드 (5×4 = 20 tables) — 다음 단계에서 namespace/table/component별 inventory 밀도 표현 필요
 - 5 user mannequin (admin/researcher/operator/viewer/librarian)
 - 북쪽으로 이동한 Twin Control Tower (9m shaft + glass deck + 안테나)
 - 바닥 zone 라벨 + 트럭 상단 라벨 (5×7 pixel alphabet)
@@ -167,6 +228,9 @@ Camera_Delivery   Big Table + 3 truck 도크 클로즈업
 
 아직 남은 항목:
 - twin-hub 실 source 바인딩 (Nessie / PostgreSQL / Redis / Milvus / stats-service)
+- figure에서 Trident-Twin의 본질/역할 강화: “사용자가 데이터를 빠르게 찾고 활용하도록 최적화하는 운영 지도”가 보이도록 재구성
+- Lakehouse Inventory 박스 vocabulary 정립: 고정된 박스 종류/개수/태그로 데이터 종류·양·정제 상태를 한눈에 표현
+- Staging / Showcase 의미 재정의: 별도 창고가 아니라 Portal의 추천 조합, Dataset Basket, hot collection, materialized collection을 빠르게 선택하는 curated shelf로 표현
 - file_registry 바이패스 시각화
 - Delta Mode 박스 변형 (작은 큐브)
 - Integrity Audit Gate 재추가 (검토 중)
@@ -184,7 +248,7 @@ Camera_Delivery   Big Table + 3 truck 도크 클로즈업
 | Path | Description |
 | --- | --- |
 | `README.md` | 본 문서 (v11.1 기준) |
-| `overview.png` | Conceptual Overview 일러스트 (수작업, 항만·창고 비유) |
+| `overview.png` | Data Readiness / Usage Optimization Twin 개념도 (`scripts/draw_overview.py`로 재생성) |
 | `docs/site-plan.png` | v11.1 Site Plan (탑뷰) |
 | `docs/elevation.png` | Elevation View (사이드뷰) |
 | `docs/screenshots/00_overview.png … 08_tower.png` | 존별 탑다운 스키매틱 9컷 (overview + 8 zones) |
@@ -195,6 +259,7 @@ Camera_Delivery   Big Table + 3 truck 도크 클로즈업
 | `scripts/create_scene.py` | Isaac Sim Python 기반 v11.1 USD stage 생성 스크립트 (단일 진실 소스) |
 | `scripts/replay_events.py` | mock event를 USD time samples/custom attributes로 반영하는 replay 스크립트 |
 | `scripts/add_cameras.py` | 기존 stage에 카메라를 추가하는 유틸리티 |
+| `scripts/draw_overview.py` | `overview.png` 생성 (matplotlib) |
 | `scripts/draw_site_plan.py` | `docs/site-plan.png` 생성 (matplotlib) |
 | `scripts/draw_elevation.py` | `docs/elevation.png` 생성 (matplotlib) |
 | `scripts/render_topdown.py` | `Top_*` 카메라 9개를 Isaac Sim에서 실제 RTX 렌더 → `docs/screenshots/Top_*.png` |
@@ -298,7 +363,8 @@ cd /home/chang/git/Trident-Twin
 # 존별 탑다운 스키매틱 (matplotlib) → docs/screenshots/00…08*.png
 python3 scripts/render_topdown_diagrams.py
 
-# Site Plan / Elevation 다이어그램
+# Concept / Site Plan / Elevation 다이어그램
+python3 scripts/draw_overview.py
 python3 scripts/draw_site_plan.py
 python3 scripts/draw_elevation.py
 ```
@@ -427,14 +493,17 @@ Omniverse WebRTC viewer ↔ Trident Portal
 - 이벤트 timeline 기반 replay 확인
 
 ### Phase 3. Live State Twin
+- README의 product thesis에 맞춰 figure/scene을 재설계: Lakehouse Inventory와 Staging/Showcase의 역할을 명확히 분리하되 시각적으로는 하나의 사용 흐름으로 연결
 - twin-hub / Stats Service에 twin state API 추가
 - WebSocket event stream 연결
 - Redis / Milvus / PostgreSQL 상태를 Twin entity로 변환
+- Inventory metrics 추가: table count, object/row volume, namespace/component grouping, freshness, quality score, access frequency, cache state
 - Isaac Sim extension에서 live update 수행
 
 ### Phase 4. Portal Integrated Twin
 - `Trident-Portal`의 Twin viewer와 WebRTC 연결
 - Portal dataset selection과 Omniverse Prim selection 동기화
+- Portal Search / Collection Basket / Workload Delivery 상태를 Staging/Showcase와 Delivery dock에 반영
 - Event timeline, health score, metadata panel 제공
 - 운영자 action을 API로 전달
 

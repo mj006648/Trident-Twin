@@ -1,4 +1,4 @@
-"""Generate the v11 Trident-Twin Elevation View (side view from -Y).
+"""Generate the Trident-Twin Data Readiness Elevation View (side view from -Y).
 
 Companion to docs/site-plan.png. The Site Plan shows the X-Y plane;
 this Elevation shows the X-Z plane so vertical stacking becomes visible.
@@ -45,19 +45,19 @@ C_DELIVERY = "#8862e0"
 # Heights are real z (m). Warehouses are 6m tall, on a floor pad ~0.1m thick.
 BUILDINGS = [
     (-4, 0.1, 17, 6.0, C_BRONZE, C_BRONZE_FILL, "Raw Bucket\n(Bronze warehouse)"),
-    (29, 0.1, 17, 6.0, C_SILVER, C_SILVER_FILL, "Lakehouse\n(Silver warehouse)"),
+    (29, 0.1, 17, 6.0, C_SILVER, C_SILVER_FILL, "Lakehouse Inventory\n(table crates + tags)"),
 ]
 
 # Showcase shown as DASHED behind LH (Y=+22) — annotation only
-SHOWCASE_GHOST = (29, 0.1, 17, 6.0, "Showcase (Gold) — sits at Y=+22 behind LH")
+SHOWCASE_GHOST = (29, 0.1, 17, 6.0, "Staging / Ready Bundles — curated shelf at Y=+22")
 
 # Pipeline stations (5)
 STATIONS = [
     (7.0, "3-1\nProbing"),
     (10.0, "3-2\nArchitect"),
-    (13.0, "3-3\nIceberg"),
-    (16.0, "3-4\nMilvus"),
-    (19.0, "3-5\nRedis"),
+    (13.0, "3-3\nIceberg\ntable"),
+    (16.0, "3-4\nSemantic\ntag"),
+    (19.0, "3-5\nLocation\ntag"),
 ]
 STATION_H = 3.0  # canopy height
 
@@ -65,8 +65,8 @@ STATION_H = 3.0  # canopy height
 CONVEYORS_X = [
     (-17.9, -12.3, C_BRONZE, "Inbound (Bronze)"),
     (4.7, 20.4, C_SILVER, "Pipeline belts (Silver)"),
-    (37.5, 52.0, C_SILVER, "LH → Big Table (Silver)"),
-    (54.0, 61.5, C_DELIVERY, "Big Table → AI dock"),
+    (37.5, 52.0, C_SILVER, "Inventory candidates"),
+    (54.0, 61.5, C_DELIVERY, "Workload package"),
 ]
 
 # Big Table (cx, cz_floor, w, table_top_h, leg_h)
@@ -260,6 +260,36 @@ def draw_tower(ax) -> None:
             color="#3a5d8f", zorder=9)
 
 
+
+def draw_readiness_layers(ax) -> None:
+    # Small table crates inside the inventory warehouse, with colored tags.
+    for i, x in enumerate([24.0, 25.4, 26.8, 28.2, 29.6, 31.0, 32.4, 33.8]):
+        y = 1.0 + (i % 3) * 0.75
+        ax.add_patch(mpatches.Rectangle((x - 0.35, y), 0.7, 0.45,
+                                        facecolor="#f8fafc", edgecolor=C_SILVER,
+                                        linewidth=0.9, zorder=7))
+        tag_color = ["#8b5cf6", "#f43f5e", "#16a34a"][i % 3]
+        ax.add_patch(mpatches.Circle((x + 0.30, y + 0.42), 0.09,
+                                     facecolor=tag_color, edgecolor="white",
+                                     linewidth=0.5, zorder=8))
+    ax.text(29, 5.65, "Inventory exposes:\ncount · volume · tags · readiness",
+            ha="center", va="center", fontsize=8, color=C_SILVER,
+            fontweight="bold", zorder=8,
+            bbox=dict(boxstyle="round,pad=0.2", facecolor="white",
+                      edgecolor=C_SILVER, alpha=0.95))
+
+    ax.text(44, 4.2, "Search does not just view the twin:\nit highlights candidates and missing metadata",
+            ha="center", va="center", fontsize=8, color=C_LOBBY,
+            fontweight="bold", zorder=8,
+            bbox=dict(boxstyle="round,pad=0.22", facecolor="white",
+                      edgecolor=C_LOBBY, alpha=0.95))
+
+    ax.text(57.5, 3.9, "Delivery = URI / SQL / Spark snippet\nfor AI · HPC · HPDA",
+            ha="center", va="center", fontsize=8, color=C_DELIVERY,
+            fontweight="bold", zorder=8,
+            bbox=dict(boxstyle="round,pad=0.22", facecolor="white",
+                      edgecolor=C_DELIVERY, alpha=0.95))
+
 def draw_height_dim(ax, x, z1, z2, label) -> None:
     ax.plot([x, x], [z1, z2], color="#666666", lw=0.8, zorder=4)
     ax.plot([x - 0.3, x + 0.3], [z1, z1], color="#666666", lw=0.8, zorder=4)
@@ -283,9 +313,9 @@ def draw_legend(ax) -> None:
         mpatches.Patch(facecolor=C_BRONZE_FILL, edgecolor=C_BRONZE,
                        label="Bronze stage (Raw)"),
         mpatches.Patch(facecolor=C_SILVER_FILL, edgecolor=C_SILVER,
-                       label="Silver stage (Pipeline + Lakehouse)"),
+                       label="Silver stage (Refinement + Inventory)"),
         mpatches.Patch(facecolor=C_GOLD_FILL, edgecolor=C_GOLD,
-                       label="Gold stage (Showcase) — Y=+22, drawn dashed offset"),
+                       label="Gold stage (Ready bundles) — Y=+22, drawn dashed offset"),
         Line2D([0], [0], color=C_BRONZE, lw=4, label="Bronze conveyor"),
         Line2D([0], [0], color=C_SILVER, lw=4, label="Silver conveyor"),
         Line2D([0], [0], color=C_DELIVERY, lw=4, label="Dispatch conveyor"),
@@ -293,7 +323,7 @@ def draw_legend(ax) -> None:
     ]
     ax.legend(handles=handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
               fontsize=9, framealpha=1.0, edgecolor="#888888",
-              title="Legend (v11)", title_fontsize=10)
+              title="Legend (Readiness Elevation)", title_fontsize=10)
 
 
 def main() -> None:
@@ -321,6 +351,8 @@ def main() -> None:
     for x1, x2, color, label in CONVEYORS_X:
         draw_conveyor(ax, x1, x2, color, label)
 
+    draw_readiness_layers(ax)
+
     # Big Table
     draw_big_table(ax)
 
@@ -339,8 +371,8 @@ def main() -> None:
     draw_legend(ax)
 
     ax.set_title(
-        "Trident-Twin v11 Elevation View (Side, looking from -Y)\n"
-        "Heights at Y=0 main flow line. Showcase (Y=+22) is shown as offset dashed ghost since it sits behind Lakehouse in this view.\n"
+        "Trident-Twin Data Readiness Elevation View (Side, looking from -Y)\n"
+        "Raw boxes become table crates with metadata tags; Staging is a ready-to-use curated shelf, not a second warehouse.\n"
         "Vertical exaggeration applied for clarity  ·  matches scripts/create_scene.py",
         fontsize=12, fontweight="bold", pad=14,
     )

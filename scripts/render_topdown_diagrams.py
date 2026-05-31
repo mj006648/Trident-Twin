@@ -31,21 +31,23 @@ from draw_site_plan import (
     C_LOBBY, C_LOBBY_FILL, C_DELIVERY, C_DELIVERY_FILL, C_TOWER,
     draw_grid, draw_zone_pad, draw_building, draw_conveyor, draw_station,
     draw_truck, draw_big_table, draw_lobby_interior, draw_control_tower,
+    draw_raw_inventory, draw_inventory_boxes, draw_staging_bundles,
+    draw_search_decision_panel, draw_readiness_callouts,
 )
 
 OUT_DIR = Path(__file__).resolve().parents[1] / "docs" / "screenshots"
 
 # (slug, title, x_min, x_max, y_min, y_max, padding)
 VIEWS = [
-    ("00_overview",     "Overall facility — top-down",            -30, +72, -18, +35),
-    ("01_ingest",       "Zone 1 INGEST (Bronze) — Truck Yard",    -32, -12,  -7,  +7),
-    ("02_raw_bucket",   "Zone 2 RAW BUCKET (Bronze)",             -16,  +8,  -10, +10),
-    ("03_accumulation", "Zone 3 ACCUMULATION (Silver) — Pipeline",   0, +26, -7,  +7),
-    ("04_lakehouse",    "Zone 4 LAKEHOUSE (Silver)",              +18, +40, -10, +10),
-    ("05_staging",      "Zone 5 STAGING (Gold) — Showcase",       +18, +40, +12, +32),
-    ("06_search",       "Zone 0 USER CONTROL — Lobby + Search Counter",  +37, +52,  +2, +18),
-    ("07_delivery",     "Zone 6 DELIVERY — Big Table + 3 trucks", +46, +72,  +1, +18),
-    ("08_tower",        "Zone 7 TOWER — Twin Control Tower",      -28, -16, +20, +32),
+    ("00_overview",     "Overall — Data Readiness / Usage Optimization Map", -30, +72, -18, +35),
+    ("01_ingest",       "Zone 1 INGEST (Bronze) — Raw Arrival",    -32, -12,  -7,  +7),
+    ("02_raw_bucket",   "Zone 2 RAW BUCKET — Untagged Object Count", -16,  +8,  -10, +10),
+    ("03_accumulation", "Zone 3 REFINEMENT — Schema / Quality / Metadata",   0, +26, -8,  +8),
+    ("04_lakehouse",    "Zone 4 LAKEHOUSE INVENTORY — Count + Tags + Readiness", +18, +40, -10, +10),
+    ("05_staging",      "Zone 5 STAGING — Ready-to-use Bundles",   +18, +40, +12, +32),
+    ("06_search",       "Zone 6 SEARCH — Intent, Candidate Highlight, Readiness Compare",  +37, +52,  +2, +18),
+    ("07_delivery",     "Zone 7 DELIVERY — AI / HPC / HPDA Workload Packages", +46, +72,  +1, +18),
+    ("08_tower",        "Zone 8 TOWER — Operator Readiness Monitor", -28, -16, +20, +32),
 ]
 
 
@@ -55,13 +57,18 @@ def draw_facility(ax) -> None:
         draw_zone_pad(ax, cx, cy, w, h, fill, edge, label)
     for cx, cy, w, h, color, label in BUILDINGS:
         draw_building(ax, cx, cy, w, h, color, label)
+    draw_raw_inventory(ax)
+    draw_inventory_boxes(ax)
+    draw_staging_bundles(ax)
     for x1, y1, x2, y2, color, label, off in CONVEYORS:
         draw_conveyor(ax, x1, y1, x2, y2, color, label, off)
     for x, label in STATIONS:
         draw_station(ax, x, label)
     draw_big_table(ax, *BIG_TABLE)
     draw_lobby_interior(ax, *LOBBY)
+    draw_search_decision_panel(ax)
     draw_control_tower(ax, -22, +25)
+    draw_readiness_callouts(ax)
     for cx, cy, w, h, color, label in TRUCKS:
         draw_truck(ax, cx, cy, w, h, color, label)
 
