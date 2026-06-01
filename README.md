@@ -5,6 +5,20 @@
 Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal 사용자가
 "지금 쓸 수 있는 데이터가 무엇인지"를 한눈에 판단할 수 있는 **공간형 의사결정 지도**다.
 
+## 씬 스크린샷
+
+| 정상 90도 | 사선 45도 |
+|:---------:|:---------:|
+| ![top90](docs/screenshots/overview_top90.png) | ![top45](docs/screenshots/overview_top45.png) |
+
+## 데이터 흐름 개요
+
+![overview](overview.png)
+
+## 씬 단면 설계도
+
+![elevation](docs/elevation.png)
+
 ---
 
 ## 씬 레이아웃 (2026-05-31 기준)
