@@ -11,25 +11,25 @@ Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal
 
 | 정상 90도 | 사선 45도 |
 |:---------:|:---------:|
-| ![top90](docs/screenshots/overview_top90.png) | ![top45](docs/screenshots/overview_top45.png) |
+| ![top90](docs/screenshots/overview_top90_v3.png) | ![top45](docs/screenshots/overview_top45_v3.png) |
 
 ## 존별 스크린샷
 
 | Zone 1 — Truck Yard | Zone 2 — Raw Bucket |
 |:-------------------:|:-------------------:|
-| ![zone1](docs/screenshots/zone_01_truck_yard.png) | ![zone2](docs/screenshots/zone_02_raw_bucket_v2.png) |
+| ![zone1](docs/screenshots/zone_01_truck_yard_v3.png) | ![zone2](docs/screenshots/zone_02_raw_bucket_v3.png) |
 
 | Zone 3 — Accumulation | Zone 4 — Lakehouse |
 |:---------------------:|:------------------:|
-| ![zone3](docs/screenshots/zone_03_accumulation.png) | ![zone4](docs/screenshots/zone_04_lakehouse_v2.png) |
+| ![zone3](docs/screenshots/zone_03_accumulation_v3.png) | ![zone4](docs/screenshots/zone_04_lakehouse_v3.png) |
 
 | Zone 5 — Search | Zone 6 — Delivery |
 |:---------------:|:-----------------:|
-| ![zone5](docs/screenshots/zone_05_search.png) | ![zone6](docs/screenshots/zone_06_delivery.png) |
+| ![zone5](docs/screenshots/zone_05_search_v3.png) | ![zone6](docs/screenshots/zone_06_delivery_v3.png) |
 
 | Zone 7 — Control Tower |
 |:----------------------:|
-| ![zone7](docs/screenshots/zone_07_tower.png) |
+| ![zone7](docs/screenshots/zone_07_tower_v3.png) |
 
 ## 씬 설계도 (Top View)
 
