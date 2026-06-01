@@ -1,8 +1,7 @@
 """Generate the Trident-Twin Site Plan (top-down architectural view).
 
 Data Readiness / Usage Optimization model: Bronze (Raw) → Silver
-(Refinement + Lakehouse Inventory) → Gold (Ready-to-use Staging bundles) →
-Search/Selection → AI/HPC/HPDA Delivery.
+(Refinement + Lakehouse Inventory/Staging) → Search/Selection → AI/HPC/HPDA Delivery.
 
 Output: docs/site-plan.png
 
@@ -45,73 +44,65 @@ C_PURPLE = "#8b5cf6"
 C_RED = "#f43f5e"
 C_GREEN = "#22c55e"
 
-# Floor pad color per zone (top-down)
+# Site bounds (per spec)
+X_MIN, X_MAX = -30, 75
+Y_MIN, Y_MAX = -12, 32
+
+# ---------------------------------------------------------------------------
+# Zone pads — (cx, cy, w, h, fill, edge, label)
+# Coordinates match create_scene.py zone centers.
+# ---------------------------------------------------------------------------
 ZONE_PADS = [
-    # (cx, cy, w, h, fill, edge, label)
-    (-22, +25, 6, 6, "#c3d0e4", C_TOWER, "Zone 7\nControl Tower"),
-    (-22, 0, 14, 8, C_BRONZE_FILL, C_BRONZE, "Zone 1 Data Ingest"),
-    (-4, 0, 19, 14, C_BRONZE_FILL, C_BRONZE, "Zone 2  Raw Bucket  (Bronze)"),
-    (13, 0, 22, 7, C_SILVER_FILL, C_SILVER, "Zone 3  Pipeline Steps"),
-    (29, 0, 19, 14, C_SILVER_FILL, C_SILVER, "Zone 4  Lakehouse Inventory"),
-    (29, 22, 19, 14, C_GOLD_FILL, C_GOLD, "Zone 5  Staging / Ready Bundles"),
-    (44, 10, 10, 11, C_LOBBY_FILL, "#222222", "Zone 6\nSearch + Select"),
-    (59, 10, 22, 14, C_DELIVERY_FILL, C_DELIVERY, "Zone 7  Workload Delivery"),
+    (-22, 25, 6, 6, "#c3d0e4", C_TOWER, "Zone 7\nControl Tower"),
+    (-22, 0, 16, 8, C_BRONZE_FILL, C_BRONZE, "Zone 1\nTruck Yard"),
+    (-4, 9, 21, 38, C_BRONZE_FILL, C_BRONZE, "Zone 2\nRaw Bucket (Bronze)"),
+    (13, 0, 12, 7, C_SILVER_FILL, C_SILVER, "Zone 3\nAccumulation"),
+    (29, 9, 21, 38, C_SILVER_FILL, C_SILVER, "Zone 4\nLakehouse (Silver/Gold)"),
+    (44, 10, 10, 11, C_LOBBY_FILL, "#222222", "Zone 5\nSearch + Select"),
+    (59, 9.5, 22, 20, C_DELIVERY_FILL, C_DELIVERY, "Zone 6\nWorkload Delivery"),
 ]
 
 # Warehouse outlines (cx, cy, w, h, color, label)
 BUILDINGS = [
-    (-4, 0, 17, 12, C_BRONZE, "Raw Bucket\n17×12×6m"),
-    (29, 0, 17, 12, C_SILVER, "Lakehouse\nInventory\n17×12×6m"),
-    (29, 22, 17, 12, C_GOLD, "Staging /\nReady Bundles\n17×12×6m"),
+    (-4, 9, 19, 32, C_BRONZE, "Raw Bucket\n19×32×6m"),
+    (29, 9, 19, 32, C_SILVER, "Lakehouse\n19×32×6m"),
 ]
 
-# Pipeline stations
-STATIONS = [
-    (7.0, "3-1\nProbing"),
-    (10.0, "3-2\nArchitect"),
-    (13.0, "3-3\nIceberg"),
-    (16.0, "3-4\nMilvus"),
-    (19.0, "3-5\nRedis"),
+# Gates in Accumulation Zone (x position, label)
+# Each gate straddles both pipeline belts (y=-0.7 and y=+0.7)
+GATES = [
+    (7,  "INGEST"),
+    (10, "STAGE"),
+    (13, "CLEAN"),
+    (16, "TAG"),
+    (19, "CATALOG"),
 ]
 
 # Conveyors — list of (x1, y1, x2, y2, color, label, label_offset)
 CONVEYORS = [
-    # Ingest belt (bronze)
-    (-17.9, 0.0, -12.3, 0.0, C_BRONZE, "Ingest Belt\n(Bronze)", (0, 0.8)),
-    # Pipeline main + express (silver)
-    (4.7, -0.7, 20.4, -0.7, C_SILVER, "Main Line (Silver, Full Mode)", (0, -0.8)),
-    (4.7, 0.7, 20.4, 0.7, C_SILVER, "Express Line (Silver, Delta Mode)", (0, 0.8)),
-    # Staging belt (gold) – drawn as Y belt, shifted west to clear the STAGING label
-    (23.0, 6.0, 23.0, 16.0, C_GOLD, "Curate hot\nbundles", (-1.7, 0)),
-    # LH → Big Table (silver)
-    (37.5, 0.0, 52.0, 0.0, C_SILVER, "Inventory candidates", (0, -0.8)),
-    (52.0, 0.0, 52.0, 4.5, C_SILVER, "", (0, 0)),
-    # SC → Big Table (gold)
-    (37.5, 22.0, 52.0, 22.0, C_GOLD, "Ready bundles", (0, 0.8)),
-    (52.0, 22.0, 52.0, 15.5, C_GOLD, "", (0, 0)),
-    # Big Table → 3 trucks (straight)
-    (54.0, 6.0, 61.5, 6.0, C_DELIVERY, "→ AI", (1.0, 0.6)),
-    (54.0, 10.0, 61.5, 10.0, C_DELIVERY, "→ HPC", (1.0, 0.6)),
-    (54.0, 14.0, 61.5, 14.0, C_DELIVERY, "→ HPDA", (1.0, 0.6)),
+    # Ingest belt (bronze): x=-17 ~ -12, y=0
+    (-17, 0.0, -12, 0.0, C_BRONZE, "Ingest Belt", (0, 0.9)),
+    # Pipeline belts (silver): x=5 ~ 20
+    (5, -0.7, 20, -0.7, C_SILVER, "Main Line (Full Mode)", (0, -1.0)),
+    (5,  0.7, 20,  0.7, C_SILVER, "Express Line (Delta Mode)", (0, 1.0)),
+    # LH -> Search: x=38 ~ 49, y=0
+    (38, 0.0, 49, 0.0, C_SILVER, "LH -> Search", (0, -1.0)),
+    # Delivery outbound x=52~62
+    (52, 6.0,  62, 6.0,  C_DELIVERY, "-> AI",   (1.0, 0.6)),
+    (52, 10.0, 62, 10.0, C_DELIVERY, "-> HPC",  (1.0, 0.6)),
+    (52, 14.0, 62, 14.0, C_DELIVERY, "-> HPDA", (1.0, 0.6)),
 ]
 
 # Trucks (cx, cy, w, h, color, label)
 TRUCKS = [
     (-20.5, 0, 7.0, 2.4, "#e63b3b", "Ingest Truck"),
-    (64, 6, 5.6, 2.2, "#27a040", "AI Truck"),
+    (64, 6,  5.6, 2.2, "#27a040", "AI Truck"),
     (64, 10, 4.8, 2.0, "#7d7f88", "HPC Truck"),
     (64, 14, 5.0, 2.0, "#4a76d6", "HPDA Truck"),
 ]
 
-# Big Consolidation Table
-BIG_TABLE = (52, 10, 4, 11)
-
-# Lobby+SC plaza interior elements
-LOBBY = (44, 10, 7, 7)  # plaza outline (lighter)
-
-# Site bounds
-X_MIN, X_MAX = -30, 72
-Y_MIN, Y_MAX = -18, 32
+# Lobby / Search panel
+LOBBY = (44, 10, 7, 7)
 
 
 def draw_grid(ax) -> None:
@@ -124,7 +115,7 @@ def draw_grid(ax) -> None:
 def draw_zone_pad(ax, cx, cy, w, h, fill, edge, label) -> None:
     rect = mpatches.Rectangle(
         (cx - w / 2, cy - h / 2), w, h,
-        facecolor=fill, edgecolor=edge, linewidth=1.3, alpha=0.55, zorder=1,
+        facecolor=fill, edgecolor=edge, linewidth=1.3, alpha=0.45, zorder=1,
     )
     ax.add_patch(rect)
     ax.text(cx, cy + h / 2 + 0.4, label,
@@ -145,18 +136,43 @@ def draw_building(ax, cx, cy, w, h, color, label) -> None:
                       edgecolor="none", alpha=0.85))
 
 
+def draw_gate(ax, x, label) -> None:
+    """Draw a gate at x straddling the two pipeline belts (y=-0.7, y=+0.7).
+
+    Gate shape: two vertical pillars at (x-0.15, x+0.15), spanning y=-1.5 to y=+1.5,
+    with a horizontal crossbar at y=0.
+    """
+    pillar_left  = x - 0.18
+    pillar_right = x + 0.18
+    y_bot, y_top = -1.5, 1.5
+    # Left pillar
+    ax.add_patch(mpatches.Rectangle(
+        (pillar_left - 0.12, y_bot), 0.24, y_top - y_bot,
+        facecolor="#fffbe6", edgecolor="#888800", linewidth=1.0, zorder=5))
+    # Right pillar
+    ax.add_patch(mpatches.Rectangle(
+        (pillar_right - 0.12, y_bot), 0.24, y_top - y_bot,
+        facecolor="#fffbe6", edgecolor="#888800", linewidth=1.0, zorder=5))
+    # Crossbar
+    ax.plot([pillar_left - 0.12, pillar_right + 0.12], [0, 0],
+            color="#888800", lw=2.5, zorder=6)
+    ax.text(x, y_top + 0.3, label, ha="center", va="bottom", fontsize=7,
+            fontweight="bold", color="#444400", zorder=7)
+
+
 def draw_raw_inventory(ax) -> None:
-    """Show raw objects as untagged brown boxes."""
+    """Show raw objects as untagged brown boxes in Raw Bucket Zone."""
+    # Raw Bucket: cx=-4, cy=9, sx=19, sy=32 -> interior y: -7 ~ 25
     positions = [
-        (-8.2, -3.5), (-7.2, -3.5), (-6.2, -3.5), (-5.2, -3.5),
-        (-8.2, -2.5), (-7.2, -2.5), (-6.2, -2.5),
-        (-2.0, 2.0), (-1.0, 2.0), (0.0, 2.0), (1.0, 2.0),
+        (-8.2, 5.0), (-7.2, 5.0), (-6.2, 5.0), (-5.2, 5.0), (-4.2, 5.0),
+        (-8.2, 6.2), (-7.2, 6.2), (-6.2, 6.2), (-5.2, 6.2),
+        (-2.0, 5.0), (-1.0, 5.0), (0.0, 5.0), (1.0, 5.0),
     ]
     for x, y in positions:
         ax.add_patch(mpatches.Rectangle((x, y), 0.7, 0.55,
                                         facecolor=C_BRONZE, edgecolor="#6b3f1d",
                                         linewidth=0.7, alpha=0.75, zorder=6))
-    ax.text(-4, -5.0, "Raw object count\nmetadata: none",
+    ax.text(-4, 2.5, "Raw object count\nmetadata: none",
             ha="center", va="center", fontsize=7.5, fontweight="bold",
             color="#78350f", zorder=7,
             bbox=dict(boxstyle="round,pad=0.18", facecolor="white",
@@ -172,12 +188,16 @@ def draw_metadata_tag(ax, x, y, color, label="") -> None:
 
 
 def draw_inventory_boxes(ax) -> None:
-    """Show Lakehouse inventory density by namespace/component."""
+    """Show Lakehouse inventory density — lower half of Lakehouse (y=0~13).
+
+    Lakehouse zone: cx=29, cy=9, sx=19, sy=32
+    Storage table area: y=0 ~ 13 (lower half).
+    """
     rows = [
-        ("camera", -3.8, 7, C_OK),
-        ("lidar", -1.4, 5, C_WARN),
-        ("weather", 1.0, 4, C_BAD),
-        ("gps", 3.2, 3, C_OK),
+        ("camera",  2.5, 7, C_OK),
+        ("lidar",   4.5, 5, C_WARN),
+        ("weather", 6.5, 4, C_BAD),
+        ("gps",     8.5, 3, C_OK),
     ]
     x0 = 22.2
     for label, y, count, quality_color in rows:
@@ -197,7 +217,7 @@ def draw_inventory_boxes(ax) -> None:
         ax.add_patch(mpatches.Circle((35.8, y + 0.25), 0.25,
                                      facecolor=quality_color, edgecolor="white",
                                      linewidth=1.0, zorder=8))
-    ax.text(29, -5.2, "Inventory = table count + volume + tags + readiness\n(schema · quality · lineage · semantic · location · policy)",
+    ax.text(29, 0.0, "Inventory = table count + volume + tags + readiness\n(schema · quality · lineage · semantic · location · policy)",
             ha="center", va="center", fontsize=7.5, color="#334155",
             fontweight="bold", zorder=8,
             bbox=dict(boxstyle="round,pad=0.22", facecolor="white",
@@ -205,15 +225,19 @@ def draw_inventory_boxes(ax) -> None:
 
 
 def draw_staging_bundles(ax) -> None:
-    """Show curated ready-to-use bundles instead of a generic showcase."""
+    """Show curated ready-to-use bundles in Lakehouse upper half (y=14~26).
+
+    Lakehouse zone: cx=29, cy=9, sx=19, sy=32
+    Staging/bookshelf area: y=14 ~ 27 (upper half).
+    """
     bundles = [
-        (22.0, 24.0, "camera+lidar", "AI fit 92%"),
-        (26.0, 24.0, "weather+gps", "HPDA fit 78%"),
-        (30.0, 24.0, "hot basket", "used 2h ago"),
-        (34.0, 24.0, "materialized\ncollection", "policy OK"),
-        (24.0, 20.5, "semantic\ncandidate", "confidence high"),
-        (29.0, 20.5, "joined\nbundle", "quality 0.88"),
-        (34.0, 20.5, "cache-warm\nbundle", "Redis hot"),
+        (22.0, 22.0, "camera+lidar", "AI fit 92%"),
+        (26.0, 22.0, "weather+gps", "HPDA fit 78%"),
+        (30.0, 22.0, "hot basket", "used 2h ago"),
+        (34.0, 22.0, "materialized\ncollection", "policy OK"),
+        (24.0, 18.5, "semantic\ncandidate", "confidence high"),
+        (29.0, 18.5, "joined\nbundle", "quality 0.88"),
+        (34.0, 18.5, "cache-warm\nbundle", "Redis hot"),
     ]
     for x, y, title, sub in bundles:
         ax.add_patch(mpatches.FancyBboxPatch(
@@ -225,11 +249,13 @@ def draw_staging_bundles(ax) -> None:
                 fontsize=6.8, fontweight="bold", color="#78350f", zorder=8)
         ax.text(x, y - 0.30, sub, ha="center", va="center",
                 fontsize=5.9, color="#92400e", zorder=8)
-    ax.text(29, 16.5, "Staging = curated view/cache/shelf\nfor fast selection, not a second warehouse",
-            ha="center", va="center", fontsize=7.3, color="#78350f",
-            fontweight="bold", zorder=8,
-            bbox=dict(boxstyle="round,pad=0.22", facecolor="white",
-                      edgecolor=C_GOLD, alpha=0.95))
+    # Divider line between storage (lower) and staging (upper)
+    ax.plot([19.5, 38.5], [13.5, 13.5], color=C_GOLD,
+            lw=1.5, linestyle="--", zorder=6, alpha=0.7)
+    ax.text(29, 14.2, "-- Staging (Bookshelf) --", ha="center", va="bottom",
+            fontsize=7.5, color="#78350f", fontweight="bold", zorder=7)
+    ax.text(29, 13.0, "-- Storage (Tables) --", ha="center", va="top",
+            fontsize=7.5, color="#334155", fontweight="bold", zorder=7)
 
 
 def draw_search_decision_panel(ax) -> None:
@@ -259,25 +285,15 @@ def draw_search_decision_panel(ax) -> None:
 
 def draw_readiness_callouts(ax) -> None:
     callouts = [
-        (11, 4.7, "Refinement adds\nschema · quality · lineage", C_SILVER),
-        (18.5, -6.6, "Bottleneck visible:\nraw high, bars missing", C_WARN),
+        (13, -5.0, "Gates: INGEST/STAGE/CLEAN/TAG/CATALOG\naccumulation before pipeline", C_SILVER),
         (43.5, 2.1, "Twin value:\nfaster choice, not just 3D view", C_LOBBY),
-        (58.8, 1.3, "Delivery outputs:\nURI · SQL · Spark snippet", C_DELIVERY),
+        (59.0, 1.5, "Delivery outputs:\nURI · SQL · Spark snippet", C_DELIVERY),
     ]
     for x, y, txt, col in callouts:
         ax.text(x, y, txt, ha="center", va="center", fontsize=7.2,
                 color=col, fontweight="bold", zorder=9,
                 bbox=dict(boxstyle="round,pad=0.22", facecolor="white",
                           edgecolor=col, linewidth=1.0, alpha=0.95))
-
-
-def draw_station(ax, x, label) -> None:
-    rect = mpatches.Rectangle((x - 0.9, -1.5), 1.8, 3.0,
-                              facecolor="#fffbe6", edgecolor="#888800",
-                              linewidth=1.0, zorder=5)
-    ax.add_patch(rect)
-    ax.text(x, 0, label, ha="center", va="center", fontsize=7,
-            fontweight="bold", color="#444400", zorder=6)
 
 
 def draw_conveyor(ax, x1, y1, x2, y2, color, label, label_offset) -> None:
@@ -301,23 +317,7 @@ def draw_truck(ax, cx, cy, w, h, color, label) -> None:
             fontweight="bold", color="white", zorder=7)
 
 
-def draw_big_table(ax, cx, cy, w, h) -> None:
-    rect = mpatches.Rectangle((cx - w / 2, cy - h / 2), w, h,
-                              facecolor="#8a5a3a", edgecolor="#3c2410",
-                              linewidth=1.8, zorder=5)
-    ax.add_patch(rect)
-    # Edge rails (south=silver, north=gold)
-    ax.plot([cx - w / 2, cx + w / 2], [cy - h / 2 + 0.05, cy - h / 2 + 0.05],
-            color=C_SILVER, lw=2.5, zorder=6)
-    ax.plot([cx - w / 2, cx + w / 2], [cy + h / 2 - 0.05, cy + h / 2 - 0.05],
-            color=C_GOLD, lw=2.5, zorder=6)
-    ax.text(cx, cy, "Big Table\n4×11m",
-            ha="center", va="center", fontsize=10, fontweight="bold",
-            color="white", zorder=7)
-
-
 def draw_lobby_interior(ax, cx, cy, w, h) -> None:
-    # Reception desk + search counter (teal desk, black text)
     ax.plot([cx, cx], [cy - 1.7, cy + 1.7], color="#0d6e72",
             lw=8, solid_capstyle="round", zorder=5)
     ax.text(cx, cy, "Intent\nCounter", ha="center", va="center",
@@ -332,13 +332,13 @@ def draw_control_tower(ax, cx, cy) -> None:
 
 
 def draw_north_arrow(ax) -> None:
-    nx, ny = X_MAX - 4, Y_MAX - 4
+    nx, ny = X_MAX - 5, Y_MAX - 5
     ax.annotate("", xy=(nx, ny + 2.5), xytext=(nx, ny - 1.5),
                 arrowprops=dict(arrowstyle="-|>", color="black", lw=1.6,
                                 mutation_scale=22), zorder=10)
     ax.text(nx, ny + 3, "N", ha="center", va="bottom",
             fontsize=12, fontweight="bold", zorder=10)
-    ax.text(nx, ny - 2.5, "(data flow → +X)", ha="center", va="top",
+    ax.text(nx, ny - 2.5, "(data flow -> +X)", ha="center", va="top",
             fontsize=8, color="#666666", zorder=10)
 
 
@@ -357,9 +357,7 @@ def draw_legend(ax) -> None:
         mpatches.Patch(facecolor=C_BRONZE_FILL, edgecolor=C_BRONZE,
                        label="Bronze stage (Raw)"),
         mpatches.Patch(facecolor=C_SILVER_FILL, edgecolor=C_SILVER,
-                       label="Silver stage (Refinement + Inventory)"),
-        mpatches.Patch(facecolor=C_GOLD_FILL, edgecolor=C_GOLD,
-                       label="Gold stage (Ready-to-use Staging)"),
+                       label="Silver/Gold stage (Lakehouse)"),
         mpatches.Patch(facecolor=C_LOBBY_FILL, edgecolor=C_LOBBY,
                        label="Search / Selection Counter"),
         mpatches.Patch(facecolor=C_DELIVERY_FILL, edgecolor=C_DELIVERY,
@@ -372,7 +370,6 @@ def draw_legend(ax) -> None:
                markersize=8, label="Readiness / policy OK"),
         Line2D([0], [0], color=C_BRONZE, lw=4, label="Bronze conveyor"),
         Line2D([0], [0], color=C_SILVER, lw=4, label="Silver conveyor"),
-        Line2D([0], [0], color=C_GOLD, lw=4, label="Gold conveyor"),
         Line2D([0], [0], color=C_DELIVERY, lw=4, label="Dispatch conveyor"),
     ]
     ax.legend(handles=handles, loc="center left", bbox_to_anchor=(1.01, 0.5),
@@ -382,7 +379,7 @@ def draw_legend(ax) -> None:
 
 def main() -> None:
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(22, 11))
+    fig, ax = plt.subplots(figsize=(24, 13))
     ax.set_xlim(X_MIN, X_MAX)
     ax.set_ylim(Y_MIN, Y_MAX)
     ax.set_aspect("equal")
@@ -402,29 +399,28 @@ def main() -> None:
     for x1, y1, x2, y2, color, label, off in CONVEYORS:
         draw_conveyor(ax, x1, y1, x2, y2, color, label, off)
 
-    for x, label in STATIONS:
-        draw_station(ax, x, label)
+    for x, label in GATES:
+        draw_gate(ax, x, label)
 
-    draw_big_table(ax, *BIG_TABLE)
     draw_lobby_interior(ax, *LOBBY)
     draw_search_decision_panel(ax)
-    draw_control_tower(ax, -22, +25)
+    draw_control_tower(ax, -22, 25)
 
     for cx, cy, w, h, color, label in TRUCKS:
         draw_truck(ax, cx, cy, w, h, color, label)
 
     draw_readiness_callouts(ax)
-
+    draw_north_arrow(ax)
     draw_scale_bar(ax)
     draw_legend(ax)
 
     ax.set_title(
-        "Trident-Twin Site Plan — Data Readiness / Usage Optimization Map (Top View)\n"
-        "Bronze raw objects → Silver operation steps + inventory bars → Gold ready bundles → Search/Selection → AI/HPC/HPDA delivery\n"
-        "1 unit = 1 m  ·  matches scripts/create_scene.py",
+        "Trident-Twin Site Plan -- Data Readiness / Usage Optimization Map (Top View)\n"
+        "Bronze raw objects -> Silver/Gold Lakehouse (storage + staging) -> Search/Selection -> AI/HPC/HPDA delivery\n"
+        "1 unit = 1 m  .  matches scripts/create_scene.py",
         fontsize=13, fontweight="bold", pad=14,
     )
-    ax.set_xlabel("X (m) — data flow direction →", fontsize=10)
+    ax.set_xlabel("X (m) -- data flow direction ->", fontsize=10)
     ax.set_ylabel("Y (m)", fontsize=10)
 
     plt.tight_layout()
