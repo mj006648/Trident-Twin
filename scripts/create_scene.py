@@ -17,9 +17,89 @@ The scene vocabulary follows README.md:
 from isaacsim import SimulationApp
 simulation_app = SimulationApp({"headless": True})
 
+import json
+import os
+import urllib.error
+import urllib.parse
+import urllib.request
 from datetime import datetime
 from pathlib import Path
 from pxr import Usd, UsdGeom, UsdShade, UsdLux, Sdf, Gf
+
+# ---------------------------------------------------------------------------
+# stats-service 동적 Raw Bucket 네임스페이스 조회
+# 환경변수:
+#   TRIDENT_STATS_BASE_URL  — stats-service 주소 (없으면 fallback 목록 사용)
+#   TRIDENT_KC_URL          — Keycloak token endpoint
+#   TRIDENT_KC_CLIENT_ID    — client id (기본: trident-baseline-runner)
+#   TRIDENT_KC_CLIENT_SECRET
+# ---------------------------------------------------------------------------
+_FALLBACK_NAMESPACES = [
+    "autonomous-driving-nuscenes", "autonomous_test", "ecommerce-orders",
+    "finance-transactions", "genomics-vcf-archive", "iot-sensor-telemetry",
+    "lidar-pointcloud-raw", "medical-imaging-chest-xray", "mimic-iv-demo-csv",
+    "mimic-iv-demo", "nyc-taxi-trips", "polaris-verify",
+    "satellite-imagery-sentinel", "surveillance-video-clips",
+    "synthetic-driving", "weather-radar-archive",
+]
+
+
+def _fetch_raw_namespaces() -> tuple[list[str], set[str]]:
+    """stats-service에서 trident-raw 네임스페이스 목록과 인덱싱 완료 집합을 반환.
+
+    stats-service에 접근할 수 없으면 하드코딩 fallback 목록을 사용한다.
+    반환: (namespace_list, indexed_set)
+    """
+    base = os.getenv("TRIDENT_STATS_BASE_URL", "").rstrip("/")
+    if not base:
+        print("[create_scene] TRIDENT_STATS_BASE_URL 미설정 — fallback 네임스페이스 사용")
+        return _FALLBACK_NAMESPACES, {"autonomous_test", "autonomous_weather"}
+
+    # Keycloak 토큰 발급
+    token = os.getenv("TRIDENT_STATS_TOKEN", "")
+    kc_url = os.getenv("TRIDENT_KC_URL", "")
+    kc_id = os.getenv("TRIDENT_KC_CLIENT_ID", "trident-baseline-runner")
+    kc_secret = os.getenv("TRIDENT_KC_CLIENT_SECRET", "")
+    if not token and kc_url and kc_secret:
+        try:
+            data = urllib.parse.urlencode({
+                "grant_type": "client_credentials",
+                "client_id": kc_id,
+                "client_secret": kc_secret,
+            }).encode()
+            req = urllib.request.Request(
+                kc_url, data=data,
+                headers={"Content-Type": "application/x-www-form-urlencoded"})
+            with urllib.request.urlopen(req, timeout=8) as r:
+                token = json.loads(r.read())["access_token"]
+        except Exception as e:
+            print(f"[create_scene] Keycloak 토큰 발급 실패: {e} — fallback 사용")
+            return _FALLBACK_NAMESPACES, {"autonomous_test", "autonomous_weather"}
+
+    headers = {"Authorization": f"Bearer {token}"} if token else {}
+
+    def _get(path: str):
+        req = urllib.request.Request(f"{base}{path}", headers=headers)
+        with urllib.request.urlopen(req, timeout=6) as r:
+            return json.loads(r.read())
+
+    try:
+        s3 = _get("/stats/s3/list?bucket=trident-raw&prefix=&delimiter=/")
+        namespaces = [d["name"] for d in s3.get("dirs", [])]
+        if not namespaces:
+            raise ValueError("빈 응답")
+    except Exception as e:
+        print(f"[create_scene] S3 목록 조회 실패: {e} — fallback 사용")
+        return _FALLBACK_NAMESPACES, {"autonomous_test", "autonomous_weather"}
+
+    try:
+        audit = _get("/stats/audit")
+        indexed = {row["namespace"] for row in audit if row.get("status") == "ok"}
+    except Exception:
+        indexed = set()
+
+    print(f"[create_scene] Raw Bucket 네임스페이스 {len(namespaces)}개 로드 (인덱싱 완료: {len(indexed)}개)")
+    return namespaces, indexed
 
 BASE = Path(__file__).resolve().parents[1]
 _ts = datetime.now().strftime("%Y%m%d_%H%M")
@@ -1399,61 +1479,44 @@ def main():
                     size=(raw_sx, raw_sy, raw_sz),
                     wall_mat=mats["glass_lake"], frame_mat=mats["steel_frame"],
                     left_gap=(-11.0, 2.0, 1.1), right_gap=(-11.0, 3.5, 1.1))
-    # Brown raw boxes piled inside (Data Swamp visualization)
-    # Warehouse: center=(-4, 11), size=(19, 38) => X: -13~+5, Y: -8~+30
-    # Five directory zones with thin dividers between them.
+    # Brown raw boxes piled inside — one zone per S3 namespace (dynamic, 16 dirs).
+    # Warehouse interior safe range: X -12~+4, Y -4~+26 (30m total).
+    # 16 namespaces × ~1.875m each; dividers between every zone.
     UsdGeom.Scope.Define(stage, "/World/Lake/Contents")
-    # Warehouse interior X: -4±9=-13~+5, Y: 11±16=-5~+27 (keep 1m from walls)
-    # Safe box range: X -12~+4, Y -4~+26
-    # Zone dividers at Y boundaries inside warehouse
-    for div_i, div_y in enumerate([1.0, 7.0, 13.0, 19.0]):
-        cube(stage, f"/World/DataReadiness/RawObjects/Divider_{div_i + 1}",
-             (-4.0, div_y, 0.15), (17.0, 0.05, 0.3), mats["concrete"])
-    raw_layout = [
-        # ----- Zone 1 (Y: -4~0): autonomous_test -----
-        (-11.0, -3.5, 0.40, 0.7, 0.7, 0.7, False),
-        (-11.0, -3.5, 1.15, 0.7, 0.7, 0.7, True),
-        ( -9.0, -3.5, 0.40, 0.7, 0.7, 0.7, True),
-        ( -7.0, -3.5, 0.40, 0.6, 0.6, 0.6, False),
-        ( -5.0, -3.5, 0.40, 0.7, 0.7, 0.7, True),
-        (-11.0, -0.5, 0.40, 0.6, 0.6, 0.6, True),
-        ( -9.0, -0.5, 0.40, 0.7, 0.7, 0.7, False),
-        ( -9.0, -0.5, 1.15, 0.6, 0.6, 0.6, True),
-        ( -7.0, -0.5, 0.40, 0.7, 0.7, 0.7, True),
-        ( -5.0, -0.5, 0.40, 0.6, 0.6, 0.6, False),
-        # ----- Zone 2 (Y: +2~+6): autonomous_weather -----
-        (-11.0,  2.5, 0.40, 0.7, 0.7, 0.7, False),
-        ( -9.0,  2.5, 0.40, 0.6, 0.6, 0.6, True),
-        ( -7.0,  2.5, 0.40, 0.7, 0.7, 0.7, False),
-        (-11.0,  5.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-11.0,  5.5, 1.05, 0.6, 0.6, 0.6, False),
-        # ----- Zone 3 (Y: +8~+12): raw_data_1 -----
-        (-11.0,  8.5, 0.40, 0.7, 0.7, 0.7, True),
-        (-11.0,  8.5, 1.15, 0.6, 0.6, 0.6, False),
-        ( -9.0,  8.5, 0.40, 0.7, 0.7, 0.7, False),
-        ( -7.0,  8.5, 0.40, 0.6, 0.6, 0.6, True),
-        ( -5.0,  8.5, 0.40, 0.7, 0.7, 0.7, False),
-        (-11.0, 11.5, 0.40, 0.6, 0.6, 0.6, False),
-        ( -9.0, 11.5, 0.40, 0.7, 0.7, 0.7, True),
-        ( -7.0, 11.5, 0.40, 0.6, 0.6, 0.6, False),
-        # ----- Zone 4 (Y: +14~+18): raw_data_2 -----
-        (-11.0, 14.5, 0.40, 0.7, 0.7, 0.7, False),
-        ( -9.0, 14.5, 0.40, 0.6, 0.6, 0.6, True),
-        (-11.0, 17.5, 0.40, 0.7, 0.7, 0.7, True),
-        ( -9.0, 17.5, 0.40, 0.6, 0.6, 0.6, False),
-        # ----- Zone 5 (Y: +20~+25): misc -----
-        (-11.0, 20.5, 0.40, 0.7, 0.7, 0.7, False),
-        ( -9.0, 20.5, 0.40, 0.6, 0.6, 0.6, True),
-        ( -7.0, 23.5, 0.40, 0.7, 0.7, 0.7, False),
-    ]
-    for i, (x, y, z, sx, sy, sz, dark) in enumerate(raw_layout):
-        raw = make_raw_box(stage, f"/World/DataReadiness/RawObjects/RawObject_{i + 1:02d}",
-                           (x, y, z), (sx, sy, sz), mats, dark=dark)
-        set_trident_attrs(raw, entity_id=f"raw.object.{i + 1:02d}",
-                          entity_type="raw_object", zone="zone.raw_bucket",
-                          stage="raw", metadata_status="none",
-                          semantic_ready=False, location_ready=False,
-                          policy_ready=False, readiness_score=0.05)
+    RAW_NAMESPACES, _INDEXED_NS = _fetch_raw_namespaces()
+    y_start = -4.0
+    zone_h = 30.0 / len(RAW_NAMESPACES)   # ≈1.875 m per namespace
+    box_xs = [-11.0, -8.5, -6.0, -3.5]    # 4 box columns inside warehouse
+    for ns_i, ns in enumerate(RAW_NAMESPACES):
+        y_lo = y_start + ns_i * zone_h
+        y_mid = y_lo + zone_h / 2
+        # divider between zones (skip first)
+        if ns_i > 0:
+            cube(stage, f"/World/DataReadiness/RawObjects/Divider_{ns_i}",
+                 (-4.0, y_lo, 0.15), (17.0, 0.04, 0.25), mats["concrete"])
+        # 2 boxes per zone (front + back row); indexed ns gets extra stacked box
+        indexed = ns in _INDEXED_NS
+        box_positions = [
+            (box_xs[0], y_mid - 0.3, 0.40),
+            (box_xs[1], y_mid + 0.3, 0.40),
+        ]
+        if indexed:
+            box_positions += [
+                (box_xs[2], y_mid - 0.3, 0.40),
+                (box_xs[0], y_mid - 0.3, 1.15),
+            ]
+        safe_ns = ns.replace("-", "_")
+        for b_i, (bx, by, bz) in enumerate(box_positions):
+            dark = not indexed and (b_i % 2 == 1)
+            raw = make_raw_box(stage,
+                               f"/World/DataReadiness/RawObjects/{safe_ns}/Box_{b_i}",
+                               (bx, by, bz), (0.65, 0.55, 0.65), mats, dark=dark)
+            set_trident_attrs(raw, entity_id=f"raw.{ns}",
+                              entity_type="raw_bucket", zone="zone.raw_bucket",
+                              stage="raw_ingestion", metadata_status="none",
+                              semantic_ready=False, location_ready=False,
+                              policy_ready=False,
+                              readiness_score=1.0 if indexed else 0.05)
     # Compatibility aliases under the older /World/Lake path are intentionally
     # not created as separate boxes; /World/DataReadiness/RawObjects is the
     # canonical raw-object vocabulary for live bindings.

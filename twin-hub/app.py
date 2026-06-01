@@ -279,6 +279,47 @@ def _collection_entities(collections: list[dict[str, Any]]) -> list[dict[str, An
     return entities
 
 
+def _raw_bucket_entities(audit_by_ns: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """trident-raw S3 버킷 디렉터리 목록을 raw.{namespace} 엔티티로 변환."""
+    try:
+        s3_payload = _fetch_json("/stats/s3/list?bucket=trident-raw&prefix=&delimiter=/")
+    except LiveSourceError:
+        return []
+
+    entities = []
+    for entry in s3_payload.get("dirs", []):
+        ns = entry["name"]
+        audit = audit_by_ns.get(ns, {})
+        index_rows = audit.get("index_row_count") or 0
+        integrity = audit.get("integrity_pct")
+        status = audit.get("status", "pending")
+        # 서브디렉터리 수를 object_count 로 사용 (파일 구조 깊이 반영)
+        try:
+            sub = _fetch_json(f"/stats/s3/list?bucket=trident-raw&prefix={ns}/&delimiter=/")
+            subdirs = len(sub.get("dirs", []))
+            files = len(sub.get("files", []))
+        except LiveSourceError:
+            subdirs, files = 0, 0
+        readiness = round(min((integrity or 0) / 100.0, 1.0), 2) if integrity is not None else 0.0
+        entities.append({
+            "id": f"raw.{ns}",
+            "type": "raw_bucket",
+            "name": ns,
+            "namespace": ns,
+            "zone": "zone.raw_bucket",
+            "stage": "raw_ingestion",
+            "index_row_count": index_rows,
+            "integrity_pct": integrity,
+            "s3_file_count": files,
+            "object_count": subdirs + files,
+            "status": status,
+            "readiness_score": readiness,
+            "quality_score": readiness,
+            "last_updated_at": str(audit.get("timestamp", "")),
+        })
+    return entities
+
+
 def load_live_entities() -> dict[str, Any]:
     overview = _fetch_json("/api/v1/catalog/overview")
     datasets_payload = _fetch_json("/api/v1/catalog/datasets?limit=100")
@@ -299,6 +340,14 @@ def load_live_entities() -> dict[str, Any]:
     entities = [_dataset_entity(row) for row in datasets_by_name.values() if row.get("table_full_name")]
     entities.extend(_operation_entities(pipeline_runs))
     entities.extend(_collection_entities(collections_payload.get("collections", []) or []))
+
+    # Raw Bucket Zone: audit 데이터를 네임스페이스 키로 인덱싱 후 S3 목록 병합
+    try:
+        audit_list = _fetch_json("/stats/audit")
+    except LiveSourceError:
+        audit_list = []
+    audit_by_ns = {row["namespace"]: row for row in audit_list if row.get("namespace")}
+    entities.extend(_raw_bucket_entities(audit_by_ns))
     return {
         "source": "live",
         "stats_base_url": TRIDENT_STATS_BASE_URL,

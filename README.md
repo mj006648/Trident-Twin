@@ -160,26 +160,57 @@ Isaac Sim에서 extension 활성화 후 **Start Live** 버튼 → `http://l40s-i
 
 Raw Bucket Zone을 실제 `trident-raw` S3 버킷 데이터와 연동한다.
 
-**사전 파악 필요**
-- `GET /registry` 로 실제 네임스페이스 목록 및 raw_path 확인
-- `GET /stats/audit` 로 네임스페이스별 `s3_file_count`, `integrity_pct`, `status` 확인
-- trident-raw 버킷 실제 용량 및 디렉터리 구조 파악 (몇 TB, 몇 개 prefix)
+**사전 파악 완료 (2026-06-01)**
+
+`GET /stats/s3/list?bucket=trident-raw` 로 확인한 실제 디렉터리 16개:
+
+| 네임스페이스 | 직접 파일 | 서브디렉터리 | 도메인 |
+|---|---|---|---|
+| `autonomous-driving-nuscenes` | 1 | 1 | 자율주행 |
+| `autonomous_test` | 0 | 2 (`camera/`, `lidar/`) | 자율주행 |
+| `ecommerce-orders` | 2 | 0 | 커머스 |
+| `finance-transactions` | 1 | 0 | 금융 |
+| `genomics-vcf-archive` | 0 | 3 | 바이오 |
+| `iot-sensor-telemetry` | 1 | 0 | IoT |
+| `lidar-pointcloud-raw` | 0 | 3 | 자율주행/LiDAR |
+| `medical-imaging-chest-xray` | 1 | 1 | 의료영상 |
+| `mimic-iv-demo-csv` | 0 | 1 | 의료(EHR) |
+| `mimic-iv-demo` | 0 | 1 | 의료(EHR) |
+| `nyc-taxi-trips` | 1 | 0 | 교통 |
+| `polaris-verify` | 0 | 1 | 인프라 검증 |
+| `satellite-imagery-sentinel` | 1 | 1 | 위성영상 |
+| `surveillance-video-clips` | 0 | 4 | 영상보안 |
+| `synthetic-driving` | 0 | 1 | 합성데이터 |
+| `weather-radar-archive` | 1 | 1 | 기상 |
+
+`GET /stats/audit` 에서 인덱싱 완료된 네임스페이스:
+- `autonomous_weather`: index_row_count=10, integrity_pct=100%
+- `autonomous_test`: index_row_count=540,000, integrity_pct=100%
+
+나머지 14개는 S3에만 존재하고 아직 Iceberg 인덱싱 미완료.
 
 **설계 방향**
-- Raw Bucket Zone 구역을 고정 5개 → 실제 네임스페이스 수에 맞게 동적 분할
-- 구역 내 갈색 박스 개수 = `s3_file_count` 비례 (상한 설정)
-- 박스 색 밝기 = `status` (PENDING=어두움, INDEXED=중간, STRUCTURED=밝음)
-- `integrity_pct` 낮은 구역 = 빨간 경고 마커
-- 구역 경계 칸막이에 네임스페이스 이름 텍스트 표시
+- Raw Bucket Zone 구역을 고정 5개 → 실제 16개 네임스페이스 기반 동적 분할
+- 도메인별 구역 그룹핑 (자율주행 / 의료 / IoT·커머스·금융 / 영상·위성 / 기타)
+- 각 구역 내 박스: 서브디렉터리 수 또는 파일 수에 비례
+- audit 데이터 있는 구역(autonomous_test 등): 밝은 색 + `integrity_pct` 표시
+- audit 없는 구역(미인덱싱): 어두운 색 + PENDING 마커
+- `trident:entity_id = "raw.{namespace}"` 부여
 
-**twin-hub 수정**
-- `_raw_bucket_entities()` 함수 추가 (`/registry` + `/stats/audit` 읽기)
-- entity_id 형식: `raw.{namespace}`
-- `load_live_entities()`에서 raw bucket entities 포함
+**구현 완료 (2026-06-01)**
 
-**create_scene.py 수정**
-- Raw Bucket Zone 박스에 `trident:entity_id = "raw.{namespace}"` 부여
-- 네임스페이스별 구역 동적 생성 함수 추가
+두 레이어로 실시간 연동:
+
+- **씬 생성 시** (`create_scene.py`): Isaac Sim 재시작 때마다 `_fetch_raw_namespaces()`가 `/stats/s3/list`에서 최신 네임스페이스 목록을 가져와 Raw Bucket Zone 구역을 동적 생성. stats-service 접근 불가 시 fallback 목록 사용.
+- **씬 실행 중** (`twin-hub`): extension 폴링마다 `_raw_bucket_entities()`가 `/stats/s3/list` + `/stats/audit`를 실시간 조회 → `raw.{namespace}` entity의 `integrity_pct`, `index_row_count`, `status` 갱신. 새 네임스페이스는 entity로 즉시 나타나고, USD prim은 다음 씬 재생성 시 반영.
+
+환경변수 (`create_scene.py` 실행 시):
+```
+TRIDENT_STATS_BASE_URL=http://10.234.33.83:80
+TRIDENT_KC_URL=http://10.38.38.220:8080/realms/trident/protocol/openid-connect/token
+TRIDENT_KC_CLIENT_ID=trident-baseline-runner
+TRIDENT_KC_CLIENT_SECRET=<secret>
+```
 
 ### Phase 2 — Lakehouse Zone entity_id 정렬
 
