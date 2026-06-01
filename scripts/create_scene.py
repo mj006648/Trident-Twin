@@ -1481,7 +1481,7 @@ def main():
                     left_gap=(-11.0, 2.0, 1.1), right_gap=(-11.0, 3.5, 1.1))
     # Brown raw boxes piled inside — one zone per S3 namespace (dynamic, 16 dirs).
     # Warehouse interior safe range: X -12~+4, Y -4~+26 (30m total).
-    # 16 namespaces × ~1.875m each; dividers + signpost per zone.
+    # 네임스페이스별 구역 — 박스 수에 비례한 높이, 이름은 구역 하단 바닥 텍스트.
     UsdGeom.Scope.Define(stage, "/World/Lake/Contents")
     RAW_NAMESPACES, _INDEXED_NS = _fetch_raw_namespaces()
 
@@ -1523,49 +1523,55 @@ def main():
     }
 
     import math as _math
-    y_start = -4.0
-    zone_h = 30.0 / max(len(RAW_NAMESPACES), 1)
-    BOX_SZ = (0.38, 0.30, 0.30)   # 작은 박스 (3.3TB 스케일)
-    box_cols = [-11.5, -10.0, -8.5, -7.0, -5.5, -4.0, -2.5, -1.0]
-    # 표지판 X: 창고 오른쪽 벽 안쪽 (+3.5), 기둥 높이 1.2m, 판 높이 1.3m
-    SIGN_X = 3.5
+    # 박스 크기 및 배치
+    BOX_SZ = (0.55, 0.45, 0.45)
+    # 박스 2열 배치 (X 고정)
+    BOX_COL_X = [-11.0, -9.0]
+    BOX_STEP_Y = 0.55   # 박스 간 Y 간격
+    LABEL_MARGIN = 0.30  # 이름 텍스트 높이 확보
+    ZONE_PAD = 0.15      # 구역 상하 여백
 
-    for ns_i, ns in enumerate(RAW_NAMESPACES):
-        y_lo = y_start + ns_i * zone_h
-        y_mid = y_lo + zone_h / 2
+    # 각 네임스페이스의 박스 수 먼저 계산 → 구역 높이 결정
+    ns_boxes = []
+    for ns in RAW_NAMESPACES:
+        gib = _NS_SIZE_GIB.get(ns, 0.5)
+        n = max(1, min(8, _math.ceil(gib)))
+        ns_boxes.append(n)
+
+    # 구역 높이 = 이름 영역 + 박스 행 수 × step + 여백
+    def zone_height(n: int) -> float:
+        rows = _math.ceil(n / 2)
+        return LABEL_MARGIN + rows * BOX_STEP_Y + ZONE_PAD * 2
+
+    y_cur = -4.0   # 현재 Y 시작점 (창고 하단)
+
+    for ns_i, (ns, n_boxes) in enumerate(zip(RAW_NAMESPACES, ns_boxes)):
+        zh = zone_height(n_boxes)
+        y_lo = y_cur
+        y_cur += zh
         safe_ns = ns.replace("-", "_")
+        indexed = ns in _INDEXED_NS
 
         # 구역 칸막이 (첫 번째 제외)
         if ns_i > 0:
             cube(stage, f"/World/DataReadiness/RawObjects/Divider_{ns_i}",
-                 (-4.0, y_lo, 0.15), (17.0, 0.03, 0.20), mats["concrete"])
+                 (-4.0, y_lo, 0.12), (17.0, 0.03, 0.18), mats["concrete"])
 
-        # 표지판: 기둥 + 판 + 텍스트
-        sign_root = f"/World/DataReadiness/RawObjects/{safe_ns}/Sign"
-        UsdGeom.Scope.Define(stage, sign_root)
-        # 기둥
-        cube(stage, f"{sign_root}/Pole",
-             (SIGN_X, y_mid, 0.6), (0.04, 0.04, 1.2), mats["steel_frame"])
-        # 판 (검정 배경)
-        cube(stage, f"{sign_root}/Board",
-             (SIGN_X, y_mid, 1.30), (0.70, 0.04, 0.28), mats["black_panel"])
-        # 텍스트
+        # 구역 하단에 이름 텍스트 (바닥에 새김)
         label = _NS_LABEL.get(ns, ns[:10].upper())
-        render_text(stage, f"{sign_root}/Label",
-                    label, (SIGN_X - 0.28, y_mid - 0.025, 1.30),
-                    mats, pixel=0.048, height_z=0.03)
+        render_text(stage,
+                    f"/World/DataReadiness/RawObjects/{safe_ns}/Label",
+                    label,
+                    (-11.0, y_lo + ZONE_PAD, 0.025),
+                    mats, pixel=0.055, height_z=0.02)
 
-        # 박스 수: 1 GiB 미만 → 1개, 이상 → ceil(gib) 개 (상한 8)
-        gib = _NS_SIZE_GIB.get(ns, 0.5)
-        n_boxes = max(1, min(8, _math.ceil(gib)))
-        indexed = ns in _INDEXED_NS
-
+        # 박스 배치: 2열, 아래에서 위로
         for b_i in range(n_boxes):
-            col = b_i % len(box_cols)
-            row = b_i // len(box_cols)
-            bx = box_cols[col]
-            by = y_mid + (row * 0.32) - 0.15
-            bz = BOX_SZ[2] / 2 + 0.01 + row * BOX_SZ[2]
+            col = b_i % 2
+            row = b_i // 2
+            bx = BOX_COL_X[col]
+            by = y_lo + LABEL_MARGIN + ZONE_PAD + row * BOX_STEP_Y
+            bz = BOX_SZ[2] / 2 + 0.01
             dark = not indexed and (b_i % 2 == 1)
             raw = make_raw_box(stage,
                                f"/World/DataReadiness/RawObjects/{safe_ns}/Box_{b_i}",
