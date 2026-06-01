@@ -68,9 +68,9 @@ CAMERAS = [
     ),
     # 존별 45도 (cx, cy, dist)
     _zone_cam("Truck Yard",    -22,  0,  22, "zone_01_truck_yard"),
-    _zone_cam("Raw Bucket",     -4, 11,  28, "zone_02_raw_bucket"),
+    _zone_cam("Raw Bucket",     -4, 11,  42, "zone_02_raw_bucket"),
     _zone_cam("Accumulation",  +13,  0,  18, "zone_03_accumulation"),
-    _zone_cam("Lakehouse",     +29, 11,  28, "zone_04_lakehouse"),
+    _zone_cam("Lakehouse",     +29, 11,  42, "zone_04_lakehouse"),
     _zone_cam("Search",        +44, 10,  16, "zone_05_search"),
     _zone_cam("Delivery",      +59, 10,  22, "zone_06_delivery"),
     _zone_cam("Tower",         -22, 25,  18, "zone_07_tower"),
