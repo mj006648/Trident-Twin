@@ -1265,8 +1265,6 @@ def build_mannequin(stage, root_path, pos, role, mats):
          (0.13, 0.20, 0.75), body_mat)
     sphere(stage, f"{root_path}/Head", (x, y, z + 1.70), 0.18,
            mats["role_service"] if role == "service" else mats["skin_tone"])
-    cube(stage, f"{root_path}/Badge",
-         (x, y, z + 2.10), (0.40, 0.04, 0.22), body_mat)
     sphere(stage, f"{root_path}/RoleBadge", (x, y, z + 2.20), 0.12, mats[role_colors[role]])
 
 
@@ -1411,7 +1409,7 @@ def main():
                     center=(raw_cx, raw_cy, raw_cz + 0.10),
                     size=(raw_sx, raw_sy, raw_sz),
                     wall_mat=mats["glass_lake"], frame_mat=mats["steel_frame"],
-                    left_gap=(0.0, 1.4, 1.1), right_gap=(0.0, 1.4, 1.1))
+                    left_gap=(-9.0, 1.4, 1.1), right_gap=(-9.0, 1.4, 1.1))
     # Brown raw boxes piled inside (Data Swamp visualization)
     # Warehouse: center=(-4, 11), size=(19, 38) => X: -13~+5, Y: -8~+30
     # Five directory zones with thin dividers between them.
@@ -1561,8 +1559,8 @@ def main():
                     center=(lh_cx, lh_cy, lh_cz + 0.10),
                     size=(lh_sx, lh_sy, lh_sz),
                     wall_mat=mats["glass_lakehouse"], frame_mat=mats["steel_frame"],
-                    left_gap=(0.0, 1.4, 1.1),
-                    right_gap=(0.0, 1.4, 1.1))
+                    left_gap=(-9.0, 1.4, 1.1),
+                    right_gap=(-9.0, 1.4, 1.1))
     # Open floor plan — no internal divider between table zone and staging zone.
     # ===== TABLE STORE (lower half, Y: -4 ~ +10) =====
     # Actual tables with boxes on top. 4 columns x 4 rows.
