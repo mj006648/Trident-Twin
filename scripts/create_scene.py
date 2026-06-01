@@ -351,6 +351,7 @@ ALPHABET_5x7 = {
     "U": ["10001", "10001", "10001", "10001", "10001", "10001", "01110"],
     "V": ["10001", "10001", "10001", "01010", "01010", "00100", "00100"],
     "W": ["10001", "10001", "10001", "10001", "10101", "11011", "10001"],
+    "X": ["10001", "10001", "01010", "00100", "01010", "10001", "10001"],
     "Y": ["10001", "10001", "01010", "00100", "00100", "00100", "00100"],
     "Z": ["11111", "00001", "00010", "00100", "01000", "10000", "11111"],
 }
@@ -532,6 +533,11 @@ def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label,
          name=f"{operation} badge",
          entity_id=f"operation.{step_no:02d}.{operation}.badge",
          entity_type="operation_badge", stage_name=operation)
+
+    # code_label 텍스트 — PillarL 앞 바닥면에 작게 배치
+    render_text(stage, f"{path}/Label", code_label,
+                (x, y - 2.1, z + 0.02), mats,
+                pixel=0.04, height_z=0.02, color_key="black_panel")
 
     return gate
 
@@ -1461,7 +1467,7 @@ def main():
     # Inbound conveyor: long stretch from truck rear (-17.9) to Raw west wall (-12.5)
     # BRONZE frame — this belt feeds the Raw / Bronze stage.
     build_conveyor(stage, "/World/LoadingDock/InboundConveyor",
-                   x_start=-17.9, x_end=-12.3, y_center=0.0,
+                   x_start=-17.9, x_end=-14.0, y_center=0.0,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_bronze")
 
@@ -1469,11 +1475,7 @@ def main():
     # Y range: 11-16=-5 ~ 11+16=+27. Labels at Y=-7.6 are visible south of warehouse.
     raw_cx, raw_cy, raw_cz = -4.0, 11.0, 0.10
     raw_sx, raw_sy, raw_sz = 19.0, 32.0, 6.0
-    cube(stage, "/World/Lake/BronzeLake",
-         (raw_cx, raw_cy, raw_cz),
-         (raw_sx, raw_sy, 0.18), mats["concrete"],
-         name="Bronze Lake", entity_id="lake.bronze",
-         entity_type="storage_zone", stage_name="accumulation")
+    # BronzeLake 바닥 패드 제거 — 창고 콘크리트 바닥만 사용
     build_warehouse(stage, "/World/Lake",
                     center=(raw_cx, raw_cy, raw_cz + 0.10),
                     size=(raw_sx, raw_sy, raw_sz),
@@ -1504,86 +1506,114 @@ def main():
         "synthetic-driving":           0.0,
         "weather-radar-archive":       1.0,
     }
-    _NS_LABEL: dict[str, str] = {
-        "autonomous-driving-nuscenes": "NUSCENES",
-        "autonomous_test":             "AUTO TEST",
-        "ecommerce-orders":            "ECOMMERCE",
-        "finance-transactions":        "FINANCE",
-        "genomics-vcf-archive":        "GENOMICS",
-        "iot-sensor-telemetry":        "IOT",
-        "lidar-pointcloud-raw":        "LIDAR RAW",
-        "medical-imaging-chest-xray":  "MED XRAY",
-        "mimic-iv-demo-csv":           "MIMIC CSV",
-        "mimic-iv-demo":               "MIMIC",
-        "nyc-taxi-trips":              "NYC TAXI",
-        "polaris-verify":              "POLARIS",
-        "satellite-imagery-sentinel":  "SATELLITE",
-        "surveillance-video-clips":    "SURV VIDEO",
-        "synthetic-driving":           "SYNTHETIC",
-        "weather-radar-archive":       "WEATHER",
-    }
+    # 네임스페이스 이름 그대로 사용 (하이픈/언더스코어 → 공백으로 변환해 2줄 분리 용이하게)
+    def _ns_label(ns: str) -> str:
+        return ns.replace("-", " ").replace("_", " ").upper()
+    _NS_LABEL: dict[str, str] = {ns: _ns_label(ns) for ns in RAW_NAMESPACES}
 
     import math as _math
 
     # 창고 내부 안전 범위: X -12.5~+4.5 (17m), Y -4~+26 (30m)
     X_START = -12.5
     X_END   = +4.5
-    X_RANGE = X_END - X_START        # 17.0 m
     Y_START = -4.0
-    ROW_DEPTH = 3.5                  # 한 행의 Y 깊이 (박스 + 이름 영역)
-    BOX_UNIT = 1.0                   # 박스 1개당 X 폭
-    BOX_SZ   = (0.75, 0.60, 0.60)   # 박스 크기
-    BOX_Y_OFFSET = 1.2              # 이름 텍스트 뒤 박스 시작 Y offset
-    LABEL_Z  = 1.5                  # 이름 텍스트 높이
 
-    # 각 네임스페이스 박스 수
+    # 각 구역 고정 풋프린트: 3×3 박스
+    COLS = 3          # X 방향 박스 열 수
+    ROWS = 3          # Y 방향 박스 행 수
+    MAX_LAYERS = 10   # 최대 쌓기 층수
+    BOX_SZ  = (0.48, 0.48, 0.48)   # 박스 크기 (작게)
+    GAP     = 0.08    # 박스 간 간격
+    CELL    = BOX_SZ[0] + GAP      # 셀 크기 (0.56m)
+    ZONE_W  = COLS * CELL          # 구역 X 폭 (1.68m)
+    ZONE_D  = ROWS * CELL          # 구역 Y 깊이 (1.68m)
+    LABEL_H = 0.50    # 이름 텍스트용 Y 여백 (구역 앞쪽)
+    ZONE_TOTAL_D = ZONE_D + LABEL_H  # 구역 전체 Y (2.18m)
+    ZONE_GAP_X = 0.15  # 구역 간 X 간격
+
     def n_boxes_for(ns: str) -> int:
         gib = _NS_SIZE_GIB.get(ns, 0.5)
-        return max(1, min(16, _math.ceil(gib)))
+        return max(1, min(COLS * ROWS * MAX_LAYERS, _math.ceil(gib)))
 
-    # X축으로 구역 배치 — 넘치면 다음 Y행
-    x_cur = X_START
-    y_row = Y_START
+    # X축으로 구역 배치 — 행 넘치면 다음 Y행
+    x_cur  = X_START
+    y_row  = Y_START
     row_idx = 0
 
     for ns_i, ns in enumerate(RAW_NAMESPACES):
         safe_ns = ns.replace("-", "_")
         indexed = ns in _INDEXED_NS
         n = n_boxes_for(ns)
-        zone_w = n * BOX_UNIT
 
-        # 이 구역이 현재 행에 안 들어가면 다음 행으로
-        if x_cur + zone_w > X_END + 0.1 and x_cur > X_START:
-            x_cur = X_START
+        # 행 넘침 체크
+        if x_cur + ZONE_W > X_END + 0.05 and x_cur > X_START:
+            # Y 행 경계선 (이전 행 상단)
+            y_div = Y_START + row_idx * (ZONE_TOTAL_D + 0.20) + ZONE_TOTAL_D
+            cube(stage, f"/World/DataReadiness/RawObjects/DivY_{row_idx}",
+                 ((X_START + X_END) / 2, y_div, 0.15),
+                 (X_END - X_START, 0.03, 0.25), mats["steel_frame"])
+            x_cur   = X_START
             row_idx += 1
-            y_row = Y_START + row_idx * ROW_DEPTH
+            y_row   = Y_START + row_idx * (ZONE_TOTAL_D + 0.20)
 
         x_lo = x_cur
-        x_hi = x_lo + zone_w
-        x_mid = (x_lo + x_hi) / 2
-        y_mid = y_row + ROW_DEPTH / 2
+        y_lo = y_row  # 이름 텍스트 영역 시작
+        y_box_start = y_lo + LABEL_H  # 박스 시작 Y
 
-        # 구역 칸막이 (X 방향 — 첫 번째 및 행 첫 구역 제외)
+        # 구역 X 구분선 (첫 구역 제외): 바닥 위 얇은 판
         if x_cur > X_START:
             cube(stage, f"/World/DataReadiness/RawObjects/DivX_{ns_i}",
-                 (x_lo, y_row + ROW_DEPTH / 2, 0.40),
-                 (0.04, ROW_DEPTH, 0.80), mats["concrete"])
+                 (x_lo - ZONE_GAP_X / 2, y_lo + ZONE_TOTAL_D / 2, 0.15),
+                 (0.03, ZONE_TOTAL_D, 0.25), mats["steel_frame"])
 
-        # 구역 이름 텍스트 — 구역 상단 공중 (Z=1.5)
-        label = _NS_LABEL.get(ns, ns[:10].upper())
+        # 구역 이름: ZONE_W 안에 맞게 pixel 자동 계산
+        # render_text 글자폭 = 5*pixel, 공백 = 3*pixel, gap = pixel
+        # 최대 한 줄 폭 = ZONE_W - 0.06 (여백)
+        label_full = _NS_LABEL.get(ns, ns.upper())
+        # 단어를 절반씩 2줄로 분리 (3단어면 2/1, 4단어면 2/2 등)
+        words = label_full.split()
+        split = max(1, len(words) // 2 + len(words) % 2)
+        line1 = " ".join(words[:split])
+        line2 = " ".join(words[split:]) if len(words) > split else ""
+
+        # render_text total_w 공식: 각 글자 5px + gap(1px), 공백 3px + gap(1px)
+        # total_w = sum(5+1 per char, 3+1 per space) - 1 (마지막 gap 없음)
+        def _pixel_for(text: str, max_w: float) -> float:
+            chars = list(text)
+            slots = sum(6 if c != " " else 4 for c in chars) - 1
+            return (max_w - 0.10) / max(slots, 1)
+
+        longer = line1 if len(line1) >= len(line2) else line2
+        px = min(0.026, _pixel_for(longer, ZONE_W))
+
+        lx = x_lo + ZONE_W / 2   # 구역 X 중앙 (render_text가 중앙 정렬)
+        # 위에서부터: Y 큰 쪽(구역 뒤)에서 시작해 아래로 내림
+        ly1 = y_lo + LABEL_H - px * 9
+        ly2 = ly1 - px * 9
+
         render_text(stage,
-                    f"/World/DataReadiness/RawObjects/{safe_ns}/Label",
-                    label,
-                    (x_lo + 0.05, y_row + 0.10, LABEL_Z),
-                    mats, pixel=0.042, height_z=0.025,
+                    f"/World/DataReadiness/RawObjects/{safe_ns}/Label1",
+                    line1, (lx, ly1, 0.025),
+                    mats, pixel=px, height_z=0.018,
                     color_key="black_panel")
+        if line2:
+            render_text(stage,
+                        f"/World/DataReadiness/RawObjects/{safe_ns}/Label2",
+                        line2, (lx, ly2, 0.025),
+                        mats, pixel=px, height_z=0.018,
+                        color_key="black_panel")
 
-        # 박스 배치: X축으로 1개씩
+        # 박스 3D 배치: col(X) × row(Y) × layer(Z)
+        slots = COLS * ROWS
         for b_i in range(n):
-            bx = x_lo + b_i * BOX_UNIT + BOX_UNIT / 2
-            by = y_row + BOX_Y_OFFSET
-            bz = BOX_SZ[2] / 2 + 0.01
-            dark = not indexed and (b_i % 2 == 1)
+            layer = b_i // slots
+            slot  = b_i % slots
+            col   = slot % COLS
+            row   = slot // COLS
+            bx = x_lo + col * CELL + CELL / 2
+            by = y_box_start + row * CELL + CELL / 2
+            bz = BOX_SZ[2] / 2 + 0.01 + layer * (BOX_SZ[2] + 0.02)
+            dark = not indexed and (layer % 2 == 1)
             raw = make_raw_box(stage,
                                f"/World/DataReadiness/RawObjects/{safe_ns}/Box_{b_i}",
                                (bx, by, bz), BOX_SZ, mats, dark=dark)
@@ -1594,7 +1624,7 @@ def main():
                               policy_ready=False,
                               readiness_score=1.0 if indexed else 0.05)
 
-        x_cur = x_hi
+        x_cur = x_lo + ZONE_W + ZONE_GAP_X
     # Compatibility aliases under the older /World/Lake path are intentionally
     # not created as separate boxes; /World/DataReadiness/RawObjects is the
     # canonical raw-object vocabulary for live bindings.
@@ -1628,12 +1658,15 @@ def main():
 
     # 5 gates at station_x positions, each spanning both belts.
     # Pillars at y=±1.8 (outside both belt rails), crossbar at z=2.5 (tall).
+    # 실제 trident-spark 파이프라인 단계와 1:1 대응:
+    #   trident_structurize.py → INGEST(1) + STRUCT(2)
+    #   trident_index.py       → INDEX(3) + EMBED(4) + AUDIT(5)
     operation_specs = [
-        (1, "INGEST",   "audit_run",                       "raw_object",    "object.raw.batch",           "metal_bronze"),
-        (2, "STAGE",    "catalog_dataset_upsert",          "catalog_dataset","catalog.datasets",           "schema_bar"),
-        (3, "CLEAN",    "schema_snapshot_recorded",        "schema_version", "catalog.schema_versions",    "quality_bar"),
-        (4, "TAG",      "semantic_location_policy_attached","metadata_tags", "milvus.redis.policy",        "semantic_tag"),
-        (5, "CATALOG",  "search_index_refreshed",          "search_index",  "trident_semantic_catalog",   "policy_tag"),
+        (1, "INGEST", "s3_raw_ingestion",     "raw_object",    "trident-raw",                        "metal_bronze"),
+        (2, "STRUCT", "iceberg_structurize",  "iceberg_table", "trident.{ns}.tables",                "schema_bar"),
+        (3, "INDEX",  "search_index_build",   "search_index",  "trident.{ns}.trident_search_index",  "quality_bar"),
+        (4, "EMBED",  "milvus_redis_indexing","vector_index",  "milvus.trident_semantic_catalog",     "semantic_tag"),
+        (5, "AUDIT",  "integrity_audit",      "audit_report",  "redis.trident:audit:{ns}",            "policy_tag"),
     ]
     for step_no, code_label, operation, output_kind, output_entity, mat_key in operation_specs:
         gx = station_x[step_no - 1]
@@ -1945,32 +1978,6 @@ def main():
              (0.10, 0.10, 0.10), mats["workload"],
              name=f"{nm} Interface", entity_id=eid,
              entity_type="workload_interface", stage_name="serving")
-
-    # ===== Dataset Package protagonist =====
-    dataset = cube(stage, "/World/Datasets/DatasetPackage001",
-                   (-17.5, 0, 0.95), (0.60, 0.42, 0.42), mats["dataset_raw"],
-                   name="Dataset Package 001", entity_id="dataset.sample.001",
-                   entity_type="dataset", stage_name="raw")
-    dp = dataset.GetPrim()
-    dp.CreateAttribute("trident:metadata_status", Sdf.ValueTypeNames.String).Set("none")
-    dp.CreateAttribute("trident:sharing_status", Sdf.ValueTypeNames.String).Set("private")
-    dp.CreateAttribute("trident:quality_score", Sdf.ValueTypeNames.Float).Set(0.71)
-    dp.CreateAttribute("trident:access_frequency", Sdf.ValueTypeNames.Int).Set(0)
-    # A single moving package stays uncluttered; bars appear on top as the replay
-    # reaches schema / quality / semantic / policy readiness milestones.
-    for i, (bar_name, mat_key, operation) in enumerate([
-        ("SchemaBar", "schema_bar", "iceberg_table_created"),
-        ("QualityBar", "quality_bar", "integrity_reported"),
-        ("SemanticBar", "semantic_tag", "semantic_metadata_attached"),
-        ("PolicyBar", "policy_tag", "location_policy_tags_attached"),
-    ]):
-        bar = cube(stage, f"/World/Datasets/DatasetPackage001/{bar_name}",
-                   (-0.30 + i * 0.20, 0.0, 0.46),
-                   (0.08, 0.30, 0.035), mats[mat_key],
-                   name=f"Dataset {bar_name}",
-                   entity_id=f"dataset.sample.001.bar.{bar_name.lower()}",
-                   entity_type="readiness_bar", stage_name=operation)
-        set_trident_attrs(bar, source_operation=operation, table_entity="dataset.sample.001")
 
     # ===== Top-down (90deg) per-zone capture cameras =====
     # Position above each zone center, looking straight down. Default camera

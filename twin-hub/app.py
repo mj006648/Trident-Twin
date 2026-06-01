@@ -16,7 +16,10 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 import time
+
+_live_proc: "subprocess.Popen | None" = None
 import urllib.error
 import urllib.parse
 import urllib.request
@@ -223,35 +226,88 @@ def _dataset_entity(row: dict[str, Any]) -> dict[str, Any]:
     }
 
 
-def _operation_entities(pipeline_runs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _gate_status_from_audit(audit: dict[str, Any], gate_no: int) -> str:
+    """audit 레코드 한 건에서 게이트 번호별 완료 상태를 추론한다.
+
+    게이트→파이프라인 단계 대응:
+      1 INGEST  - S3 raw 파일 도착  (s3_file_count > 0)
+      2 STRUCT  - Iceberg 테이블 생성 (index_row_count > 0)
+      3 INDEX   - search_index 저장  (integrity_pct 존재)
+      4 EMBED   - Milvus+Redis 완료  (integrity_pct >= 90)
+      5 AUDIT   - 최종 감사 통과     (status == "PASS")
+    """
+    s3_files   = int(audit.get("s3_file_count") or audit.get("s3_raw_files") or 0)
+    index_rows = int(audit.get("index_row_count") or audit.get("index_rows") or 0)
+    integrity  = audit.get("integrity_pct")
+    passed     = audit.get("status") == "PASS"
+
+    if gate_no == 1:
+        return "done" if s3_files > 0 else "pending"
+    if gate_no == 2:
+        return "done" if index_rows > 0 else ("running" if s3_files > 0 else "pending")
+    if gate_no == 3:
+        return "done" if integrity is not None else ("running" if index_rows > 0 else "pending")
+    if gate_no == 4:
+        return "done" if (integrity or 0) >= 90 else ("running" if integrity is not None else "pending")
+    if gate_no == 5:
+        return "done" if passed else ("running" if (integrity or 0) >= 90 else "pending")
+    return "pending"
+
+
+def _operation_entities(pipeline_runs: list[dict[str, Any]], audit_by_ns: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
+    """Accumulation Zone 5개 게이트를 실제 trident-spark 파이프라인 단계와 매핑한다.
+
+    trident_structurize.py → INGEST + STRUCT
+    trident_index.py       → INDEX + EMBED + AUDIT
+    """
     steps = [
-        (1, "audit_run", "raw_object", "object.raw.batch"),
-        (2, "catalog_dataset_upsert", "catalog_dataset", "catalog.datasets"),
-        (3, "schema_snapshot_recorded", "schema_version", "catalog.schema_versions"),
-        (4, "semantic_location_policy_attached", "metadata_tags", "milvus.redis.policy"),
-        (5, "search_index_refreshed", "search_index", "trident_semantic_catalog"),
-        (6, "collection_or_join_created", "ready_bundle", "collection.redis.ctas"),
-        (7, "workload_delivery_snippet", "delivery_package", "ai.hpc.hpda.snippet"),
+        (1, "INGEST", "s3_raw_ingestion",      "raw_object",     "trident-raw"),
+        (2, "STRUCT", "iceberg_structurize",    "iceberg_table",  "trident.{ns}.tables"),
+        (3, "INDEX",  "search_index_build",     "search_index",   "trident.{ns}.trident_search_index"),
+        (4, "EMBED",  "milvus_redis_indexing",  "vector_index",   "milvus.trident_semantic_catalog"),
+        (5, "AUDIT",  "integrity_audit",        "audit_report",   "redis.trident:audit:{ns}"),
     ]
+
+    # 네임스페이스 전체 audit를 집계해 게이트별 대표 상태 결정
+    # 하나라도 running이면 running, 모두 done이면 done, 나머지 pending
+    def _agg_gate(gate_no: int) -> str:
+        if not audit_by_ns:
+            return "pending"
+        statuses = [_gate_status_from_audit(a, gate_no) for a in audit_by_ns.values()]
+        if any(s == "running" for s in statuses):
+            return "running"
+        if all(s == "done" for s in statuses):
+            return "done"
+        if any(s == "done" for s in statuses):
+            return "running"
+        return "pending"
+
     latest = pipeline_runs[0] if pipeline_runs else {}
-    status = latest.get("status", "observed")
-    return [
-        {
-            "id": f"operation.{no:02d}.{op}",
+    entities = []
+    for no, code_label, operation, output_kind, output_entity in steps:
+        gate_status = _agg_gate(no)
+        entities.append({
+            "id": f"operation.{no:02d}.{operation}",
             "type": "pipeline_operation",
-            "name": f"Step {no}: {op}",
+            "name": f"Step {no}: {code_label}",
+            "code_label": code_label,
             "zone": "zone.refinement_pipeline",
-            "stage": op,
+            "stage": operation,
             "step_no": no,
-            "operation": op,
-            "output_kind": out_kind,
-            "output_entity": out_entity,
-            "status": status,
+            "operation": operation,
+            "output_kind": output_kind,
+            "output_entity": output_entity,
+            "status": gate_status,
             "job_type": latest.get("job_type"),
             "nessie_commit": latest.get("nessie_commit"),
-        }
-        for no, op, out_kind, out_entity in steps
-    ]
+            # 게이트별 집계 수치
+            "namespaces_done": sum(
+                1 for a in audit_by_ns.values()
+                if _gate_status_from_audit(a, no) == "done"
+            ),
+            "namespaces_total": len(audit_by_ns),
+        })
+    return entities
 
 
 def _collection_entities(collections: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -338,15 +394,16 @@ def load_live_entities() -> dict[str, Any]:
 
     pipeline_runs = overview.get("pipeline_runs", []) or []
     entities = [_dataset_entity(row) for row in datasets_by_name.values() if row.get("table_full_name")]
-    entities.extend(_operation_entities(pipeline_runs))
-    entities.extend(_collection_entities(collections_payload.get("collections", []) or []))
 
-    # Raw Bucket Zone: audit 데이터를 네임스페이스 키로 인덱싱 후 S3 목록 병합
+    # audit 데이터를 먼저 수집 — operation entities와 raw bucket 모두에서 재사용
     try:
         audit_list = _fetch_json("/stats/audit")
     except LiveSourceError:
         audit_list = []
     audit_by_ns = {row["namespace"]: row for row in audit_list if row.get("namespace")}
+
+    entities.extend(_operation_entities(pipeline_runs, audit_by_ns))
+    entities.extend(_collection_entities(collections_payload.get("collections", []) or []))
     entities.extend(_raw_bucket_entities(audit_by_ns))
     return {
         "source": "live",
@@ -434,5 +491,48 @@ if FastAPI is not None:
     @app.get("/api/twin/events")
     def events(since: float | None = Query(default=None)) -> dict[str, Any]:
         return filter_events(since)
+
+    # ── Live Sync 제어 ────────────────────────────────────────────────────────
+    ISAAC_CONTAINER = os.getenv("ISAAC_CONTAINER", "isaac-sim-ICH-strongest")
+    SCENE_ROOT      = os.getenv("SCENE_ROOT",      "/mnt/Trident-Twin-520d314")
+    ISAAC_PYTHON    = os.getenv("ISAAC_PYTHON",    "/isaac-sim/python.sh")
+
+    @app.post("/api/twin/live/start")
+    def live_start() -> dict[str, Any]:
+        global _live_proc
+        if _live_proc is not None and _live_proc.poll() is None:
+            return {"status": "already_running", "pid": _live_proc.pid}
+
+        twin_hub_url = os.getenv("TWIN_HUB_INTERNAL_URL", "http://localhost:8765")
+        cmd = [
+            "docker", "exec", ISAAC_CONTAINER,
+            "bash", "-c",
+            f"cd {SCENE_ROOT} && "
+            f"TWIN_HUB_URL={twin_hub_url} "
+            f"{ISAAC_PYTHON} scripts/live_sync.py"
+        ]
+        _live_proc = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT)
+        return {"status": "started", "pid": _live_proc.pid}
+
+    @app.post("/api/twin/live/stop")
+    def live_stop() -> dict[str, Any]:
+        global _live_proc
+        if _live_proc is None or _live_proc.poll() is not None:
+            return {"status": "not_running"}
+        _live_proc.terminate()
+        try:
+            _live_proc.wait(timeout=5)
+        except subprocess.TimeoutExpired:
+            _live_proc.kill()
+        _live_proc = None
+        return {"status": "stopped"}
+
+    @app.get("/api/twin/live/status")
+    def live_status() -> dict[str, Any]:
+        if _live_proc is None:
+            return {"running": False}
+        running = _live_proc.poll() is None
+        return {"running": running, "pid": _live_proc.pid if running else None}
+
 else:  # pragma: no cover
     app = None  # type: ignore[assignment]
