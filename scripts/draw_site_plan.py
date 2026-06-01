@@ -64,12 +64,12 @@ CONVEYORS = [
     # Accumulation belts (2 lanes)
     (  5, -0.7,  20, -0.7, C_SILVER, "",                (0,  0.0)),
     (  5,  0.7,  20,  0.7, C_SILVER, "",                (0,  0.0)),
-    # Raw Bucket 오른쪽 → Big Table (y=4.5 아래쪽)
-    ( 4.5,  5.0,  50.3,  5.0, C_BRONZE, "Raw → Big Table", (0, -1.1)),
-    # Lakehouse Storage 오른쪽 → Big Table (y=7)
-    (38.5,  7.0,  50.3,  7.0, C_SILVER, "Storage → Big Table", (0, -1.1)),
-    # Lakehouse Staging 오른쪽 → Big Table (y=20)
-    (38.5, 20.0,  50.3, 20.0, C_GOLD,   "Staging → Big Table", (0,  1.1)),
+    # Raw Bucket 오른쪽 벽(x=4.5) → Big Table 왼쪽(x=50.3), y=5 (창고 중앙)
+    ( 4.5,  5.0,  50.3,  5.0, C_BRONZE, "Raw → Big Table",     (22, -1.3)),
+    # Lakehouse Storage 오른쪽 벽(x=38.5) → Big Table, y=6 (Storage 중앙 ~7)
+    (38.5,  6.0,  50.3,  6.0, C_SILVER, "Storage → Big Table", (0,  -1.3)),
+    # Lakehouse Staging 오른쪽 벽(x=38.5) → Big Table, y=19 (Staging 중앙 ~19.5)
+    (38.5, 19.0,  50.3, 19.0, C_GOLD,   "Staging → Big Table", (0,   1.3)),
     # Big Table → AI/HPC/HPDA (딜리버리 벨트)
     (53.7,  6.0,  62,   6.0, C_DELIVER, "AI",   (1.0, 0.6)),
     (53.7, 10.0,  62,  10.0, C_DELIVER, "HPC",  (1.0, 0.6)),
@@ -105,14 +105,19 @@ def draw_warehouse(ax, cx, cy, w, h, color, size_label):
 
 
 def draw_lakehouse_divider(ax):
+    # Lakehouse 창고 내부 구분선: cx=29, w=19 → x: 19.5~38.5
     ax.plot([19.6, 38.4], [LH_DIVIDER_Y, LH_DIVIDER_Y],
-            color=C_GOLD, lw=1.4, linestyle="--", zorder=5, alpha=0.8)
-    ax.text(29, LH_DIVIDER_Y+0.4, "Staging (Ready-to-use)",
-            ha="center", va="bottom", fontsize=7.5, color="#78350f",
-            fontweight="bold", zorder=6)
-    ax.text(29, LH_DIVIDER_Y-0.4, "Storage (Iceberg Tables)",
-            ha="center", va="top", fontsize=7.5, color="#334155",
-            fontweight="bold", zorder=6)
+            color=C_GOLD, lw=2.0, linestyle="--", zorder=7, alpha=1.0)
+    # 상단 절반 (Staging) 배경
+    ax.add_patch(mpatches.Rectangle(
+        (19.6, LH_DIVIDER_Y), 18.8, 11.5,
+        facecolor=C_GOLD_FILL, edgecolor="none", alpha=0.35, zorder=4))
+    ax.text(29, 22.0, "Staging\n(Ready-to-use)",
+            ha="center", va="center", fontsize=8, color="#78350f",
+            fontweight="bold", zorder=8)
+    ax.text(29, 7.0, "Storage\n(Iceberg Tables)",
+            ha="center", va="center", fontsize=8, color="#334155",
+            fontweight="bold", zorder=8)
 
 
 def draw_big_table(ax, cx, cy, w, h):
