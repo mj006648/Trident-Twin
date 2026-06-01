@@ -41,10 +41,10 @@ OUT_DIR = BASE / "docs" / "screenshots"
 SCENE_CX, SCENE_CY = 20.0, 10.0
 
 def _zone_cam(name, cx, cy, dist, usd_name):
-    """존 중심(cx,cy)에서 남서쪽 45도 카메라 튜플 생성."""
+    """존 정면(-Y 방향)에서 45도 위로 내려다보는 카메라 튜플 생성."""
     return (
         f"/World/Cameras/{usd_name}",
-        (cx - dist * 0.6, cy - dist, dist),
+        (cx, cy - dist, dist),   # 존 앞쪽(-Y)에서 높이 dist
         (cx, cy, 1.5),
         18.0,
         usd_name,
