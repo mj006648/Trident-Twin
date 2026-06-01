@@ -64,16 +64,18 @@ CONVEYORS = [
     # Accumulation belts (2 lanes)
     (  5, -0.7,  20, -0.7, C_SILVER, "",                (0,  0.0)),
     (  5,  0.7,  20,  0.7, C_SILVER, "",                (0,  0.0)),
-    # Lakehouse Storage(하단, y=6) 오른쪽 벽(x=38.5) → Big Table 왼쪽(x=50.3)
-    (38.5,  6.0,  50.3,  6.0, C_SILVER, "Storage → Big Table", (0, -1.3)),
+    # Lakehouse Storage(하단) 오른쪽 벽(x=38.5, y=3) → Search Zone 아래 우회(y=3)
+    # → Big Table 아래(x=50.3) 수직으로 올라와 Big Table 하단(y=4.5)에 연결
+    (38.5,  3.0,  50.3,  3.0, C_SILVER, "Belt",                (4.5, -1.3)),
+    (50.3,  3.0,  50.3,  4.5, C_SILVER, "",                    (0,    0.0)),
     # Lakehouse Staging(상단) 오른쪽 벽(x=38.5, y=21) → Search Zone 위로 우회(y=21)
-    # → Big Table 오른쪽 위(x=50.3) 수직으로 내려와 Big Table 상단(y=14.5)에 연결
-    (38.5, 21.0,  50.3, 21.0, C_GOLD,   "Staging → Big Table", (4.5, 1.3)),
-    (50.3, 21.0,  50.3, 14.5, C_GOLD,   "",                    (0,   0.0)),
+    # → Big Table 오른쪽(x=50.3) 수직으로 내려와 Big Table 상단(y=14.5)에 연결
+    (38.5, 21.0,  50.3, 21.0, C_GOLD,   "Belt",                (4.5,  1.3)),
+    (50.3, 21.0,  50.3, 14.5, C_GOLD,   "",                    (0,    0.0)),
     # Big Table → AI/HPC/HPDA (딜리버리 벨트)
-    (53.7,  6.0,  62,   6.0, C_DELIVER, "AI",   (1.0, 0.6)),
-    (53.7, 10.0,  62,  10.0, C_DELIVER, "HPC",  (1.0, 0.6)),
-    (53.7, 14.0,  62,  14.0, C_DELIVER, "HPDA", (1.0, 0.6)),
+    (53.7,  6.0,  62,   6.0, C_DELIVER, "Belt (AI)",   (1.0, 0.7)),
+    (53.7, 10.0,  62,  10.0, C_DELIVER, "Belt (HPC)",  (1.0, 0.7)),
+    (53.7, 14.0,  62,  14.0, C_DELIVER, "Belt (HPDA)", (1.0, 0.7)),
 ]
 
 TRUCKS = [
