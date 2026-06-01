@@ -18,7 +18,7 @@ Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal
 
 ---
 
-## 씬 레이아웃 (2026-05-31 기준)
+## 씬 레이아웃 (2026-06-01 기준)
 
 | 번호 | 존 | 역할 | 중심 좌표 (x, y) |
 |---|---|---|---|
@@ -34,19 +34,26 @@ Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal
 
 두 컨베이어 벨트(y=-0.7, y=+0.7)를 동시에 가로지르는 보안검색대 구조.
 필러가 바닥에서 올라오고, 크로스바가 두 레인을 모두 덮으며, 색깔 배지가 작업 종류를 나타낸다.
+게이트를 통과한 박스에는 5개 네모 배지(INGEST/STAGE/CLEAN/TAG/CATALOG)가 상단에 누워 붙어있다.
 
-| 스텝 | 작업 | 배지 색 | 생성 아티팩트 |
+| 스텝 | 게이트 | 배지 색 | 생성 아티팩트 |
 |---|---|---|---|
-| 1 | `audit_run` | 브론즈 | raw object / ingest 결과 |
-| 2 | `catalog_dataset_upsert` | 블루 | `catalog.datasets` 행 |
-| 3 | `schema_snapshot_recorded` | 옐로 | `catalog.schema_versions` 스냅샷 |
-| 4 | `semantic_location_policy_attached` | 퍼플 | Milvus/Redis/policy 바 |
-| 5 | `search_index_refreshed` | 그린 | 검색 가능한 카탈로그 인덱스 |
+| 1 | INGEST | 브론즈 | raw object / ingest 결과 |
+| 2 | STAGE | 실버 | Iceberg 테이블 스테이징 |
+| 3 | CLEAN | 옐로 | 품질 검증 통과 |
+| 4 | TAG | 퍼플 | Milvus 시맨틱 태그 |
+| 5 | CATALOG | 그린 | 정책/공유 준비 완료 |
 
 ### Lakehouse Zone 구조
 
-- **하단 절반 (Y: -3.5 ~ +11.5)**: 테이블 저장소 — 4열 × 6행 실제 테이블, 위에 Iceberg 박스
-- **상단 절반 (Y: +14.5 ~ +26.5)**: 스테이징 — 책꽂이 선반 유닛 12개, 3단 × 박스 3개
+- **하단 절반 (Y: -3.5 ~ +11.5)**: 테이블 저장소 — 4열 × 6행 실제 테이블, 박스 위에 5개 게이트 배지
+- **상단 절반 (Y: +14.5 ~ +26.5)**: 스테이징 — 책꽂이 선반 유닛 12개, 3단 × 박스 3개, 각 박스 위에 5개 게이트 배지
+
+### Search Zone
+
+- 로비 플라자 + 검색 카운터 (데스크 + 터미널 + 인디케이터 패널)
+- 인디케이터 패널: Keycloak 5개 역할 색 sphere — admin(금), operator(파랑), researcher(흰), viewer(회색), service(검정)
+- 아바타 5종 (admin/operator/researcher/viewer/service) — 머리 위에 역할 색 RoleBadge sphere 표시
 
 ---
 
@@ -237,11 +244,11 @@ Isaac Sim extension에 의해 USD prim의 custom attribute로 기록됨.
 | 시각 객체 | 의미 | 수량/밀도 |
 |---|---|---|
 | 갈색 박스 | 메타데이터 없는 원시 소스 오브젝트 | raw object count |
-| 흰색 테이블 + Iceberg 박스 | 정제된 Iceberg 테이블 | 테이블 수, row/object 볼륨 |
+| 흰색 Iceberg 박스 + 5개 네모 배지 | 정제된 Iceberg 테이블 (INGEST/STAGE/CLEAN/TAG/CATALOG 완료) | 테이블 수, row/object 볼륨 |
 | 보안검색대 게이트 | 파이프라인 작업 체크포인트 | 배지 색 = 작업 종류 |
-| 책꽂이 선반 + 박스 | 스테이징된 레디 번들 / 컬렉션 | 선반 = 네임스페이스, 박스 = 테이블 |
-| 금색/노란 번들 트레이 | 사용 준비된 큐레이션 번들 | 신뢰도 배지 |
-| 보라색 패키지 | AI/HPC/HPDA 워크로드 딜리버리 패키지 | 딜리버리 큐 상태 |
+| 책꽂이 선반 + 배지 박스 | 스테이징된 레디 번들 / 컬렉션 | 선반 = 네임스페이스, 박스 = 테이블 |
+| 역할 색 sphere (아바타 위) | 로그인 사용자의 Keycloak 역할 표시 | admin/operator/researcher/viewer/service |
+| 역할 색 sphere (인디케이터 패널) | Search Zone 접근 가능 역할 현황 | 5개 역할 색 구분 |
 
 ---
 

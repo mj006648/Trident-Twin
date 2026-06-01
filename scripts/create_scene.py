@@ -321,22 +321,31 @@ def make_raw_box(stage, path, pos, scale, mats, dark=False):
     return cube(stage, path, pos, scale, mat)
 
 
+GATE_BADGES = [
+    ("INGEST",  "metal_bronze"),
+    ("STAGE",   "metal_silver"),
+    ("CLEAN",   "quality_bar"),
+    ("TAG",     "semantic_tag"),
+    ("CATALOG", "policy_tag"),
+]
+
+def add_gate_badges(stage, path, pos, scale, mats):
+    sx, sy, sz = scale
+    badge_w = sx * 0.14
+    badge_d = sy * 0.14
+    badge_t = 0.018
+    spacing = sx * 0.19
+    x0 = pos[0] - spacing * 2
+    for i, (gname, gmat) in enumerate(GATE_BADGES):
+        cube(stage, f"{path}/GateBadges/{gname}",
+             (x0 + i * spacing, pos[1], pos[2] + sz / 2 + badge_t / 2 + 0.004),
+             (badge_w, badge_d, badge_t), mats[gmat])
+
+
 def make_iceberg_box(stage, path, pos, scale, mats, led="green"):
     xform = UsdGeom.Xform.Define(stage, path)
-    sx, sy, sz = scale
     cube(stage, f"{path}/Body", pos, scale, mats["iceberg_box"])
-    label_t = 0.015
-    cube(stage, f"{path}/MilvusLabel",
-         (pos[0], pos[1] + sy / 2 + label_t, pos[2]),
-         (sx * 0.65, label_t * 2, sz * 0.42), mats["milvus_label"])
-    cube(stage, f"{path}/RedisCard",
-         (pos[0] + sx * 0.20, pos[1], pos[2] + sz / 2 + 0.012),
-         (sx * 0.42, sy * 0.55, 0.025), mats["redis_card"])
-    led_mat = {"green": mats["led_green"], "yellow": mats["led_yellow"],
-               "red": mats["led_red"]}[led]
-    cyl(stage, f"{path}/LED",
-        (pos[0] - sx * 0.30, pos[1] - sy * 0.30, pos[2] + sz / 2 + 0.018),
-        0.025, 0.025, "Z", led_mat)
+    add_gate_badges(stage, path, pos, scale, mats)
     return xform.GetPrim()
 
 
@@ -364,27 +373,7 @@ def make_readiness_table_crate(stage, path, pos, scale, mats, *,
         semantic_ready=semantic, location_ready=location, policy_ready=policy,
         freshness=freshness, workload_fit=workload_fit, readiness_score=quality_score,
     )
-    # Keep table readiness readable instead of attaching bulky tag plaques to
-    # every crate. Thin top bars mirror the real code path: schema/table,
-    # integrity quality, semantic index, location/path metadata, policy/share.
-    bar_specs = [
-        ("SchemaTable", "schema_bar", True, "iceberg_table_created"),
-        ("Quality", "quality_bar", quality_score >= 0.75, "integrity_reported"),
-        ("Semantic", "semantic_tag", semantic, "semantic_indexed"),
-        ("Location", "location_tag", location, "location_metadata_attached"),
-        ("Policy", "policy_tag", policy, "policy_share_ready"),
-    ]
-    for i, (bar_name, mat_key, is_ready, operation) in enumerate(bar_specs):
-        y = pos[1] - sy * 0.40 + i * (sy * 0.20)
-        bar = cube(stage, f"{path}/ReadinessBars/{bar_name}",
-                   (pos[0], y, pos[2] + sz / 2 + 0.028),
-                   (sx * 0.86, sy * 0.055, 0.028),
-                   mats[mat_key if is_ready else "process_pending"],
-                   name=f"{bar_name} readiness bar",
-                   entity_id=f"{entity_id}.bar.{bar_name.lower()}",
-                   entity_type="readiness_bar", stage_name=operation)
-        set_trident_attrs(bar, source_operation=operation, ready=is_ready,
-                          table_entity=entity_id, readiness_score=quality_score)
+    add_gate_badges(stage, path, pos, scale, mats)
     return body
 
 
@@ -1409,7 +1398,7 @@ def main():
                     center=(raw_cx, raw_cy, raw_cz + 0.10),
                     size=(raw_sx, raw_sy, raw_sz),
                     wall_mat=mats["glass_lake"], frame_mat=mats["steel_frame"],
-                    left_gap=(-9.0, 1.4, 1.1), right_gap=(-9.0, 1.4, 1.1))
+                    left_gap=(-11.0, 2.0, 1.1), right_gap=(-11.0, 3.5, 1.1))
     # Brown raw boxes piled inside (Data Swamp visualization)
     # Warehouse: center=(-4, 11), size=(19, 38) => X: -13~+5, Y: -8~+30
     # Five directory zones with thin dividers between them.
@@ -1559,8 +1548,8 @@ def main():
                     center=(lh_cx, lh_cy, lh_cz + 0.10),
                     size=(lh_sx, lh_sy, lh_sz),
                     wall_mat=mats["glass_lakehouse"], frame_mat=mats["steel_frame"],
-                    left_gap=(-9.0, 1.4, 1.1),
-                    right_gap=(-9.0, 1.4, 1.1))
+                    left_gap=(-11.0, 2.0, 1.1),
+                    right_gap=(+11.0, 2.0, 1.1))
     # Open floor plan — no internal divider between table zone and staging zone.
     # ===== TABLE STORE (lower half, Y: -4 ~ +10) =====
     # Actual tables with boxes on top. 4 columns x 4 rows.
@@ -1633,6 +1622,7 @@ def main():
                 make_iceberg_box(stage, f"{rp}/Shelf_{si + 1}/Box_{bi + 1}",
                                  (bx, scy - 0.05, sz + 0.025 + 0.15),
                                  (0.42, 0.30, 0.30), mats, led=led)
+
 
     # Canonical Staging / Ready Bundle prims. These are the targets for Portal
     # Dataset Basket, hot collection, recommended join, and materialized view
@@ -1745,21 +1735,6 @@ def main():
                          (0.50, 0.36, 0.40), mats, led=led)
 
     # Canonical workload delivery packages generated from selected ready bundles.
-    make_delivery_package(stage, "/World/DataReadiness/WorkloadDelivery/AI_Package",
-                          (56.7, 6.0, 1.10), mats,
-                          entity_id="delivery.package.ai.camera_lidar",
-                          workload_type="AI", snippet_type="PyTorch URI list",
-                          source_bundle="bundle.camera_lidar.ai")
-    make_delivery_package(stage, "/World/DataReadiness/WorkloadDelivery/HPC_Package",
-                          (56.7, 10.0, 1.10), mats,
-                          entity_id="delivery.package.hpc.materialized",
-                          workload_type="HPC", snippet_type="FUSE mount",
-                          source_bundle="bundle.materialized.collection")
-    make_delivery_package(stage, "/World/DataReadiness/WorkloadDelivery/HPDA_Package",
-                          (56.7, 14.0, 1.10), mats,
-                          entity_id="delivery.package.hpda.weather_gps",
-                          workload_type="HPDA", snippet_type="Trino SQL",
-                          source_bundle="bundle.weather_gps.hpda")
 
     # ---- ONE LH belt -> big table (south edge) — SILVER ----
     big_t_south = big_table_cy - big_table_d / 2  # +5.0
@@ -1795,6 +1770,10 @@ def main():
                        x_start=big_t_east, x_end=truck_rear_x - 0.5, y_center=dy,
                        z_top=0.7, width=0.9, mats=mats,
                        frame_mat_key="conveyor_promotion")
+        # Iceberg box on belt with 5 gate badges
+        bx_pos = (big_t_east + 3.0, dy, 0.7 + 0.15)
+        make_iceberg_box(stage, f"/World/DeliveryYard/OutBelt_{nm}/Box",
+                         bx_pos, (0.42, 0.30, 0.30), mats)
 
     # ---- Trucks parked east (cab +X, open rear at truck_rear_x) ----
     build_ai_truck(stage, "/World/DeliveryYard/Vehicle_AI",
