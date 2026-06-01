@@ -15,9 +15,9 @@ Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal
 
 ![overview](overview.png)
 
-## 씬 단면 설계도
+## 씬 전경 (이전 버전)
 
-![elevation](docs/elevation.png)
+![obli](docs/screenshots/Obli_Overview.png)
 
 ---
 
