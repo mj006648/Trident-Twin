@@ -30,7 +30,7 @@ Y_MIN, Y_MAX = -12, 32
 
 # (cx, cy, w, h, fill, edge, zone_no, zone_name)
 ZONE_PADS = [
-    (-22, 25,  6,  6,  "#c3d0e4",     C_TOWER,   "Zone 7", "Control Tower"),
+    # Control Tower: zone pad 없음, draw_control_tower로만 표시
     (-22,  0, 16,  8,  C_BRONZE_FILL,  C_BRONZE,  "Zone 1", "Data Ingest"),
     ( -4,  9, 21, 38,  C_BRONZE_FILL,  C_BRONZE,  "Zone 2", "Raw Bucket"),
     ( 13,  0, 12,  7,  C_SILVER_FILL,  C_SILVER,  "Zone 3", "Accumulation"),
@@ -64,12 +64,12 @@ CONVEYORS = [
     # Accumulation belts (2 lanes)
     (  5, -0.7,  20, -0.7, C_SILVER, "",                (0,  0.0)),
     (  5,  0.7,  20,  0.7, C_SILVER, "",                (0,  0.0)),
-    # Raw Bucket 오른쪽 벽(x=4.5) → Big Table 왼쪽(x=50.3), y=5 (창고 중앙)
-    ( 4.5,  5.0,  50.3,  5.0, C_BRONZE, "Raw → Big Table",     (22, -1.3)),
-    # Lakehouse Storage 오른쪽 벽(x=38.5) → Big Table, y=6 (Storage 중앙 ~7)
-    (38.5,  6.0,  50.3,  6.0, C_SILVER, "Storage → Big Table", (0,  -1.3)),
-    # Lakehouse Staging 오른쪽 벽(x=38.5) → Big Table, y=19 (Staging 중앙 ~19.5)
-    (38.5, 19.0,  50.3, 19.0, C_GOLD,   "Staging → Big Table", (0,   1.3)),
+    # Lakehouse Storage(하단) 오른쪽 벽(x=38.5) → Big Table 왼쪽(x=50.3), y=6
+    (38.5,  6.0,  50.3,  6.0, C_SILVER, "Storage → Big Table", (0, -1.3)),
+    # Lakehouse Staging(상단) 오른쪽 벽(x=38.5) → Big Table 위쪽(x=50.3), y=14
+    # Search Zone(x=39.2~49.8, y=4.5~15.5)을 위로 우회: y=21 → 수직 → y=14.5
+    (38.5, 21.0,  50.3, 21.0, C_GOLD,   "",                    (0,  0.0)),
+    (50.3, 21.0,  50.3, 14.5, C_GOLD,   "Staging → Big Table", (-3.5, 0)),
     # Big Table → AI/HPC/HPDA (딜리버리 벨트)
     (53.7,  6.0,  62,   6.0, C_DELIVER, "AI",   (1.0, 0.6)),
     (53.7, 10.0,  62,  10.0, C_DELIVER, "HPC",  (1.0, 0.6)),
