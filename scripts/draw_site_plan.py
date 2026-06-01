@@ -64,18 +64,19 @@ CONVEYORS = [
     # Accumulation belts (2 lanes)
     (  5, -0.7,  20, -0.7, C_SILVER, "",                (0,  0.0)),
     (  5,  0.7,  20,  0.7, C_SILVER, "",                (0,  0.0)),
-    # Lakehouse Storage(하단) 오른쪽 벽(x=38.5, y=3) → Search Zone 아래 우회(y=3)
-    # → Big Table 아래(x=50.3) 수직으로 올라와 Big Table 하단(y=4.5)에 연결
-    (38.5,  3.0,  50.3,  3.0, C_SILVER, "Belt",                (4.5, -1.3)),
-    (50.3,  3.0,  50.3,  4.5, C_SILVER, "",                    (0,    0.0)),
-    # Lakehouse Staging(상단) 오른쪽 벽(x=38.5, y=21) → Search Zone 위로 우회(y=21)
-    # → Big Table 오른쪽(x=50.3) 수직으로 내려와 Big Table 상단(y=14.5)에 연결
-    (38.5, 21.0,  50.3, 21.0, C_GOLD,   "Belt",                (4.5,  1.3)),
-    (50.3, 21.0,  50.3, 14.5, C_GOLD,   "",                    (0,    0.0)),
-    # Big Table → AI/HPC/HPDA (딜리버리 벨트)
-    (53.7,  6.0,  62,   6.0, C_DELIVER, "Belt (AI)",   (1.0, 0.7)),
-    (53.7, 10.0,  62,  10.0, C_DELIVER, "Belt (HPC)",  (1.0, 0.7)),
-    (53.7, 14.0,  62,  14.0, C_DELIVER, "Belt (HPDA)", (1.0, 0.7)),
+    # Lakehouse Metadata(하단) 오른쪽 벽(x=38.5) → y=3으로 내려가 Search Zone 아래 우회
+    # → x=50.3에서 수직으로 Big Table 하단(y=4.5)까지 연결
+    (38.5,  6.0,  38.5,  3.0, C_SILVER, "",      (0, 0)),
+    (38.5,  3.0,  50.3,  3.0, C_SILVER, "Belt",  (6.0, -1.3)),
+    (50.3,  3.0,  50.3,  4.5, C_SILVER, "",      (0, 0)),
+    # Lakehouse Staging(상단) 오른쪽 벽(x=38.5, y=21) → Search Zone 위로 우회
+    # → x=50.3에서 수직으로 Big Table 상단(y=14.5)까지 연결
+    (38.5, 21.0,  50.3, 21.0, C_GOLD,   "Belt",  (6.0, 1.3)),
+    (50.3, 21.0,  50.3, 14.5, C_GOLD,   "",      (0, 0)),
+    # Big Table → AI/HPC/HPDA 벨트
+    (53.7,  6.0,  62,   6.0, C_DELIVER, "Belt",  (0, 0.8)),
+    (53.7, 10.0,  62,  10.0, C_DELIVER, "Belt",  (0, 0.8)),
+    (53.7, 14.0,  62,  14.0, C_DELIVER, "Belt",  (0, 0.8)),
 ]
 
 TRUCKS = [
@@ -117,7 +118,7 @@ def draw_lakehouse_divider(ax):
     ax.text(29, 22.0, "Staging\n(Ready-to-use)",
             ha="center", va="center", fontsize=8, color="#78350f",
             fontweight="bold", zorder=8)
-    ax.text(29, 7.0, "Storage\n(Iceberg Tables)",
+    ax.text(29, 7.0, "Metadata\n(Iceberg Tables)",
             ha="center", va="center", fontsize=8, color="#334155",
             fontweight="bold", zorder=8)
 
