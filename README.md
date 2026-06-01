@@ -15,11 +15,11 @@ Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal
 
 | Zone 1 — Truck Yard | Zone 2 — Raw Bucket |
 |:-------------------:|:-------------------:|
-| ![zone1](docs/screenshots/zone_01_truck_yard.png) | ![zone2](docs/screenshots/zone_02_raw_bucket.png) |
+| ![zone1](docs/screenshots/zone_01_truck_yard.png) | ![zone2](docs/screenshots/zone_02_raw_bucket_v2.png) |
 
 | Zone 3 — Accumulation | Zone 4 — Lakehouse |
 |:---------------------:|:------------------:|
-| ![zone3](docs/screenshots/zone_03_accumulation.png) | ![zone4](docs/screenshots/zone_04_lakehouse.png) |
+| ![zone3](docs/screenshots/zone_03_accumulation.png) | ![zone4](docs/screenshots/zone_04_lakehouse_v2.png) |
 
 | Zone 5 — Search | Zone 6 — Delivery |
 |:---------------:|:-----------------:|
