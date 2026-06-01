@@ -1163,14 +1163,16 @@ def build_search_counter(stage, root_path, cx, cy, mats):
     panel_z = 2.40
     cube(stage, f"{root_path}/IndicatorPanel/Backboard",
          (cx, cy + 0.25, panel_z), (2.6, 0.06, 0.55), mats["steel_frame"])
-    for label, color_key, x_off in [
-        ("Milvus", "indicator_milvus", -0.9),
-        ("LLM",    "indicator_llm",     0.0),
-        ("Redis",  "indicator_redis",   0.9),
-    ]:
-        cyl(stage, f"{root_path}/IndicatorPanel/Light_{label}",
-            (cx + x_off, cy + 0.27, panel_z),
-            0.20, 0.14, "Y", mats[color_key])
+    for i, (role, color_key) in enumerate([
+        ("admin",      "role_admin"),
+        ("operator",   "role_operator"),
+        ("researcher", "role_researcher"),
+        ("viewer",     "role_viewer"),
+        ("service",    "role_service"),
+    ]):
+        sphere(stage, f"{root_path}/IndicatorPanel/Role_{role}",
+               (cx - 1.0 + i * 0.50, cy + 0.27, panel_z),
+               0.18, mats[color_key])
     cube(stage, f"{root_path}/IndicatorPanel/Pole_L",
          (cx - 1.30, cy + 0.25, 1.85), (0.08, 0.08, 1.30), mats["steel_frame"])
     cube(stage, f"{root_path}/IndicatorPanel/Pole_R",
@@ -1235,11 +1237,6 @@ def build_lobby_entrance(stage, root_path, cx, cy, mats):
     UsdGeom.Scope.Define(stage, root_path)
     cube(stage, f"{root_path}/Plaza", (cx, cy, 0.05),
          (7.0, 7.0, 0.10), mats["white_panel"])
-    # Reception desk + monitor (gate removed per design update)
-    cube(stage, f"{root_path}/Reception/Desk",
-         (cx, cy + 2.2, 0.55), (3.0, 0.8, 1.1), mats["operator"])
-    cube(stage, f"{root_path}/Reception/Monitor",
-         (cx, cy + 2.4, 1.55), (1.0, 0.05, 0.6), mats["monitor_screen"])
 
 
 # ============================================================================
@@ -1270,6 +1267,7 @@ def build_mannequin(stage, root_path, pos, role, mats):
            mats["role_service"] if role == "service" else mats["skin_tone"])
     cube(stage, f"{root_path}/Badge",
          (x, y, z + 2.10), (0.40, 0.04, 0.22), body_mat)
+    sphere(stage, f"{root_path}/RoleBadge", (x, y, z + 2.20), 0.12, mats[role_colors[role]])
 
 
 # ============================================================================
@@ -1350,12 +1348,15 @@ def main():
     # pad cy = (-9 + 27)/2 = 9, pad sy = 36
     zone_pad(stage, "/World/ZonePads/Tower",       (-22,  +25), (6,   6),  mats["zone_color_9"])
     # TruckYard: only the truck parking area
-    zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,   0),  (16,  8), mats["metal_bronze"])
+    zone_pad(stage, "/World/ZonePads/TruckYard",   (-22,   0),  (16,  8), mats["zone_color_2"])
     # RawBucket pad: south edge at y=-9 (covers label at -7.5), north edge at +27
-    zone_pad(stage, "/World/ZonePads/RawBucket",   (-4.0,  9.0), (21.0, 38.0), mats["metal_bronze"])
+    zone_pad(stage, "/World/ZonePads/RawBucket",   (-4.0,  9.0), (21.0, 38.0), mats["zone_color_2"])
     zone_pad(stage, "/World/ZonePads/Pipeline",    (+13,    0), (16, 10), mats["metal_silver"])
     # Lakehouse pad: same logic
-    zone_pad(stage, "/World/ZonePads/Lakehouse",   (+29.0, 9.0), (21.0, 38.0), mats["metal_silver"])
+    # Lakehouse 하단(Metadata/Storage): y=-10~13.5
+    zone_pad(stage, "/World/ZonePads/LakehouseMeta",    (+29.0,  1.75), (21.0, 23.5), mats["metal_silver"])
+    # Lakehouse 상단(Staging): y=13.5~28
+    zone_pad(stage, "/World/ZonePads/LakehouseStaging", (+29.0, 20.75), (21.0, 14.5), mats["metal_gold"])
     zone_pad(stage, "/World/ZonePads/LobbySearch", (+44,  +10), (10, 14), mats["zone_color_0"])
     # Delivery pad: covers label(y~+3) + trucks(y=6~14, cab to x~68) + DELIVERY ZONE text
     # Delivery pad: trucks at y=6~14, label at y~+3, add margin → y=+2~+17
@@ -1551,6 +1552,11 @@ def main():
          (lh_sx, lh_sy, 0.18), mats["concrete"],
          name="Silver Lakehouse", entity_id="lakehouse.silver",
          entity_type="storage_zone", stage_name="staging")
+    # Staging 절반 바닥을 골드로 덮어씌움 (y=13.5~27.0, cy=20.25, sy=13.5)
+    staging_cy = lh_cy + 9.25  # 11.0 + 9.25 = 20.25
+    cube(stage, "/World/Lakehouse/StagingFloor",
+         (lh_cx, staging_cy, lh_cz + 0.09),
+         (lh_sx - 0.2, 13.5, 0.10), mats["metal_gold"])
     build_warehouse(stage, "/World/Lakehouse",
                     center=(lh_cx, lh_cy, lh_cz + 0.10),
                     size=(lh_sx, lh_sy, lh_sz),
