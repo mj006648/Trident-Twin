@@ -54,21 +54,26 @@ GATES = [(7,"INGEST"),(10,"STAGE"),(13,"CLEAN"),(16,"TAG"),(19,"CATALOG")]
 # Big Table
 BIG_TABLE = (52, 9.5, 3.5, 10)  # cx, cy, w, h
 
+# Raw Bucket 오른쪽 벽: x=4.5, Lakehouse 오른쪽 벽: x=38.5, Big Table 왼쪽: x=50.3
+# Big Table: cx=52, cy=9.5, w=3.5, h=10 → left=50.3, right=53.7, top=14.5, bottom=4.5
+
 # (x1,y1,x2,y2, color, label, loff)
 CONVEYORS = [
     # Ingest belt
-    (-17, 0.0, -12, 0.0, C_BRONZE, "Ingest Belt", (0, 0.9)),
-    # Accumulation belts
-    (  5, -0.7, 20, -0.7, C_SILVER, "", (0, 0)),
-    (  5,  0.7, 20,  0.7, C_SILVER, "", (0, 0)),
-    # Raw Bucket → Big Table (south belt)
-    ( 38, -0.7, 50.2, -0.7, C_BRONZE, "Raw → Big Table", (0, -1.1)),
-    # Lakehouse → Big Table (north belt)
-    ( 38,  0.7, 50.2,  0.7, C_SILVER, "LH → Big Table",  (0,  1.1)),
-    # Big Table → Delivery outbound
-    (53.8,  6.0, 62,  6.0, C_DELIVER, "AI",   (1.0, 0.6)),
-    (53.8, 10.0, 62, 10.0, C_DELIVER, "HPC",  (1.0, 0.6)),
-    (53.8, 14.0, 62, 14.0, C_DELIVER, "HPDA", (1.0, 0.6)),
+    (-17,  0.0, -12,  0.0, C_BRONZE, "Ingest Belt",     (0,  0.9)),
+    # Accumulation belts (2 lanes)
+    (  5, -0.7,  20, -0.7, C_SILVER, "",                (0,  0.0)),
+    (  5,  0.7,  20,  0.7, C_SILVER, "",                (0,  0.0)),
+    # Raw Bucket 오른쪽 → Big Table (y=4.5 아래쪽)
+    ( 4.5,  5.0,  50.3,  5.0, C_BRONZE, "Raw → Big Table", (0, -1.1)),
+    # Lakehouse Storage 오른쪽 → Big Table (y=7)
+    (38.5,  7.0,  50.3,  7.0, C_SILVER, "Storage → Big Table", (0, -1.1)),
+    # Lakehouse Staging 오른쪽 → Big Table (y=20)
+    (38.5, 20.0,  50.3, 20.0, C_GOLD,   "Staging → Big Table", (0,  1.1)),
+    # Big Table → AI/HPC/HPDA (딜리버리 벨트)
+    (53.7,  6.0,  62,   6.0, C_DELIVER, "AI",   (1.0, 0.6)),
+    (53.7, 10.0,  62,  10.0, C_DELIVER, "HPC",  (1.0, 0.6)),
+    (53.7, 14.0,  62,  14.0, C_DELIVER, "HPDA", (1.0, 0.6)),
 ]
 
 TRUCKS = [
