@@ -136,6 +136,47 @@ Isaac Sim에서 extension 활성화 후 **Start Live** 버튼 → `http://l40s-i
 
 ---
 
+## 다음 작업 로드맵
+
+### Phase 1 — Raw Bucket Zone 라이브 연동
+
+Raw Bucket Zone을 실제 `trident-raw` S3 버킷 데이터와 연동한다.
+
+**사전 파악 필요**
+- `GET /registry` 로 실제 네임스페이스 목록 및 raw_path 확인
+- `GET /stats/audit` 로 네임스페이스별 `s3_file_count`, `integrity_pct`, `status` 확인
+- trident-raw 버킷 실제 용량 및 디렉터리 구조 파악 (몇 TB, 몇 개 prefix)
+
+**설계 방향**
+- Raw Bucket Zone 구역을 고정 5개 → 실제 네임스페이스 수에 맞게 동적 분할
+- 구역 내 갈색 박스 개수 = `s3_file_count` 비례 (상한 설정)
+- 박스 색 밝기 = `status` (PENDING=어두움, INDEXED=중간, STRUCTURED=밝음)
+- `integrity_pct` 낮은 구역 = 빨간 경고 마커
+- 구역 경계 칸막이에 네임스페이스 이름 텍스트 표시
+
+**twin-hub 수정**
+- `_raw_bucket_entities()` 함수 추가 (`/registry` + `/stats/audit` 읽기)
+- entity_id 형식: `raw.{namespace}`
+- `load_live_entities()`에서 raw bucket entities 포함
+
+**create_scene.py 수정**
+- Raw Bucket Zone 박스에 `trident:entity_id = "raw.{namespace}"` 부여
+- 네임스페이스별 구역 동적 생성 함수 추가
+
+### Phase 2 — Lakehouse Zone entity_id 정렬
+
+현재 7/25 prim만 매칭되는 문제 해결 (fixture 네임스페이스 vs 실제 네임스페이스 불일치).
+
+- `sync_scene_from_live.py`: stats-service 실데이터 기반으로 씬 재생성
+- 또는 twin-hub에 entity_id 변환 레이어 추가
+
+### Phase 3 — Portal ↔ Twin 선택 동기화
+
+- twin-hub `POST /api/twin/select` 엔드포인트 추가
+- Portal 검색 결과 클릭 → twin-hub → USD prim 하이라이트
+
+---
+
 ## 연동 현황 및 남은 갭
 
 ### 현재 작동 중
