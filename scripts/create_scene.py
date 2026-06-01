@@ -322,7 +322,7 @@ def make_raw_box(stage, path, pos, scale, mats, dark=False):
 
 
 def make_iceberg_box(stage, path, pos, scale, mats, led="green"):
-    UsdGeom.Xform.Define(stage, path)
+    xform = UsdGeom.Xform.Define(stage, path)
     sx, sy, sz = scale
     cube(stage, f"{path}/Body", pos, scale, mats["iceberg_box"])
     label_t = 0.015
@@ -337,6 +337,7 @@ def make_iceberg_box(stage, path, pos, scale, mats, led="green"):
     cyl(stage, f"{path}/LED",
         (pos[0] - sx * 0.30, pos[1] - sy * 0.30, pos[2] + sz / 2 + 0.018),
         0.025, 0.025, "Z", led_mat)
+    return xform.GetPrim()
 
 
 
@@ -1602,8 +1603,8 @@ def main():
     for ui, (scx, scy) in enumerate(shelf_unit_positions):
         rp = f"/World/Lakehouse/Staging/Shelf_{ui + 1}"
         UsdGeom.Scope.Define(stage, rp)
-        unit_w, unit_d, unit_h = 3.8, 0.9, 3.2
-        side_t = 0.08
+        unit_w, unit_d, unit_h = 2.8, 0.7, 2.4
+        side_t = 0.07
         # Side panels
         cube(stage, f"{rp}/SideL",
              (scx - unit_w / 2 + side_t / 2, scy, 0.1 + unit_h / 2),
@@ -1616,37 +1617,42 @@ def main():
              (scx, scy + unit_d / 2 - 0.03, 0.1 + unit_h / 2),
              (unit_w, 0.04, unit_h), mats["table_leg"])
         # 3 shelves
-        shelf_zs = [0.1 + 0.5, 0.1 + 1.3, 0.1 + 2.1]
+        shelf_zs = [0.1 + 0.4, 0.1 + 1.0, 0.1 + 1.6]
         for si, sz in enumerate(shelf_zs):
             cube(stage, f"{rp}/Shelf_{si + 1}",
-                 (scx, scy, sz), (unit_w - side_t * 2, unit_d, 0.06),
+                 (scx, scy, sz), (unit_w - side_t * 2, unit_d, 0.05),
                  mats["table_top"])
             # 3 boxes per shelf
             for bi in range(3):
-                bx = scx - 1.1 + bi * 1.1
+                bx = scx - 0.80 + bi * 0.80
                 led = ["green", "yellow", "green"][bi % 3] if (ui + si) % 3 != 0 else ["green", "red", "green"][bi % 3]
                 make_iceberg_box(stage, f"{rp}/Shelf_{si + 1}/Box_{bi + 1}",
-                                 (bx, scy - 0.05, sz + 0.03 + 0.20),
-                                 (0.55, 0.38, 0.40), mats, led=led)
+                                 (bx, scy - 0.05, sz + 0.025 + 0.15),
+                                 (0.42, 0.30, 0.30), mats, led=led)
 
     # Canonical Staging / Ready Bundle prims. These are the targets for Portal
     # Dataset Basket, hot collection, recommended join, and materialized view
     # signals.
+    # Ready bundle prims — iceberg_box appearance, placed on shelf_unit_positions[0..3]
+    # shelf_zs middle shelf: 0.1 + 1.0 = 1.1, box center: 1.1 + 0.175 = 1.275
     ready_specs = [
-        ("CameraLidarAI", "bundle.camera_lidar.ai", "Camera + LiDAR AI bundle",
-         "camera+lidar", "AI", 0.92, 57, (23.0, 15.0, 1.35)),
-        ("WeatherGpsHPDA", "bundle.weather_gps.hpda", "Weather + GPS HPDA bundle",
-         "weather+gps", "HPDA", 0.80, 12, (27.0, 15.0, 1.35)),
-        ("HotBasket", "bundle.hot_basket.portal", "Portal hot Dataset Basket",
-         "camera+lidar+gps", "AI+HPDA", 0.88, 73, (31.0, 15.0, 1.35)),
-        ("MaterializedCollection", "bundle.materialized.collection", "Materialized collection candidate",
-         "fusion+weather", "HPC+HPDA", 0.84, 21, (27.0, 19.0, 1.35)),
+        ("CameraLidarAI",        "bundle.camera_lidar.ai",          "camera+lidar",      "AI",       0.92, 57, (22.0, 14.5)),
+        ("WeatherGpsHPDA",       "bundle.weather_gps.hpda",         "weather+gps",       "HPDA",     0.80, 12, (27.0, 14.5)),
+        ("HotBasket",            "bundle.hot_basket.portal",        "camera+lidar+gps",  "AI+HPDA",  0.88, 73, (32.0, 14.5)),
+        ("MaterializedCollection","bundle.materialized.collection",  "fusion+weather",    "HPC+HPDA", 0.84, 21, (37.0, 14.5)),
     ]
-    for slug, eid, name, comps, fit, confidence, access, pos in ready_specs:
-        make_ready_bundle(stage, f"/World/DataReadiness/ReadyBundles/{slug}",
-                          pos, mats, entity_id=eid, name=name,
+    _shelf_z_mid = 0.1 + 1.0 + 0.175  # middle shelf box centre
+    for slug, eid, comps, fit, confidence, access, (rx, ry) in ready_specs:
+        led = "green" if confidence >= 0.88 else ("yellow" if confidence >= 0.82 else "red")
+        bx = make_iceberg_box(
+            stage, f"/World/DataReadiness/ReadyBundles/{slug}",
+            (rx, ry, _shelf_z_mid), (0.42, 0.30, 0.30), mats, led=led,
+        )
+        set_trident_attrs(bx, entity_id=eid, entity_type="ready_bundle",
+                          zone="zone.staging_ready_bundles",
                           components=comps, workload_fit=fit,
-                          confidence=confidence, access_frequency=access)
+                          confidence=confidence, access_frequency=access,
+                          policy_ready=True, readiness_score=confidence)
 
     # Lakehouse -> Showcase promotion belt removed; zones are now unified as LAKEHOUSE ZONE.
 
