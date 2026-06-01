@@ -13,7 +13,7 @@ Trident-Twin은 Lakehouse를 3D로 꾸미는 뷰어가 아니라, Trident Portal
 
 ## 씬 설계도 (Top View)
 
-![site-plan](docs/site-plan.png)
+![site-plan](docs/site-plan-v2.png)
 
 
 ---
