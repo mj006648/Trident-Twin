@@ -1481,36 +1481,95 @@ def main():
                     left_gap=(-11.0, 2.0, 1.1), right_gap=(-11.0, 3.5, 1.1))
     # Brown raw boxes piled inside — one zone per S3 namespace (dynamic, 16 dirs).
     # Warehouse interior safe range: X -12~+4, Y -4~+26 (30m total).
-    # 16 namespaces × ~1.875m each; dividers between every zone.
+    # 16 namespaces × ~1.875m each; dividers + signpost per zone.
     UsdGeom.Scope.Define(stage, "/World/Lake/Contents")
     RAW_NAMESPACES, _INDEXED_NS = _fetch_raw_namespaces()
+
+    _NS_SIZE_GIB: dict[str, float] = {
+        "autonomous-driving-nuscenes": 1.0,
+        "autonomous_test":             5.2,
+        "ecommerce-orders":            0.4,
+        "finance-transactions":        0.6,
+        "genomics-vcf-archive":        1.0,
+        "iot-sensor-telemetry":        0.6,
+        "lidar-pointcloud-raw":        1.0,
+        "medical-imaging-chest-xray":  1.0,
+        "mimic-iv-demo-csv":           0.05,
+        "mimic-iv-demo":               0.01,
+        "nyc-taxi-trips":              0.7,
+        "polaris-verify":              0.0,
+        "satellite-imagery-sentinel":  1.0,
+        "surveillance-video-clips":    1.0,
+        "synthetic-driving":           0.0,
+        "weather-radar-archive":       1.0,
+    }
+    _NS_LABEL: dict[str, str] = {
+        "autonomous-driving-nuscenes": "NUSCENES",
+        "autonomous_test":             "AUTO TEST",
+        "ecommerce-orders":            "ECOMMERCE",
+        "finance-transactions":        "FINANCE",
+        "genomics-vcf-archive":        "GENOMICS",
+        "iot-sensor-telemetry":        "IOT",
+        "lidar-pointcloud-raw":        "LIDAR RAW",
+        "medical-imaging-chest-xray":  "MED XRAY",
+        "mimic-iv-demo-csv":           "MIMIC CSV",
+        "mimic-iv-demo":               "MIMIC",
+        "nyc-taxi-trips":              "NYC TAXI",
+        "polaris-verify":              "POLARIS",
+        "satellite-imagery-sentinel":  "SATELLITE",
+        "surveillance-video-clips":    "SURV VIDEO",
+        "synthetic-driving":           "SYNTHETIC",
+        "weather-radar-archive":       "WEATHER",
+    }
+
+    import math as _math
     y_start = -4.0
-    zone_h = 30.0 / len(RAW_NAMESPACES)   # ≈1.875 m per namespace
-    box_xs = [-11.0, -8.5, -6.0, -3.5]    # 4 box columns inside warehouse
+    zone_h = 30.0 / max(len(RAW_NAMESPACES), 1)
+    BOX_SZ = (0.38, 0.30, 0.30)   # 작은 박스 (3.3TB 스케일)
+    box_cols = [-11.5, -10.0, -8.5, -7.0, -5.5, -4.0, -2.5, -1.0]
+    # 표지판 X: 창고 오른쪽 벽 안쪽 (+3.5), 기둥 높이 1.2m, 판 높이 1.3m
+    SIGN_X = 3.5
+
     for ns_i, ns in enumerate(RAW_NAMESPACES):
         y_lo = y_start + ns_i * zone_h
         y_mid = y_lo + zone_h / 2
-        # divider between zones (skip first)
+        safe_ns = ns.replace("-", "_")
+
+        # 구역 칸막이 (첫 번째 제외)
         if ns_i > 0:
             cube(stage, f"/World/DataReadiness/RawObjects/Divider_{ns_i}",
-                 (-4.0, y_lo, 0.15), (17.0, 0.04, 0.25), mats["concrete"])
-        # 2 boxes per zone (front + back row); indexed ns gets extra stacked box
+                 (-4.0, y_lo, 0.15), (17.0, 0.03, 0.20), mats["concrete"])
+
+        # 표지판: 기둥 + 판 + 텍스트
+        sign_root = f"/World/DataReadiness/RawObjects/{safe_ns}/Sign"
+        UsdGeom.Scope.Define(stage, sign_root)
+        # 기둥
+        cube(stage, f"{sign_root}/Pole",
+             (SIGN_X, y_mid, 0.6), (0.04, 0.04, 1.2), mats["steel_frame"])
+        # 판 (검정 배경)
+        cube(stage, f"{sign_root}/Board",
+             (SIGN_X, y_mid, 1.30), (0.70, 0.04, 0.28), mats["black_panel"])
+        # 텍스트
+        label = _NS_LABEL.get(ns, ns[:10].upper())
+        render_text(stage, f"{sign_root}/Label",
+                    label, (SIGN_X - 0.28, y_mid - 0.025, 1.30),
+                    mats, pixel=0.048, height_z=0.03)
+
+        # 박스 수: 1 GiB 미만 → 1개, 이상 → ceil(gib) 개 (상한 8)
+        gib = _NS_SIZE_GIB.get(ns, 0.5)
+        n_boxes = max(1, min(8, _math.ceil(gib)))
         indexed = ns in _INDEXED_NS
-        box_positions = [
-            (box_xs[0], y_mid - 0.3, 0.40),
-            (box_xs[1], y_mid + 0.3, 0.40),
-        ]
-        if indexed:
-            box_positions += [
-                (box_xs[2], y_mid - 0.3, 0.40),
-                (box_xs[0], y_mid - 0.3, 1.15),
-            ]
-        safe_ns = ns.replace("-", "_")
-        for b_i, (bx, by, bz) in enumerate(box_positions):
+
+        for b_i in range(n_boxes):
+            col = b_i % len(box_cols)
+            row = b_i // len(box_cols)
+            bx = box_cols[col]
+            by = y_mid + (row * 0.32) - 0.15
+            bz = BOX_SZ[2] / 2 + 0.01 + row * BOX_SZ[2]
             dark = not indexed and (b_i % 2 == 1)
             raw = make_raw_box(stage,
                                f"/World/DataReadiness/RawObjects/{safe_ns}/Box_{b_i}",
-                               (bx, by, bz), (0.65, 0.55, 0.65), mats, dark=dark)
+                               (bx, by, bz), BOX_SZ, mats, dark=dark)
             set_trident_attrs(raw, entity_id=f"raw.{ns}",
                               entity_type="raw_bucket", zone="zone.raw_bucket",
                               stage="raw_ingestion", metadata_status="none",
