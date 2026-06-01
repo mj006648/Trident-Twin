@@ -8,7 +8,6 @@ Run:
     python3 scripts/draw_site_plan.py
 """
 from __future__ import annotations
-
 from pathlib import Path
 
 import matplotlib
@@ -26,108 +25,108 @@ C_LOBBY   = "#2dcad0"; C_LOBBY_FILL   = "#bff0f2"
 C_DELIVER = "#8862e0"; C_DELIVER_FILL = "#d9ccf5"
 C_TOWER   = "#4a6b9c"
 
-X_MIN, X_MAX = -30, 75
+X_MIN, X_MAX = -30, 78
 Y_MIN, Y_MAX = -12, 32
 
-# (cx, cy, w, h, fill, edge, label)
+# (cx, cy, w, h, fill, edge, zone_no, zone_name)
 ZONE_PADS = [
-    (-22, 25,  6,  6,  "#c3d0e4",    C_TOWER,   "Control Tower"),
-    (-22,  0, 16,  8,  C_BRONZE_FILL, C_BRONZE,  "TRUCK YARD"),
-    ( -4,  9, 21, 38,  C_BRONZE_FILL, C_BRONZE,  "RAW BUCKET ZONE"),
-    ( 13,  0, 12,  7,  C_SILVER_FILL, C_SILVER,  "ACCUMULATION ZONE"),
-    ( 29,  9, 21, 38,  C_SILVER_FILL, C_SILVER,  "LAKEHOUSE ZONE"),
-    ( 44, 10, 10, 11,  C_LOBBY_FILL,  C_LOBBY,   "SEARCH ZONE"),
-    ( 59,9.5, 22, 20,  C_DELIVER_FILL,C_DELIVER, "DELIVERY ZONE"),
+    (-22, 25,  6,  6,  "#c3d0e4",     C_TOWER,   "Zone 7", "Control Tower"),
+    (-22,  0, 16,  8,  C_BRONZE_FILL,  C_BRONZE,  "Zone 1", "Data Ingest"),
+    ( -4,  9, 21, 38,  C_BRONZE_FILL,  C_BRONZE,  "Zone 2", "Raw Bucket"),
+    ( 13,  0, 12,  7,  C_SILVER_FILL,  C_SILVER,  "Zone 3", "Accumulation"),
+    ( 29,  9, 21, 38,  C_SILVER_FILL,  C_SILVER,  "Zone 4", "Lakehouse"),
+    ( 44, 10, 10, 11,  C_LOBBY_FILL,   C_LOBBY,   "Zone 0", "Data Search"),
+    ( 59,9.5, 22, 20,  C_DELIVER_FILL, C_DELIVER, "Zone 5", "Delivery"),
 ]
 
-# warehouse outlines (cx, cy, w, h, color)
+# warehouse outlines + size label (cx, cy, w, h, color, size_label)
 WAREHOUSES = [
-    (-4,  9, 19, 32, C_BRONZE),
-    (29,  9, 19, 32, C_SILVER),
+    (-4,  9, 19, 32, C_BRONZE, "19×32×6m"),
+    (29,  9, 19, 32, C_SILVER, "19×32×6m"),
 ]
 
-# Accumulation gates x positions
+# Lakehouse 내부 구분선 y=13.5
+LH_DIVIDER_Y = 13.5
+
+# Accumulation gates
 GATES = [(7,"INGEST"),(10,"STAGE"),(13,"CLEAN"),(16,"TAG"),(19,"CATALOG")]
+
+# Big Table
+BIG_TABLE = (52, 9.5, 3.5, 10)  # cx, cy, w, h
 
 # (x1,y1,x2,y2, color, label, loff)
 CONVEYORS = [
-    (-17, 0.0, -12, 0.0, C_BRONZE, "Ingest Belt",        (0,  0.9)),
-    (  5,-0.7,  20,-0.7, C_SILVER, "Main Line",           (0, -1.1)),
-    (  5, 0.7,  20, 0.7, C_SILVER, "Express Line",        (0,  1.1)),
-    ( 38, 0.0,  49, 0.0, C_SILVER, "",                    (0,  0.0)),
-    ( 52, 6.0,  62, 6.0, C_DELIVER,"AI",                  (1.0,0.6)),
-    ( 52,10.0,  62,10.0, C_DELIVER,"HPC",                 (1.0,0.6)),
-    ( 52,14.0,  62,14.0, C_DELIVER,"HPDA",                (1.0,0.6)),
+    # Ingest belt
+    (-17, 0.0, -12, 0.0, C_BRONZE, "Ingest Belt", (0, 0.9)),
+    # Accumulation belts
+    (  5, -0.7, 20, -0.7, C_SILVER, "", (0, 0)),
+    (  5,  0.7, 20,  0.7, C_SILVER, "", (0, 0)),
+    # Raw Bucket → Big Table (south belt)
+    ( 38, -0.7, 50.2, -0.7, C_BRONZE, "Raw → Big Table", (0, -1.1)),
+    # Lakehouse → Big Table (north belt)
+    ( 38,  0.7, 50.2,  0.7, C_SILVER, "LH → Big Table",  (0,  1.1)),
+    # Big Table → Delivery outbound
+    (53.8,  6.0, 62,  6.0, C_DELIVER, "AI",   (1.0, 0.6)),
+    (53.8, 10.0, 62, 10.0, C_DELIVER, "HPC",  (1.0, 0.6)),
+    (53.8, 14.0, 62, 14.0, C_DELIVER, "HPDA", (1.0, 0.6)),
 ]
 
 TRUCKS = [
-    (-20.5, 0,  7.0,2.4,"#e63b3b","Ingest"),
-    (64,    6,  5.6,2.2,"#27a040","AI"),
-    (64,   10,  4.8,2.0,"#7d7f88","HPC"),
-    (64,   14,  5.0,2.0,"#4a76d6","HPDA"),
+    (-20.5,  0, 7.0, 2.4, "#e63b3b", "Ingest"),
+    ( 64,    6, 5.6, 2.2, "#27a040", "AI"),
+    ( 64,   10, 4.8, 2.0, "#7d7f88", "HPC"),
+    ( 64,   14, 5.0, 2.0, "#4a76d6", "HPDA"),
 ]
 
 
-def draw_zone_pad(ax, cx, cy, w, h, fill, edge, label):
+def draw_zone_pad(ax, cx, cy, w, h, fill, edge, zone_no, zone_name):
     ax.add_patch(mpatches.Rectangle(
         (cx-w/2, cy-h/2), w, h,
         facecolor=fill, edgecolor=edge, linewidth=1.5, alpha=0.45, zorder=1))
-    ax.text(cx, cy+h/2+0.3, label,
+    # zone label above pad
+    ax.text(cx, cy+h/2+0.3, f"{zone_no}  {zone_name}",
             ha="center", va="bottom", fontsize=9, fontweight="bold",
             color=edge, zorder=2)
 
 
-def draw_warehouse(ax, cx, cy, w, h, color):
+def draw_warehouse(ax, cx, cy, w, h, color, size_label):
     ax.add_patch(mpatches.FancyBboxPatch(
         (cx-w/2, cy-h/2), w, h,
         boxstyle="round,pad=0,rounding_size=0.3",
         facecolor="white", edgecolor=color, linewidth=2.2, alpha=0.9, zorder=3))
+    ax.text(cx, cy, size_label,
+            ha="center", va="center", fontsize=9, color=color,
+            fontweight="bold", zorder=4)
 
 
 def draw_lakehouse_divider(ax):
-    # 구분선: Lakehouse zone 내부 절반 (y=13.5)
-    ax.plot([19.6, 38.4], [13.5, 13.5],
+    ax.plot([19.6, 38.4], [LH_DIVIDER_Y, LH_DIVIDER_Y],
             color=C_GOLD, lw=1.4, linestyle="--", zorder=5, alpha=0.8)
-    ax.text(29, 13.8, "Staging (Bookshelf)",
-            ha="center", va="bottom", fontsize=8, color="#78350f",
+    ax.text(29, LH_DIVIDER_Y+0.4, "Staging (Ready-to-use)",
+            ha="center", va="bottom", fontsize=7.5, color="#78350f",
             fontweight="bold", zorder=6)
-    ax.text(29, 13.2, "Storage (Tables)",
-            ha="center", va="top", fontsize=8, color="#334155",
+    ax.text(29, LH_DIVIDER_Y-0.4, "Storage (Iceberg Tables)",
+            ha="center", va="top", fontsize=7.5, color="#334155",
             fontweight="bold", zorder=6)
 
 
-def draw_raw_boxes(ax):
-    # 대표 박스 몇 개만
-    for x in [-8, -6.5, -5, -3.5, -2]:
-        for y in [5.5, 7.0, 8.5]:
-            ax.add_patch(mpatches.Rectangle(
-                (x, y), 0.9, 0.65,
-                facecolor=C_BRONZE, edgecolor="#6b3f1d",
-                linewidth=0.7, alpha=0.7, zorder=6))
-
-
-def draw_staging_boxes(ax):
-    # 대표 골드 번들 박스
-    for x in [22, 26, 30, 34]:
-        for y in [18.5, 21.5, 24.5]:
-            ax.add_patch(mpatches.FancyBboxPatch(
-                (x-1.2, y-0.4), 2.4, 0.8,
-                boxstyle="round,pad=0.04,rounding_size=0.1",
-                facecolor=C_GOLD_FILL, edgecolor=C_GOLD,
-                linewidth=1.0, zorder=6))
+def draw_big_table(ax, cx, cy, w, h):
+    ax.add_patch(mpatches.Rectangle(
+        (cx-w/2, cy-h/2), w, h,
+        facecolor="#8a5a3a", edgecolor="#3c2410",
+        linewidth=1.8, zorder=5))
+    ax.text(cx, cy, "Big\nTable",
+            ha="center", va="center", fontsize=8, fontweight="bold",
+            color="white", zorder=6)
 
 
 def draw_gate(ax, x, label):
-    for yi in (-1.4, 1.4):
-        ax.plot([x, x], [yi, yi+0.0], color="#888800", lw=0)  # invisible anchor
-    # pillars
     for xi in (x-0.25, x+0.25):
         ax.add_patch(mpatches.Rectangle(
             (xi-0.1, -1.6), 0.2, 3.2,
             facecolor="#fffbe6", edgecolor="#888800", linewidth=1.0, zorder=5))
-    # crossbar
     ax.plot([x-0.35, x+0.35], [2.0, 2.0], color="#888800", lw=2.5, zorder=6)
-    ax.text(x, 2.4, label, ha="center", va="bottom", fontsize=6.5,
+    ax.text(x, 2.5, label, ha="center", va="bottom", fontsize=6,
             fontweight="bold", color="#444400", zorder=7)
 
 
@@ -155,7 +154,7 @@ def draw_search_panel(ax):
         (40.2, 5.4), 7.6, 8.9,
         boxstyle="round,pad=0.05,rounding_size=0.16",
         facecolor="white", edgecolor=C_LOBBY, linewidth=1.6, zorder=6))
-    ax.text(44, 10.0, "Search /\nSelection",
+    ax.text(44, 9.9, "Search /\nSelection",
             ha="center", va="center", fontsize=9, color="#0e7490",
             fontweight="bold", zorder=7)
 
@@ -190,11 +189,11 @@ def draw_north_arrow(ax):
 
 def draw_legend(ax):
     handles = [
-        mpatches.Patch(facecolor=C_BRONZE_FILL,  edgecolor=C_BRONZE,  label="RAW BUCKET ZONE"),
-        mpatches.Patch(facecolor=C_SILVER_FILL,  edgecolor=C_SILVER,  label="LAKEHOUSE ZONE (Storage)"),
-        mpatches.Patch(facecolor=C_GOLD_FILL,    edgecolor=C_GOLD,    label="LAKEHOUSE ZONE (Staging)"),
-        mpatches.Patch(facecolor=C_LOBBY_FILL,   edgecolor=C_LOBBY,   label="SEARCH ZONE"),
-        mpatches.Patch(facecolor=C_DELIVER_FILL, edgecolor=C_DELIVER, label="DELIVERY ZONE"),
+        mpatches.Patch(facecolor=C_BRONZE_FILL,  edgecolor=C_BRONZE,  label="Zone 1/2  Data Ingest / Raw Bucket"),
+        mpatches.Patch(facecolor=C_SILVER_FILL,  edgecolor=C_SILVER,  label="Zone 3/4  Accumulation / Lakehouse"),
+        mpatches.Patch(facecolor=C_GOLD_FILL,    edgecolor=C_GOLD,    label="Zone 4 (상단)  Staging"),
+        mpatches.Patch(facecolor=C_LOBBY_FILL,   edgecolor=C_LOBBY,   label="Zone 0  Data Search"),
+        mpatches.Patch(facecolor=C_DELIVER_FILL, edgecolor=C_DELIVER, label="Zone 5  Delivery"),
         Line2D([0],[0], color=C_BRONZE,  lw=4, label="Bronze conveyor"),
         Line2D([0],[0], color=C_SILVER,  lw=4, label="Silver conveyor"),
         Line2D([0],[0], color=C_DELIVER, lw=4, label="Dispatch conveyor"),
@@ -206,7 +205,7 @@ def draw_legend(ax):
 
 def main():
     OUT.parent.mkdir(parents=True, exist_ok=True)
-    fig, ax = plt.subplots(figsize=(24, 13))
+    fig, ax = plt.subplots(figsize=(26, 13))
     ax.set_xlim(X_MIN, X_MAX)
     ax.set_ylim(Y_MIN, Y_MAX)
     ax.set_aspect("equal")
@@ -215,15 +214,13 @@ def main():
     ax.grid(which="major", color="#dddddd", linewidth=0.6)
     ax.set_axisbelow(True)
 
-    for cx,cy,w,h,fill,edge,label in ZONE_PADS:
-        draw_zone_pad(ax, cx, cy, w, h, fill, edge, label)
+    for cx,cy,w,h,fill,edge,zno,zname in ZONE_PADS:
+        draw_zone_pad(ax, cx,cy,w,h,fill,edge,zno,zname)
 
-    for cx,cy,w,h,color in WAREHOUSES:
-        draw_warehouse(ax, cx, cy, w, h, color)
+    for cx,cy,w,h,color,size_label in WAREHOUSES:
+        draw_warehouse(ax, cx,cy,w,h,color,size_label)
 
     draw_lakehouse_divider(ax)
-    draw_raw_boxes(ax)
-    draw_staging_boxes(ax)
 
     for x1,y1,x2,y2,color,label,loff in CONVEYORS:
         draw_conveyor(ax, x1,y1,x2,y2,color,label,loff)
@@ -231,6 +228,7 @@ def main():
     for x,label in GATES:
         draw_gate(ax, x, label)
 
+    draw_big_table(ax, *BIG_TABLE)
     draw_search_panel(ax)
     draw_control_tower(ax)
 
