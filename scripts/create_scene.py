@@ -1481,7 +1481,8 @@ def main():
                     left_gap=(-11.0, 2.0, 1.1), right_gap=(-11.0, 3.5, 1.1))
     # Brown raw boxes piled inside — one zone per S3 namespace (dynamic, 16 dirs).
     # Warehouse interior safe range: X -12~+4, Y -4~+26 (30m total).
-    # 네임스페이스별 구역 — 박스 수에 비례한 높이, 이름은 구역 하단 바닥 텍스트.
+    # 네임스페이스별 구역 — X축 방향으로 박스 수 비례 폭, 넘치면 다음 Y행.
+    # 구역 이름은 각 구역 상단 (공중 텍스트, 벽 안쪽 높이 1.5m).
     UsdGeom.Scope.Define(stage, "/World/Lake/Contents")
     RAW_NAMESPACES, _INDEXED_NS = _fetch_raw_namespaces()
 
@@ -1523,54 +1524,64 @@ def main():
     }
 
     import math as _math
-    # 박스 크기 및 배치
-    BOX_SZ = (0.55, 0.45, 0.45)
-    # 박스 2열 배치 (X 고정)
-    BOX_COL_X = [-11.0, -9.0]
-    BOX_STEP_Y = 0.55   # 박스 간 Y 간격
-    LABEL_MARGIN = 0.30  # 이름 텍스트 높이 확보
-    ZONE_PAD = 0.15      # 구역 상하 여백
 
-    # 각 네임스페이스의 박스 수 먼저 계산 → 구역 높이 결정
-    ns_boxes = []
-    for ns in RAW_NAMESPACES:
+    # 창고 내부 안전 범위: X -12.5~+4.5 (17m), Y -4~+26 (30m)
+    X_START = -12.5
+    X_END   = +4.5
+    X_RANGE = X_END - X_START        # 17.0 m
+    Y_START = -4.0
+    ROW_DEPTH = 3.5                  # 한 행의 Y 깊이 (박스 + 이름 영역)
+    BOX_UNIT = 1.0                   # 박스 1개당 X 폭
+    BOX_SZ   = (0.75, 0.60, 0.60)   # 박스 크기
+    BOX_Y_OFFSET = 1.2              # 이름 텍스트 뒤 박스 시작 Y offset
+    LABEL_Z  = 1.5                  # 이름 텍스트 높이
+
+    # 각 네임스페이스 박스 수
+    def n_boxes_for(ns: str) -> int:
         gib = _NS_SIZE_GIB.get(ns, 0.5)
-        n = max(1, min(8, _math.ceil(gib)))
-        ns_boxes.append(n)
+        return max(1, min(16, _math.ceil(gib)))
 
-    # 구역 높이 = 이름 영역 + 박스 행 수 × step + 여백
-    def zone_height(n: int) -> float:
-        rows = _math.ceil(n / 2)
-        return LABEL_MARGIN + rows * BOX_STEP_Y + ZONE_PAD * 2
+    # X축으로 구역 배치 — 넘치면 다음 Y행
+    x_cur = X_START
+    y_row = Y_START
+    row_idx = 0
 
-    y_cur = -4.0   # 현재 Y 시작점 (창고 하단)
-
-    for ns_i, (ns, n_boxes) in enumerate(zip(RAW_NAMESPACES, ns_boxes)):
-        zh = zone_height(n_boxes)
-        y_lo = y_cur
-        y_cur += zh
+    for ns_i, ns in enumerate(RAW_NAMESPACES):
         safe_ns = ns.replace("-", "_")
         indexed = ns in _INDEXED_NS
+        n = n_boxes_for(ns)
+        zone_w = n * BOX_UNIT
 
-        # 구역 칸막이 (첫 번째 제외)
-        if ns_i > 0:
-            cube(stage, f"/World/DataReadiness/RawObjects/Divider_{ns_i}",
-                 (-4.0, y_lo, 0.12), (17.0, 0.03, 0.18), mats["concrete"])
+        # 이 구역이 현재 행에 안 들어가면 다음 행으로
+        if x_cur + zone_w > X_END + 0.1 and x_cur > X_START:
+            x_cur = X_START
+            row_idx += 1
+            y_row = Y_START + row_idx * ROW_DEPTH
 
-        # 구역 하단에 이름 텍스트 (바닥에 새김)
+        x_lo = x_cur
+        x_hi = x_lo + zone_w
+        x_mid = (x_lo + x_hi) / 2
+        y_mid = y_row + ROW_DEPTH / 2
+
+        # 구역 칸막이 (X 방향 — 첫 번째 및 행 첫 구역 제외)
+        if x_cur > X_START:
+            cube(stage, f"/World/DataReadiness/RawObjects/DivX_{ns_i}",
+                 (x_lo, y_row + ROW_DEPTH / 2, 0.40),
+                 (0.04, ROW_DEPTH, 0.80), mats["concrete"])
+
+        # 구역 이름 텍스트 — 구역 상단 공중 (Z=1.5)
         label = _NS_LABEL.get(ns, ns[:10].upper())
         render_text(stage,
                     f"/World/DataReadiness/RawObjects/{safe_ns}/Label",
                     label,
-                    (-11.0, y_lo + ZONE_PAD, 0.025),
-                    mats, pixel=0.055, height_z=0.02)
+                    (x_lo + 0.05, y_row + 0.10, LABEL_Z),
+                    mats, pixel=0.042, height_z=0.025,
+                    color_key="black_panel")
 
-        # 박스 배치: 2열, 아래에서 위로
-        for b_i in range(n_boxes):
-            col = b_i % 2
-            row = b_i // 2
-            bx = BOX_COL_X[col]
-            by = y_lo + LABEL_MARGIN + ZONE_PAD + row * BOX_STEP_Y
+        # 박스 배치: X축으로 1개씩
+        for b_i in range(n):
+            bx = x_lo + b_i * BOX_UNIT + BOX_UNIT / 2
+            by = y_row + BOX_Y_OFFSET
             bz = BOX_SZ[2] / 2 + 0.01
             dark = not indexed and (b_i % 2 == 1)
             raw = make_raw_box(stage,
@@ -1582,6 +1593,8 @@ def main():
                               semantic_ready=False, location_ready=False,
                               policy_ready=False,
                               readiness_score=1.0 if indexed else 0.05)
+
+        x_cur = x_hi
     # Compatibility aliases under the older /World/Lake path are intentionally
     # not created as separate boxes; /World/DataReadiness/RawObjects is the
     # canonical raw-object vocabulary for live bindings.
