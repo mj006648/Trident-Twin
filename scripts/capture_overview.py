@@ -1,12 +1,17 @@
 """Trident Twin 씬 개요 스크린샷 캡처.
 
 최신 stages/trident_lakehouse_twin_*.usda 파일을 열고
-두 카메라 앵글로 PNG를 저장한다.
-  - overview_top90 : 정상 90도 (완전 위에서 아래로)
-  - overview_top45 : 45도 사선 (남서쪽 위에서)
+전체 씬 2장 + 존별 45도 7장을 저장한다.
 
 출력: docs/screenshots/overview_top90.png
       docs/screenshots/overview_top45.png
+      docs/screenshots/zone_01_truck_yard.png
+      docs/screenshots/zone_02_raw_bucket.png
+      docs/screenshots/zone_03_accumulation.png
+      docs/screenshots/zone_04_lakehouse.png
+      docs/screenshots/zone_05_search.png
+      docs/screenshots/zone_06_delivery.png
+      docs/screenshots/zone_07_tower.png
 
 실행:
     /isaac-sim/python.sh scripts/capture_overview.py
@@ -35,22 +40,40 @@ OUT_DIR = BASE / "docs" / "screenshots"
 # 씬 전체 중심 (X=20, Y=10)
 SCENE_CX, SCENE_CY = 20.0, 10.0
 
+def _zone_cam(name, cx, cy, dist, usd_name):
+    """존 중심(cx,cy)에서 남서쪽 45도 카메라 튜플 생성."""
+    return (
+        f"/World/Cameras/{usd_name}",
+        (cx - dist * 0.6, cy - dist, dist),
+        (cx, cy, 1.5),
+        18.0,
+        usd_name,
+    )
+
 CAMERAS = [
-    # (usd_path, translate_xyz, look_at_xyz, focal_mm, out_name)
+    # 전체 씬 2장
     (
         "/World/Cameras/Overview_Top90",
-        (SCENE_CX + 5.0, SCENE_CY, 80.0),   # 정상에서 수직으로 내려다봄
+        (SCENE_CX + 5.0, SCENE_CY, 80.0),
         (SCENE_CX + 5.0, SCENE_CY, 0.0),
         12.0,
         "overview_top90",
     ),
     (
         "/World/Cameras/Overview_Top45",
-        (SCENE_CX + 5.0, SCENE_CY - 75.0, 65.0),  # 남서쪽 45도 사선
+        (SCENE_CX + 5.0, SCENE_CY - 75.0, 65.0),
         (SCENE_CX + 5.0, SCENE_CY, 0.0),
         12.0,
         "overview_top45",
     ),
+    # 존별 45도 (cx, cy, dist)
+    _zone_cam("Truck Yard",    -22,  0,  22, "zone_01_truck_yard"),
+    _zone_cam("Raw Bucket",     -4, 11,  28, "zone_02_raw_bucket"),
+    _zone_cam("Accumulation",  +13,  0,  18, "zone_03_accumulation"),
+    _zone_cam("Lakehouse",     +29, 11,  28, "zone_04_lakehouse"),
+    _zone_cam("Search",        +44, 10,  16, "zone_05_search"),
+    _zone_cam("Delivery",      +59, 10,  22, "zone_06_delivery"),
+    _zone_cam("Tower",         -22, 25,  18, "zone_07_tower"),
 ]
 
 
