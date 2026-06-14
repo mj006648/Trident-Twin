@@ -138,7 +138,7 @@ Twin의 책임:
 ```text
 Isaac container: isaac-sim-ICH-strongest
 Isaac public endpoint: 10.38.38.197:49100
-Twin hub: http://10.38.38.96:8765 또는 host 내부 http://127.0.0.1:8765
+Twin hub: K8s LoadBalancer http://10.38.38.223:8765 또는 host 임시 프로세스 http://10.38.38.96:8765
 Current health: {"status":"ok", "mode":"fixture", "live_configured": false}
 ```
 
@@ -203,6 +203,17 @@ STATS_URL:                 http://trident-stats.trident.svc.cluster.local
 | `POST` | `/api/twin/live/start` | Isaac container 안에서 `scripts/live_sync.py` 실행 시도 |
 | `POST` | `/api/twin/live/stop` | 위 live sync process 중지 |
 | `GET` | `/api/twin/live/status` | live sync process 상태 반환 |
+
+### Container image
+
+`twin-hub`는 K8s 배포를 위해 별도 Dockerfile을 가진다.
+
+```bash
+docker build -f Dockerfile.twin-hub -t ich6648/trident-twin-hub:v0.1.0 .
+docker push ich6648/trident-twin-hub:v0.1.0
+```
+
+이미지는 `twin-hub/`와 `data/`만 포함하며, Isaac Sim runtime은 포함하지 않는다. Isaac은 별도 컨테이너에서 `TWIN_HUB_URL=http://10.38.38.223:8765`로 접근한다.
 
 ### Fixture mode
 
@@ -315,7 +326,7 @@ UI:
 
 | 변수 | 기본값 | 설명 |
 | --- | --- | --- |
-| `TWIN_HUB_URL` | `http://172.17.0.1:8765` | Isaac container에서 host twin-hub로 접근하는 기본 base URL |
+| `TWIN_HUB_URL` | `http://10.38.38.223:8765` | Isaac container에서 K8s LoadBalancer twin-hub로 접근하는 기본 base URL |
 | `TWIN_POLL_INTERVAL` | `5` | live entity polling interval seconds. `Start Live` 이후에만 사용 |
 | `TWIN_COMMAND_POLL_INTERVAL` | `1` | camera/highlight command polling interval seconds. extension 활성화 중 가볍게 상시 사용 |
 

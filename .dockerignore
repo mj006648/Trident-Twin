@@ -1,0 +1,10 @@
+.git
+__pycache__
+**/__pycache__
+*.py[cod]
+.omx
+.codex
+.cache
+*.usd
+*.usda
+archive

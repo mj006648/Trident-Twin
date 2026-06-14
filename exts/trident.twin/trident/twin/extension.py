@@ -9,7 +9,7 @@ Polls twin-hub /api/twin/entities using Kit's update loop (no threading).
   - AUDIT 완료 시 Lakehouse 방향으로 이동 후 제거
 
 Environment variables:
-  TWIN_HUB_URL                  twin-hub base URL (default: http://172.17.0.1:8765)
+  TWIN_HUB_URL                  twin-hub base URL (default: http://10.38.38.223:8765)
   TWIN_POLL_INTERVAL            live entity poll cadence in seconds (default: 5)
   TWIN_COMMAND_POLL_INTERVAL    camera/highlight command poll cadence in seconds (default: 1)
 """
@@ -28,7 +28,7 @@ import omni.ui as ui
 import omni.usd
 from pxr import Gf, Sdf, Usd, UsdGeom
 
-DEFAULT_TWIN_HUB_URL  = "http://172.17.0.1:8765"
+DEFAULT_TWIN_HUB_URL  = "http://10.38.38.223:8765"
 DEFAULT_POLL_INTERVAL = 5.0
 DEFAULT_COMMAND_INTERVAL = 1.0
 
