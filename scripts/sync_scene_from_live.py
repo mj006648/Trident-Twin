@@ -39,11 +39,12 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 SCENE_SCRIPT = REPO_ROOT / "scripts" / "create_scene.py"
 
 STATS_BASE = os.getenv("TRIDENT_STATS_BASE_URL", "").rstrip("/")
+TWIN_HUB_URL = os.getenv("TWIN_HUB_URL", "").rstrip("/")
 STATIC_TOKEN = os.getenv("TRIDENT_STATS_TOKEN", "")
 KC_URL = os.getenv("TRIDENT_KC_URL", "")
 KC_CLIENT_ID = os.getenv("TRIDENT_KC_CLIENT_ID", "trident-baseline-runner")
 KC_CLIENT_SECRET = os.getenv("TRIDENT_KC_CLIENT_SECRET", "")
-HTTP_TIMEOUT = float(os.getenv("TRIDENT_TWIN_HTTP_TIMEOUT", "8"))
+HTTP_TIMEOUT = float(os.getenv("TRIDENT_TWIN_HTTP_TIMEOUT", "20"))
 
 
 # ============================================================================
@@ -101,6 +102,59 @@ def _fetch(path: str) -> Any:
         raise
 
 
+
+def fetch_inventory_specs_from_twin_hub(max_tables: int = 32) -> list[dict]:
+    """Read live iceberg_table entities from deployed twin-hub; no Keycloak secret needed."""
+    if not TWIN_HUB_URL:
+        return []
+    print(f"[fetch] {TWIN_HUB_URL}/api/twin/entities")
+    req = urllib.request.Request(f"{TWIN_HUB_URL}/api/twin/entities")
+    with urllib.request.urlopen(req, timeout=HTTP_TIMEOUT) as r:
+        payload = json.loads(r.read().decode())
+    tables = [e for e in payload.get("entities", []) if e.get("type") == "iceberg_table"]
+    specs = []
+    seen: set[str] = set()
+    lh_cx = 29.0
+    lh_cy = 11.0
+    xs = [lh_cx - 7.2, lh_cx - 4.8, lh_cx - 2.4, lh_cx, lh_cx + 2.4, lh_cx + 4.8, lh_cx + 7.2]
+    ys = [lh_cy - 12.8, lh_cy - 10.4, lh_cy - 8.0, lh_cy - 5.6]
+    for e in tables:
+        entity_id = str(e.get("id") or "").lower()
+        parts = entity_id.split(".")
+        ns = str(e.get("namespace") or (parts[1] if len(parts) >= 3 else "default"))
+        # component can be a coarse type/namespace in older hub payloads; the
+        # canonical table name is the last segment of table.<namespace>.<table>.
+        table = str((parts[2] if len(parts) >= 3 else "") or e.get("table") or e.get("name") or e.get("component") or "unknown")
+        entity_id = entity_id or f"table.{ns}.{table}".lower()
+        rel_path = f"{ns.title()}/{table.title()}".replace("-", "_").replace(".", "_")
+        if rel_path in seen:
+            continue
+        seen.add(rel_path)
+        idx = len(specs)
+        if idx >= min(max_tables, len(xs) * len(ys)):
+            break
+        col = idx % len(xs)
+        row_i = idx // len(xs)
+        readiness = float(e.get("readiness_score") or e.get("quality_score") or 0.85)
+        specs.append({
+            "rel_path": rel_path,
+            "entity_id": entity_id,
+            "namespace": ns,
+            "component": table,
+            "pos": (xs[col], ys[row_i], 1.45),
+            "row_count": int(e.get("row_count") or 0),
+            "object_count": int(e.get("object_count") or e.get("total_assets") or 0),
+            "quality_score": round(max(0.0, min(1.0, readiness)), 2),
+            "access_frequency": int(e.get("access_frequency") or 0),
+            "semantic": e.get("semantic_ready") if isinstance(e.get("semantic_ready"), bool) else True,
+            "location": e.get("location_ready") if isinstance(e.get("location_ready"), bool) else True,
+            "policy": e.get("policy_ready") if isinstance(e.get("policy_ready"), bool) else True,
+            "freshness": str(e.get("freshness") or "live"),
+            "workload_fit": str(e.get("workload_fit") or _workload_fit(table, ns)),
+        })
+    print(f"[fetch] twin-hub 테이블 {len(specs)}개 수집 완료")
+    return specs
+
 # ============================================================================
 # stats-service 데이터 → inventory_specs 변환
 # ============================================================================
@@ -143,7 +197,7 @@ def _workload_fit(table_name: str, namespace: str) -> str:
     return "AI+HPDA"
 
 
-def fetch_inventory_specs(max_tables: int = 20) -> list[dict]:
+def fetch_inventory_specs(max_tables: int = 28) -> list[dict]:
     """stats-service에서 테이블 목록을 읽어 inventory_spec 딕셔너리 리스트 반환."""
     print(f"[fetch] {STATS_BASE}/api/v1/catalog/datasets")
     payload = _fetch("/api/v1/catalog/datasets?limit=100")
@@ -180,13 +234,12 @@ def fetch_inventory_specs(max_tables: int = 20) -> list[dict]:
         # USD 씬 내 배치 위치 — create_scene.py의 lh_cx=29 기준
         # 최대 max_tables개, 4열 배치
         idx = len(specs)
-        col = idx % 4
-        row_i = idx // 4
         lh_cx = 29.0
         lh_cy = 11.0
-        xs = [lh_cx - 6.5, lh_cx - 2.5, lh_cx + 2.5, lh_cx + 6.5]
-        ys_base = [lh_cy - 13.0, lh_cy - 10.0, lh_cy - 7.0,
-                   lh_cy - 4.0, lh_cy - 1.0]
+        xs = [lh_cx - 7.2, lh_cx - 4.8, lh_cx - 2.4, lh_cx, lh_cx + 2.4, lh_cx + 4.8, lh_cx + 7.2]
+        col = idx % len(xs)
+        row_i = idx // len(xs)
+        ys_base = [lh_cy - 12.8, lh_cy - 10.4, lh_cy - 8.0, lh_cy - 5.6]
         if row_i >= len(ys_base):
             break
         pos = (xs[col], ys_base[row_i], 1.45)
@@ -222,14 +275,14 @@ def fetch_inventory_specs(max_tables: int = 20) -> list[dict]:
 # ============================================================================
 # create_scene.py inventory_specs 블록 교체
 # ============================================================================
-BLOCK_START = "    # Inventory crates placed in lower half"
-BLOCK_END = "    define_scope(stage, \"/World/DataReadiness/Inventory/Camera\","
+BLOCK_START_CANDIDATES = ("    # Inventory crates", "    # Namespace scope anchors")
+BLOCK_END = "    # ===== Staging zone"
 
 
 def specs_to_python(specs: list[dict]) -> str:
     """inventory_specs 리스트를 create_scene.py 호환 Python 코드 블록으로 변환."""
     lines = [
-        "    # Inventory crates — auto-generated from stats-service (sync_scene_from_live.py)",
+        "    # Inventory crates — auto-generated from live twin-hub/stats-service (sync_scene_from_live.py)",
         "    # Namespace scopes",
     ]
     # namespace 스코프 정의
@@ -288,10 +341,11 @@ def patch_create_scene(specs: list[dict]) -> None:
     src = SCENE_SCRIPT.read_text(encoding="utf-8")
     lines = src.splitlines()
 
-    # BLOCK_START ~ BLOCK_END 사이를 찾아 교체
+    # BLOCK_START ~ BLOCK_END 직전 사이를 찾아 교체. First run may only
+    # have legacy namespace anchors; subsequent runs have the generated marker.
     start_idx = end_idx = None
     for i, line in enumerate(lines):
-        if BLOCK_START in line and start_idx is None:
+        if start_idx is None and any(marker in line for marker in BLOCK_START_CANDIDATES):
             start_idx = i
         if start_idx is not None and BLOCK_END in line:
             end_idx = i
@@ -299,7 +353,7 @@ def patch_create_scene(specs: list[dict]) -> None:
 
     if start_idx is None or end_idx is None:
         print("[warn] create_scene.py에서 inventory 블록을 찾지 못했습니다.")
-        print(f"       BLOCK_START: {BLOCK_START!r}")
+        print(f"       BLOCK_START_CANDIDATES: {BLOCK_START_CANDIDATES!r}")
         print(f"       BLOCK_END:   {BLOCK_END!r}")
         return
 
@@ -363,17 +417,25 @@ FIXTURE_SPECS: list[dict] = [
 
 
 def main() -> None:
-    if not STATS_BASE:
-        print("[mode] fixture — TRIDENT_STATS_BASE_URL 미설정, fixture 스펙 사용")
-        specs = FIXTURE_SPECS
-    else:
-        print(f"[mode] live — {STATS_BASE}")
+    if TWIN_HUB_URL:
+        print(f"[mode] twin-hub live — {TWIN_HUB_URL}")
         try:
-            specs = fetch_inventory_specs(max_tables=20)
+            specs = fetch_inventory_specs_from_twin_hub(max_tables=28)
+        except Exception as e:
+            print(f"[abort] twin-hub 오류: {e}")
+            print("[abort] TWIN_HUB_URL live 모드에서는 fixture로 scene을 덮어쓰지 않습니다.")
+            sys.exit(1)
+    elif STATS_BASE:
+        print(f"[mode] stats-service live — {STATS_BASE}")
+        try:
+            specs = fetch_inventory_specs(max_tables=28)
         except Exception as e:
             print(f"[fallback] stats-service 오류: {e}")
             print("[fallback] fixture 스펙으로 진행")
             specs = FIXTURE_SPECS
+    else:
+        print("[mode] fixture — TWIN_HUB_URL/TRIDENT_STATS_BASE_URL 미설정, fixture 스펙 사용")
+        specs = FIXTURE_SPECS
 
     if not specs:
         print("[abort] 스펙이 비어있습니다.")

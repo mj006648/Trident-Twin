@@ -45,14 +45,30 @@ _FALLBACK_NAMESPACES = [
 
 
 def _fetch_raw_namespaces() -> tuple[list[str], set[str]]:
-    """stats-service에서 trident-raw 네임스페이스 목록과 인덱싱 완료 집합을 반환.
+    """Return live raw namespaces and ready/indexed namespace set.
 
-    stats-service에 접근할 수 없으면 하드코딩 fallback 목록을 사용한다.
-    반환: (namespace_list, indexed_set)
+    Prefer TWIN_HUB_URL so Isaac scene generation can use the deployed hub
+    without carrying Keycloak secrets. Fall back to direct stats-service access,
+    then to checked-in legacy fixtures.
     """
+    twin_hub = os.getenv("TWIN_HUB_URL", "").rstrip("/")
+    if twin_hub:
+        try:
+            req = urllib.request.Request(f"{twin_hub}/api/twin/entities")
+            with urllib.request.urlopen(req, timeout=8) as r:
+                payload = json.loads(r.read())
+            raw_entities = [e for e in payload.get("entities", []) if e.get("type") == "raw_bucket"]
+            namespaces = sorted({str(e.get("namespace") or e.get("id", "").removeprefix("raw.")) for e in raw_entities if e.get("namespace") or e.get("id")})
+            indexed = {str(e.get("namespace")) for e in raw_entities if str(e.get("status", "")).upper() in {"PASS", "OK", "DONE"}}
+            if namespaces:
+                print(f"[create_scene] twin-hub raw namespaces {len(namespaces)} loaded from {twin_hub}")
+                return namespaces, indexed
+        except Exception as e:
+            print(f"[create_scene] twin-hub namespace 조회 실패: {e} — stats-service fallback")
+
     base = os.getenv("TRIDENT_STATS_BASE_URL", "").rstrip("/")
     if not base:
-        print("[create_scene] TRIDENT_STATS_BASE_URL 미설정 — fallback 네임스페이스 사용")
+        print("[create_scene] TRIDENT_STATS_BASE_URL/TWIN_HUB_URL 미설정 — fallback 네임스페이스 사용")
         return _FALLBACK_NAMESPACES, {"autonomous_test", "autonomous_weather"}
 
     # Keycloak 토큰 발급
@@ -94,7 +110,7 @@ def _fetch_raw_namespaces() -> tuple[list[str], set[str]]:
 
     try:
         audit = _get("/stats/audit")
-        indexed = {row["namespace"] for row in audit if row.get("status") == "ok"}
+        indexed = {row["namespace"] for row in audit if str(row.get("status", "")).upper() in {"PASS", "OK", "DONE"}}
     except Exception:
         indexed = set()
 
@@ -1634,14 +1650,14 @@ def main():
     # and run all the way through the pipeline stations to Lakehouse west.
 
     # ===== Zone 3: Accumulation Zone =====
-    # 5 security gates, one per station_x position, straddling BOTH belts together.
+    # 7 catalog-first security gates, one per station_x position, straddling BOTH belts together.
     # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
-    station_x = [7.0, 10.0, 13.0, 16.0, 19.0]
+    station_x = [6.5, 8.8, 11.1, 13.4, 15.7, 18.0, 20.3]
     UsdGeom.Scope.Define(stage, "/World/Pipeline")
 
     # Main belt — starts at Raw east wall (+4.7), Y=-0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/InputConveyor",
-                   x_start=4.7, x_end=20.4, y_center=-0.7,
+                   x_start=4.7, x_end=21.5, y_center=-0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver")
     p = stage.GetPrimAtPath("/World/AccumulationPipeline/InputConveyor")
@@ -1651,22 +1667,22 @@ def main():
     p.CreateAttribute("trident:name", Sdf.ValueTypeNames.String).Set("Pipeline Main Line (Full Mode)")
     # Express belt — parallel at Y=+0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/ExpressLine",
-                   x_start=4.7, x_end=20.4, y_center=+0.7,
+                   x_start=4.7, x_end=21.5, y_center=+0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
 
-    # 5 gates at station_x positions, each spanning both belts.
-    # Pillars at y=±1.8 (outside both belt rails), crossbar at z=2.5 (tall).
-    # 실제 trident-spark 파이프라인 단계와 1:1 대응:
-    #   trident_structurize.py → INGEST(1) + STRUCT(2)
-    #   trident_index.py       → INDEX(3) + EMBED(4) + AUDIT(5)
+    # 7 gates at station_x positions, each spanning both belts.
+    # Current one-shot catalog-first pipeline:
+    #   PROFILE → MATERIALIZE → CATALOG → LINK → GRAPH → SEMANTIC → READY
     operation_specs = [
-        (1, "INGEST", "s3_raw_ingestion",     "raw_object",    "trident-raw",                        "metal_bronze"),
-        (2, "STRUCT", "iceberg_structurize",  "iceberg_table", "trident.{ns}.tables",                "schema_bar"),
-        (3, "INDEX",  "search_index_build",   "search_index",  "trident.{ns}.trident_search_index",  "quality_bar"),
-        (4, "EMBED",  "milvus_redis_indexing","vector_index",  "milvus.trident_semantic_catalog",     "semantic_tag"),
-        (5, "AUDIT",  "integrity_audit",      "audit_report",  "redis.trident:audit:{ns}",            "policy_tag"),
+        (1, "PROFILE",  "object_schema_profile",   "asset_registry",   "trident.{ns}.trident_asset_registry",    "metal_bronze"),
+        (2, "MATERIAL", "cardinality_materialize", "iceberg_table",    "trident.{ns}.*",                         "schema_bar"),
+        (3, "CATALOG",  "catalog_tables_columns",  "catalog_metadata", "trident.{ns}.trident_catalog_tables",    "quality_bar"),
+        (4, "LINK",     "asset_link_audit",        "link_audit",       "trident.{ns}.trident_asset_links",       "policy_tag"),
+        (5, "GRAPH",    "redis_component_graph",   "component_graph",  "redis.trident:component_graph:{ns}",     "redis_card"),
+        (6, "SEMANTIC", "milvus_semantic_index",   "semantic_index",   "milvus.trident_catalog",                "semantic_tag"),
+        (7, "READY",    "dataset_ready_status",    "dataset_manifest", "trident.{ns}.trident_dataset_manifest",  "policy_tag"),
     ]
     for step_no, code_label, operation, output_kind, output_entity, mat_key in operation_specs:
         gx = station_x[step_no - 1]
@@ -1678,11 +1694,11 @@ def main():
 
     # Metadata station anchors (tiny floor anchors for live binding compat)
     cube(stage, "/World/Metadata/ExplainingStation",
-         (station_x[3], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
+         (station_x[5], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
          name="Explaining Metadata Station", entity_id="station.metadata.explaining",
          entity_type="metadata_station", stage_name="explaining")
     cube(stage, "/World/Metadata/SharingStation",
-         (station_x[4], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
+         (station_x[6], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
          name="Sharing Metadata Station", entity_id="station.metadata.sharing",
          entity_type="metadata_station", stage_name="sharing")
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor",
@@ -1744,20 +1760,90 @@ def main():
                                 f"/World/Lakehouse/Tables/Table_{table_idx}",
                                 (tx, ty), mats, n_boxes=n_boxes, leds=led_choice)
 
-    # Namespace scope anchors for live binding (no visual — just trident:* attrs)
-    define_scope(stage, "/World/DataReadiness/Inventory/Camera",
-                 entity_id="inventory.namespace.camera", entity_type="inventory_namespace",
-                 namespace="camera", zone="zone.lakehouse_inventory")
-    define_scope(stage, "/World/DataReadiness/Inventory/Lidar",
-                 entity_id="inventory.namespace.lidar", entity_type="inventory_namespace",
-                 namespace="lidar", zone="zone.lakehouse_inventory")
-    define_scope(stage, "/World/DataReadiness/Inventory/Weather",
-                 entity_id="inventory.namespace.weather", entity_type="inventory_namespace",
-                 namespace="weather", zone="zone.lakehouse_inventory")
-    define_scope(stage, "/World/DataReadiness/Inventory/Gps",
-                 entity_id="inventory.namespace.gps", entity_type="inventory_namespace",
-                 namespace="gps", zone="zone.lakehouse_inventory")
+    # Inventory crates — auto-generated from live twin-hub/stats-service (sync_scene_from_live.py)
+    # Namespace scopes
+    define_scope(stage, "/World/DataReadiness/Inventory/Icu_Ehr_Tabular_V1",
+                 entity_id="inventory.namespace.icu_ehr_tabular_v1", entity_type="inventory_namespace",
+                 namespace="icu_ehr_tabular_v1", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Icu_Imaging_Mixed_V1",
+                 entity_id="inventory.namespace.icu_imaging_mixed_v1", entity_type="inventory_namespace",
+                 namespace="icu_imaging_mixed_v1", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Icu_Notes_Metadata_V1",
+                 entity_id="inventory.namespace.icu_notes_metadata_v1", entity_type="inventory_namespace",
+                 namespace="icu_notes_metadata_v1", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Icu_Sepsis_Cohort_V1",
+                 entity_id="inventory.namespace.icu_sepsis_cohort_v1", entity_type="inventory_namespace",
+                 namespace="icu_sepsis_cohort_v1", zone="zone.lakehouse_inventory")
+    define_scope(stage, "/World/DataReadiness/Inventory/Icu_Waveform_Mixed_V1",
+                 entity_id="inventory.namespace.icu_waveform_mixed_v1", entity_type="inventory_namespace",
+                 namespace="icu_waveform_mixed_v1", zone="zone.lakehouse_inventory")
 
+    inventory_specs = [
+        ("Icu_Notes_Metadata_V1/Note_Manifest", "table.icu_notes_metadata_v1.note_manifest", "icu_notes_metadata_v1", "note_manifest",
+         (21.8, -1.8000000000000007, 1.45), 16, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Notes_Metadata_V1/Dataset_Manifest", "table.icu_notes_metadata_v1.dataset_manifest", "icu_notes_metadata_v1", "dataset_manifest",
+         (24.2, -1.8000000000000007, 1.45), 1, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Imaging_Mixed_V1/Radiology_Reports", "table.icu_imaging_mixed_v1.radiology_reports", "icu_imaging_mixed_v1", "radiology_reports",
+         (26.6, -1.8000000000000007, 1.45), 2400, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Imaging_Mixed_V1/Image_Manifest", "table.icu_imaging_mixed_v1.image_manifest", "icu_imaging_mixed_v1", "image_manifest",
+         (29.0, -1.8000000000000007, 1.45), 24, 0, 1.0, 0, True, True, True, "observed", "AI+HPDA"),
+        ("Icu_Imaging_Mixed_V1/Dataset_Manifest", "table.icu_imaging_mixed_v1.dataset_manifest", "icu_imaging_mixed_v1", "dataset_manifest",
+         (31.4, -1.8000000000000007, 1.45), 1, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Waveform_Mixed_V1/Waveform_Manifest", "table.icu_waveform_mixed_v1.waveform_manifest", "icu_waveform_mixed_v1", "waveform_manifest",
+         (33.8, -1.8000000000000007, 1.45), 48, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Waveform_Mixed_V1/Dataset_Manifest", "table.icu_waveform_mixed_v1.dataset_manifest", "icu_waveform_mixed_v1", "dataset_manifest",
+         (36.2, -1.8000000000000007, 1.45), 1, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Waveform_Mixed_V1/Patients", "table.icu_waveform_mixed_v1.patients", "icu_waveform_mixed_v1", "patients",
+         (21.8, 0.5999999999999996, 1.45), 3000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Waveform_Mixed_V1/Icustays", "table.icu_waveform_mixed_v1.icustays", "icu_waveform_mixed_v1", "icustays",
+         (24.2, 0.5999999999999996, 1.45), 5000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Waveform_Mixed_V1/Admissions", "table.icu_waveform_mixed_v1.admissions", "icu_waveform_mixed_v1", "admissions",
+         (26.6, 0.5999999999999996, 1.45), 5000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Dataset_Manifest", "table.icu_ehr_tabular_v1.dataset_manifest", "icu_ehr_tabular_v1", "dataset_manifest",
+         (29.0, 0.5999999999999996, 1.45), 1, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Vital_Events", "table.icu_ehr_tabular_v1.vital_events", "icu_ehr_tabular_v1", "vital_events",
+         (31.4, 0.5999999999999996, 1.45), 700000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Procedure_Events", "table.icu_ehr_tabular_v1.procedure_events", "icu_ehr_tabular_v1", "procedure_events",
+         (33.8, 0.5999999999999996, 1.45), 60000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Patients", "table.icu_ehr_tabular_v1.patients", "icu_ehr_tabular_v1", "patients",
+         (36.2, 0.5999999999999996, 1.45), 12000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Medication_Events", "table.icu_ehr_tabular_v1.medication_events", "icu_ehr_tabular_v1", "medication_events",
+         (21.8, 3.0, 1.45), 120000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Lab_Events", "table.icu_ehr_tabular_v1.lab_events", "icu_ehr_tabular_v1", "lab_events",
+         (24.2, 3.0, 1.45), 360000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Icustays", "table.icu_ehr_tabular_v1.icustays", "icu_ehr_tabular_v1", "icustays",
+         (26.6, 3.0, 1.45), 22000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Ehr_Tabular_V1/Admissions", "table.icu_ehr_tabular_v1.admissions", "icu_ehr_tabular_v1", "admissions",
+         (29.0, 3.0, 1.45), 22000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Sepsis_Segment_Manifest", "table.icu_sepsis_cohort_v1.sepsis_segment_manifest", "icu_sepsis_cohort_v1", "sepsis_segment_manifest",
+         (31.4, 3.0, 1.45), 16, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Dataset_Manifest", "table.icu_sepsis_cohort_v1.dataset_manifest", "icu_sepsis_cohort_v1", "dataset_manifest",
+         (33.8, 3.0, 1.45), 1, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Vasopressor_Events", "table.icu_sepsis_cohort_v1.vasopressor_events", "icu_sepsis_cohort_v1", "vasopressor_events",
+         (36.2, 3.0, 1.45), 36000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Sofa_Scores", "table.icu_sepsis_cohort_v1.sofa_scores", "icu_sepsis_cohort_v1", "sofa_scores",
+         (21.8, 5.4, 1.45), 72000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Sepsis_Cohort", "table.icu_sepsis_cohort_v1.sepsis_cohort", "icu_sepsis_cohort_v1", "sepsis_cohort",
+         (24.2, 5.4, 1.45), 12000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Qsofa_Scores", "table.icu_sepsis_cohort_v1.qsofa_scores", "icu_sepsis_cohort_v1", "qsofa_scores",
+         (26.6, 5.4, 1.45), 72000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Lactate_Results", "table.icu_sepsis_cohort_v1.lactate_results", "icu_sepsis_cohort_v1", "lactate_results",
+         (29.0, 5.4, 1.45), 48000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Fluid_Boluses", "table.icu_sepsis_cohort_v1.fluid_boluses", "icu_sepsis_cohort_v1", "fluid_boluses",
+         (31.4, 5.4, 1.45), 24000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Blood_Cultures", "table.icu_sepsis_cohort_v1.blood_cultures", "icu_sepsis_cohort_v1", "blood_cultures",
+         (33.8, 5.4, 1.45), 24000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+        ("Icu_Sepsis_Cohort_V1/Antibiotic_Events", "table.icu_sepsis_cohort_v1.antibiotic_events", "icu_sepsis_cohort_v1", "antibiotic_events",
+         (36.2, 5.4, 1.45), 36000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
+    ]
+    for rel_path, eid, ns, comp, pos, rows, objects, quality, access, semantic, location, policy, freshness, fit in inventory_specs:
+        make_readiness_table_crate(
+            stage, f"/World/DataReadiness/Inventory/{rel_path}", pos,
+            (0.82, 0.58, 0.48), mats, entity_id=eid, namespace=ns,
+            component=comp, row_count=rows, object_count=objects,
+            quality_score=quality, access_frequency=access, semantic=semantic,
+            location=location, policy=policy, freshness=freshness, workload_fit=fit,
+        )
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Bookshelf-style shelving units: 3 rows of shelf units, each with 3 shelves + boxes.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")
@@ -1999,6 +2085,44 @@ def main():
         tcam = UsdGeom.Camera.Define(stage, f"/World/Cameras/{name}")
         UsdGeom.XformCommonAPI(tcam).SetTranslate(Gf.Vec3d(*pos))
         tcam.CreateFocalLengthAttr(focal)
+
+    # ===== Oblique (45deg) portal/demo cameras =====
+    # Portal camera switching uses these as the primary zone presets. They are
+    # persisted in the generated USD instead of being created only by
+    # capture_overview.py so the live Isaac stream can switch to them.
+    def add_look_at_camera(usd_path: str, translate, look_at, focal_mm: float) -> None:
+        cam = UsdGeom.Camera.Define(stage, usd_path)
+        eye = Gf.Vec3d(*translate)
+        center = Gf.Vec3d(*look_at)
+        up = Gf.Vec3d(0, 1, 0)
+        fwd = (center - eye).GetNormalized()
+        right = Gf.Cross(fwd, up).GetNormalized()
+        up_corrected = Gf.Cross(right, fwd).GetNormalized()
+        mat = Gf.Matrix4d(
+            right[0],        right[1],        right[2],        0,
+            up_corrected[0], up_corrected[1], up_corrected[2], 0,
+            -fwd[0],         -fwd[1],         -fwd[2],         0,
+            eye[0],          eye[1],          eye[2],          1,
+        )
+        xf = UsdGeom.Xformable(cam)
+        xf.ClearXformOpOrder()
+        op = xf.AddXformOp(UsdGeom.XformOp.TypeTransform, UsdGeom.XformOp.PrecisionDouble)
+        op.Set(mat)
+        cam.CreateFocalLengthAttr(focal_mm)
+        cam.CreateClippingRangeAttr(Gf.Vec2f(0.1, 2000.0))
+
+    oblique_cams = [
+        ("/World/Cameras/Overview_Top45",       (25.0, -65.0, 65.0), (25.0, 10.0, 0.0), 12.0),
+        ("/World/Cameras/zone_01_truck_yard",  (-22.0, -22.0, 22.0), (-22.0,  0.0, 1.5), 18.0),
+        ("/World/Cameras/zone_02_raw_bucket",  ( -4.0, -31.0, 42.0), ( -4.0, 11.0, 1.5), 18.0),
+        ("/World/Cameras/zone_03_accumulation",( 13.0, -18.0, 18.0), ( 13.0,  0.0, 1.5), 18.0),
+        ("/World/Cameras/zone_04_lakehouse",   ( 29.0, -31.0, 42.0), ( 29.0, 11.0, 1.5), 18.0),
+        ("/World/Cameras/zone_05_search",      ( 44.0,  -6.0, 16.0), ( 44.0, 10.0, 1.5), 18.0),
+        ("/World/Cameras/zone_06_delivery",    ( 59.0, -12.0, 22.0), ( 59.0, 10.0, 1.5), 18.0),
+        ("/World/Cameras/zone_07_tower",       (-22.0,   7.0, 18.0), (-22.0, 25.0, 1.5), 18.0),
+    ]
+    for usd_path, translate, look_at, focal in oblique_cams:
+        add_look_at_camera(usd_path, translate, look_at, focal)
 
     # ===== Existing oblique / cinematic cameras =====
     cam_overview = UsdGeom.Camera.Define(stage, "/World/Camera")

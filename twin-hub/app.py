@@ -43,21 +43,30 @@ HTTP_TIMEOUT_SECONDS = float(os.getenv("TRIDENT_TWIN_HTTP_TIMEOUT", "4"))
 ENTITY_CACHE_TTL_SECONDS = float(os.getenv("TRIDENT_TWIN_ENTITY_CACHE_TTL", "30"))
 MAX_COMMANDS = int(os.getenv("TRIDENT_TWIN_MAX_COMMANDS", "80"))
 
+PIPELINE_STEPS: list[tuple[int, str, str, str, str]] = [
+    (1, "PROFILE", "object_schema_profile", "asset_registry", "trident.{ns}.trident_asset_registry"),
+    (2, "MATERIAL", "cardinality_materialize", "iceberg_table", "trident.{ns}.*"),
+    (3, "CATALOG", "catalog_tables_columns", "catalog_metadata", "trident.{ns}.trident_catalog_tables"),
+    (4, "LINK", "asset_link_audit", "link_audit", "trident.{ns}.trident_asset_links"),
+    (5, "GRAPH", "redis_component_graph", "component_graph", "redis.trident:component_graph:{ns}"),
+    (6, "SEMANTIC", "milvus_semantic_index", "semantic_index", "milvus.trident_catalog"),
+    (7, "READY", "dataset_ready_status", "dataset_manifest", "trident.{ns}.trident_dataset_manifest"),
+]
+
 _BASE_ENTITY_CACHE: dict[str, Any] | None = None
 _BASE_ENTITY_CACHE_TS = 0.0
 _COMMANDS: list[dict[str, Any]] = []
 _COMMAND_SEQ = 0
 
 CAMERA_PRESETS = [
-    {"id": "overview", "label": "Full Twin Overview", "zone": "overview", "camera_path": "/World/Cameras/Top_Overview"},
-    {"id": "ingest", "label": "Ingest Zone", "zone": "ingest", "camera_path": "/World/Cameras/Top_Ingest"},
-    {"id": "raw_bucket", "label": "Raw Bucket", "zone": "raw", "camera_path": "/World/Cameras/Top_RawBucket"},
-    {"id": "accumulation", "label": "Accumulation", "zone": "accumulation", "camera_path": "/World/Cameras/Top_Accumulation"},
-    {"id": "lakehouse", "label": "Lakehouse Tables", "zone": "lakehouse", "camera_path": "/World/Cameras/Top_Lakehouse"},
-    {"id": "staging", "label": "Staging Area", "zone": "staging", "camera_path": "/World/Cameras/Top_Staging"},
-    {"id": "search", "label": "Search Results", "zone": "search", "camera_path": "/World/Cameras/Top_Search"},
-    {"id": "delivery", "label": "Delivery Zone", "zone": "delivery", "camera_path": "/World/Cameras/Top_Delivery"},
-    {"id": "tower", "label": "Control Tower", "zone": "tower", "camera_path": "/World/Cameras/Top_Tower"},
+    {"id": "overview", "label": "Overview Full", "zone": "overview", "camera_path": "/World/Cameras/Overview_Top45"},
+    {"id": "ingest", "label": "Ingest Zone", "zone": "ingest", "camera_path": "/World/Cameras/zone_01_truck_yard"},
+    {"id": "raw_bucket", "label": "Raw Bucket Zone", "zone": "raw", "camera_path": "/World/Cameras/zone_02_raw_bucket"},
+    {"id": "accumulation", "label": "Accumulation Zone", "zone": "accumulation", "camera_path": "/World/Cameras/zone_03_accumulation"},
+    {"id": "lakehouse", "label": "Lakehouse Zone", "zone": "lakehouse", "camera_path": "/World/Cameras/zone_04_lakehouse"},
+    {"id": "search", "label": "Search Zone", "zone": "search", "camera_path": "/World/Cameras/zone_05_search"},
+    {"id": "delivery", "label": "Delivery Zone", "zone": "delivery", "camera_path": "/World/Cameras/zone_06_delivery"},
+    {"id": "tower", "label": "Control Tower Zone", "zone": "tower", "camera_path": "/World/Cameras/zone_07_tower"},
 ]
 
 # Keycloak client_credentials 자동 갱신 설정
@@ -247,46 +256,50 @@ def _dataset_entity(row: dict[str, Any]) -> dict[str, Any]:
 
 
 def _gate_status_from_audit(audit: dict[str, Any], gate_no: int) -> str:
-    """audit 레코드 한 건에서 게이트 번호별 완료 상태를 추론한다.
+    """Infer the catalog-first pipeline gate status from one audit row.
 
-    게이트→파이프라인 단계 대응:
-      1 INGEST  - S3 raw 파일 도착  (s3_file_count > 0)
-      2 STRUCT  - Iceberg 테이블 생성 (index_row_count > 0)
-      3 INDEX   - search_index 저장  (integrity_pct 존재)
-      4 EMBED   - Milvus+Redis 완료  (integrity_pct >= 90)
-      5 AUDIT   - 최종 감사 통과     (status == "PASS")
+    Current one-shot pipeline:
+      1 PROFILE    object/schema profiling + asset registry
+      2 MATERIAL   cardinality-aware Iceberg materialization
+      3 CATALOG    trident_catalog_tables / columns
+      4 LINK       asset link audit + metadata coverage
+      5 GRAPH      Redis component graph / cache
+      6 SEMANTIC   Milvus semantic catalog index
+      7 READY      manifest/audit status ready for Portal search
     """
-    s3_files   = int(audit.get("s3_file_count") or audit.get("s3_raw_files") or 0)
+    total_assets = int(audit.get("total_assets") or audit.get("s3_file_count") or audit.get("s3_raw_files") or 0)
+    table_count = int(audit.get("table_count") or 0)
+    row_count = int(audit.get("row_count_total") or 0)
     index_rows = int(audit.get("index_row_count") or audit.get("index_rows") or 0)
-    integrity  = audit.get("integrity_pct")
-    passed     = audit.get("status") == "PASS"
+    linked_assets = int(audit.get("linked_assets") or audit.get("mapped_uris") or 0)
+    orphan_assets = int(audit.get("orphan_assets") or 0)
+    coverage = audit.get("metadata_coverage_pct")
+    integrity = audit.get("integrity_pct")
+    status = str(audit.get("status") or "").upper()
+    link_status = str(audit.get("link_status") or "").lower()
 
     if gate_no == 1:
-        return "done" if s3_files > 0 else "pending"
+        return "done" if total_assets > 0 else "pending"
     if gate_no == 2:
-        return "done" if index_rows > 0 else ("running" if s3_files > 0 else "pending")
+        return "done" if table_count > 0 or row_count > 0 else ("running" if total_assets > 0 else "pending")
     if gate_no == 3:
-        return "done" if integrity is not None else ("running" if index_rows > 0 else "pending")
+        return "done" if table_count > 0 and row_count >= 0 else ("running" if table_count > 0 else "pending")
     if gate_no == 4:
-        return "done" if (integrity or 0) >= 90 else ("running" if integrity is not None else "pending")
+        linked_ok = link_status in {"linked", "none", "not_applicable"} and orphan_assets == 0
+        coverage_ok = coverage is not None and float(coverage or 0) >= 99.0
+        return "done" if linked_ok or coverage_ok else ("running" if table_count > 0 else "pending")
     if gate_no == 5:
-        return "done" if passed else ("running" if (integrity or 0) >= 90 else "pending")
+        return "done" if index_rows > 0 else ("running" if table_count > 0 else "pending")
+    if gate_no == 6:
+        return "done" if index_rows > 0 else ("running" if row_count > 0 else "pending")
+    if gate_no == 7:
+        return "done" if status == "PASS" else ("running" if integrity is not None or index_rows > 0 else "pending")
     return "pending"
 
 
 def _operation_entities(pipeline_runs: list[dict[str, Any]], audit_by_ns: dict[str, dict[str, Any]]) -> list[dict[str, Any]]:
-    """Accumulation Zone 5개 게이트를 실제 trident-spark 파이프라인 단계와 매핑한다.
-
-    trident_structurize.py → INGEST + STRUCT
-    trident_index.py       → INDEX + EMBED + AUDIT
-    """
-    steps = [
-        (1, "INGEST", "s3_raw_ingestion",      "raw_object",     "trident-raw"),
-        (2, "STRUCT", "iceberg_structurize",    "iceberg_table",  "trident.{ns}.tables"),
-        (3, "INDEX",  "search_index_build",     "search_index",   "trident.{ns}.trident_search_index"),
-        (4, "EMBED",  "milvus_redis_indexing",  "vector_index",   "milvus.trident_semantic_catalog"),
-        (5, "AUDIT",  "integrity_audit",        "audit_report",   "redis.trident:audit:{ns}"),
-    ]
+    """Map the current catalog-first Trident pipeline to seven Accumulation gates."""
+    steps = PIPELINE_STEPS
 
     # 네임스페이스 전체 audit를 집계해 게이트별 대표 상태 결정
     # 하나라도 running이면 running, 모두 done이면 done, 나머지 pending

@@ -36,11 +36,13 @@ STAGES_DIR    = Path(__file__).resolve().parents[1] / "stages"
 
 # 게이트 번호 → (USD 경로 접두사, 컨베이어 X 위치)
 GATE_INFO = {
-    1: ("/World/DataReadiness/ProcessFlow/Step_01_INGEST", 7.0),
-    2: ("/World/DataReadiness/ProcessFlow/Step_02_STRUCT", 10.0),
-    3: ("/World/DataReadiness/ProcessFlow/Step_03_INDEX",  13.0),
-    4: ("/World/DataReadiness/ProcessFlow/Step_04_EMBED",  16.0),
-    5: ("/World/DataReadiness/ProcessFlow/Step_05_AUDIT",  19.0),
+    1: ("/World/DataReadiness/ProcessFlow/Step_01_PROFILE", 6.5),
+    2: ("/World/DataReadiness/ProcessFlow/Step_02_MATERIAL", 8.8),
+    3: ("/World/DataReadiness/ProcessFlow/Step_03_CATALOG", 11.1),
+    4: ("/World/DataReadiness/ProcessFlow/Step_04_LINK", 13.4),
+    5: ("/World/DataReadiness/ProcessFlow/Step_05_GRAPH", 15.7),
+    6: ("/World/DataReadiness/ProcessFlow/Step_06_SEMANTIC", 18.0),
+    7: ("/World/DataReadiness/ProcessFlow/Step_07_READY", 20.3),
 }
 
 # 상태별 badge material 색상 (DisplayColor)
@@ -200,8 +202,9 @@ def update_conveyor_boxes(stage: Usd.Stage, entities: list[dict], gate_statuses:
     # 게이트 상태로 상자 X 위치 결정
     # 마지막 done 게이트 다음 위치로 이동
     def _box_x_for_ns(audit_status: str) -> float:
-        # 각 게이트 done 수로 위치 결정
-        for gate_no in [5, 4, 3, 2, 1]:
+        # 각 게이트 done 수로 위치 결정. Keep this dynamic so scene/live sync
+        # stay aligned when the catalog pipeline grows beyond the old 5 gates.
+        for gate_no in range(len(GATE_INFO), 0, -1):
             if gate_statuses.get(gate_no) == "done":
                 _, gx = GATE_INFO[gate_no]
                 return gx + 1.5  # 게이트 통과 후

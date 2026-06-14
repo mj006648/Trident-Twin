@@ -19,6 +19,7 @@ import json
 import os
 import urllib.error
 import urllib.request
+from pathlib import Path
 from typing import Any
 
 import carb
@@ -31,14 +32,17 @@ from pxr import Gf, Sdf, Usd, UsdGeom
 DEFAULT_TWIN_HUB_URL  = "http://10.38.38.223:8765"
 DEFAULT_POLL_INTERVAL = 5.0
 DEFAULT_COMMAND_INTERVAL = 1.0
+DEFAULT_SCENE_CAMERA = "/World/Cameras/Overview_Top45"
 
 # 게이트 순서: (step_no, operation_id, 뱃지 색 RGB, 컨베이어 X 위치)
 GATES = [
-    (1, "s3_raw_ingestion",    Gf.Vec3f(0.80, 0.50, 0.10),  7.0),   # bronze
-    (2, "iceberg_structurize", Gf.Vec3f(0.40, 0.65, 0.95),  10.0),  # schema blue
-    (3, "search_index_build",  Gf.Vec3f(0.20, 0.80, 0.35),  13.0),  # quality green
-    (4, "milvus_redis_indexing",Gf.Vec3f(0.75, 0.30, 0.90), 16.0),  # semantic purple
-    (5, "integrity_audit",     Gf.Vec3f(0.95, 0.75, 0.05),  19.0),  # audit gold
+    (1, "object_schema_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  6.5),
+    (2, "cardinality_materialize",Gf.Vec3f(0.40, 0.65, 0.95),  8.8),
+    (3, "catalog_tables_columns", Gf.Vec3f(0.20, 0.80, 0.35), 11.1),
+    (4, "asset_link_audit",      Gf.Vec3f(0.95, 0.75, 0.05), 13.4),
+    (5, "redis_component_graph", Gf.Vec3f(0.35, 0.85, 0.85), 15.7),
+    (6, "milvus_semantic_index", Gf.Vec3f(0.75, 0.30, 0.90), 18.0),
+    (7, "dataset_ready_status",  Gf.Vec3f(0.15, 0.90, 0.45), 20.3),
 ]
 
 BELT_Y      =  -0.7    # main belt Y center
@@ -59,6 +63,42 @@ def _env_float(key: str, default: float) -> float:
         return float(os.environ.get(key, default))
     except ValueError:
         return default
+
+
+def _env_bool(key: str, default: bool = True) -> bool:
+    raw = os.environ.get(key)
+    if raw is None:
+        return default
+    return raw.strip().lower() not in {"0", "false", "no", "off"}
+
+
+def _repo_root() -> Path:
+    return Path(__file__).resolve().parents[4]
+
+
+def _latest_scene_path() -> Path | None:
+    explicit = os.environ.get("SCENE_PATH", "").strip()
+    if explicit:
+        return Path(explicit)
+    stages_dir = _repo_root() / "stages"
+    files = sorted(
+        p for p in stages_dir.glob("trident_lakehouse_twin_*.usda")
+        if "replay" not in p.name and p.stat().st_size > 1024
+    )
+    return files[-1] if files else None
+
+
+def _open_latest_scene_if_requested() -> bool:
+    scene_path = _latest_scene_path()
+    if scene_path is None:
+        carb.log_warn("[trident.twin] no generated scene found to auto-open")
+        return False
+    ctx = omni.usd.get_context()
+    carb.log_info(f"[trident.twin] opening scene: {scene_path}")
+    ctx.open_stage(str(scene_path))
+    _set_viewport_camera(os.environ.get("TRIDENT_TWIN_DEFAULT_CAMERA", DEFAULT_SCENE_CAMERA))
+    carb.log_info(f"[trident.twin] scene open requested: {scene_path.name}")
+    return True
 
 
 # ── USD 헬퍼 ─────────────────────────────────────────────────────────────────
@@ -221,11 +261,11 @@ def _extract_gate_statuses(entities: list[dict]) -> dict[int, str]:
 _EVENT_GATE: dict[str, int] = {
     "analyze_started": 1,
     "struct_started":  2,
-    "struct_done":     2,
-    "index_started":   3,
-    "index_done":      4,
-    "audit_started":   5,
-    "audit_done":      5,
+    "struct_done":     4,
+    "index_started":   5,
+    "index_done":      6,
+    "audit_started":   7,
+    "audit_done":      7,
 }
 
 def _extract_active_namespaces(entities: list[dict]) -> dict[str, str]:
@@ -250,10 +290,10 @@ def _gate_from_entities(entities: list[dict], ns: str) -> int:
 
 def _box_x_for(gate_statuses: dict[int, str]) -> float:
     """완료된 마지막 게이트 다음 위치 반환."""
-    for gate_no in [5, 4, 3, 2, 1]:
+    for gate_no in range(len(GATES), 0, -1):
         if gate_statuses.get(gate_no) == "done":
             _, _, _, gx = GATES[gate_no - 1]
-            if gate_no == 5:
+            if gate_no == len(GATES):
                 return LAKEHOUSE_X
             return gx + 1.5
     # 아직 첫 게이트 전 — 벨트 시작
@@ -277,14 +317,14 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
         safe     = ns.replace("-", "_").replace(".", "_")
         box_path = f"/World/LiveSync/Box_{safe}"
         gate     = _gate_from_entities(entities, ns)
-        # gate: 0=이벤트없음(skip), 1=analyze, 2=struct, 3=index, 4=embed, 5=audit
+        # gate: 0=이벤트없음(skip), 1..N=current catalog-first pipeline gate
         if gate == 0:
             continue  # 아직 이벤트 없음 — 박스 생성 안 함
-        elif gate <= 5:
-            target_x = GATES[min(gate - 1, 4)][3]
+        elif gate <= len(GATES):
+            target_x = GATES[min(gate - 1, len(GATES) - 1)][3]
         else:
             target_x = LAKEHOUSE_X
-        done_gates = list(range(1, min(gate + 1, 6)))
+        done_gates = list(range(1, min(gate + 1, len(GATES) + 1)))
 
         if ns not in _box_state:
             # 신규 상자 생성
@@ -312,7 +352,7 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
                 updated += 1
 
         # AUDIT 완료 → Lakehouse 이동 후 제거 예약
-        if gate_statuses.get(5) == "done" and state.get("badges") >= 5:
+        if gate_statuses.get(len(GATES)) == "done" and state.get("badges") >= len(GATES):
             _move_box(stage, box_path, LAKEHOUSE_X + 3.0)
             _remove_box(stage, box_path)
             del _box_state[ns]
@@ -335,6 +375,8 @@ class TridentTwinExtension(omni.ext.IExt):
         self._command_elapsed  = self._command_interval
         self._command_seq      = 0
         self._sub              = None
+        self._auto_open_pending = _env_bool("TWIN_AUTO_OPEN_SCENE", False)
+        self._auto_start_live   = _env_bool("TWIN_AUTO_START_LIVE", True)
 
         self._window = ui.Window("Trident Twin Live", width=420, height=180)
         self._build_ui()
@@ -342,6 +384,8 @@ class TridentTwinExtension(omni.ext.IExt):
         self._sub = app.get_update_event_stream().create_subscription_to_pop(
             self._on_update, name="trident_twin_update"
         )
+        if self._auto_start_live:
+            self._start()
 
     def on_shutdown(self) -> None:
         self._stop()
@@ -418,6 +462,10 @@ class TridentTwinExtension(omni.ext.IExt):
         payload = getattr(event, "payload", {}) or {}
         dt = float(payload.get("dt", 0.016))
 
+        if self._auto_open_pending:
+            self._auto_open_pending = False
+            _open_latest_scene_if_requested()
+
         ctx = omni.usd.get_context()
         stage = ctx.get_stage()
 
@@ -452,6 +500,6 @@ class TridentTwinExtension(omni.ext.IExt):
 
         done_count = sum(1 for s in gate_statuses.values() if s == "done")
         self._set_status(
-            f"Live — gates {done_count}/5 done  |  boxes {len(_box_state)}  |  {updated} updates",
+            f"Live — gates {done_count}/{len(GATES)} done  |  boxes {len(_box_state)}  |  {updated} updates",
             f"interval={self._poll_interval:.0f}s  hub={self._hub_url}",
         )
