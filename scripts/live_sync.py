@@ -1,7 +1,7 @@
 """
 live_sync.py
 ============
-Isaac Sim 런타임에서 실행 — twin-hub /entities를 폴링해서
+Isaac Sim 런타임에서 실행 — twin-hub /api/twin/entities를 폴링해서
 Accumulation Zone 게이트 badge와 컨베이어 상자를 실시간 업데이트한다.
 
 실행:
@@ -81,7 +81,7 @@ def load_scene():
 
 def fetch_entities() -> list[dict]:
     try:
-        req = urllib.request.Request(f"{TWIN_HUB_URL}/entities")
+        req = urllib.request.Request(f"{TWIN_HUB_URL}/api/twin/entities")
         with urllib.request.urlopen(req, timeout=4) as r:
             data = json.loads(r.read())
             return data.get("entities", [])

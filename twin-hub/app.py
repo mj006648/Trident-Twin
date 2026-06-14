@@ -14,6 +14,7 @@ Run:
 """
 from __future__ import annotations
 
+import copy
 import json
 import os
 import subprocess
@@ -23,12 +24,12 @@ _live_proc: "subprocess.Popen | None" = None
 import urllib.error
 import urllib.parse
 import urllib.request
-from datetime import datetime
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 try:
-    from fastapi import FastAPI, Query
+    from fastapi import FastAPI, HTTPException, Query
 except ImportError:  # pragma: no cover - allows import without fastapi installed
     FastAPI = None  # type: ignore[assignment]
     Query = None  # type: ignore[assignment]
@@ -39,6 +40,25 @@ EVENTS_FILE = REPO_ROOT / "data" / "mock_twin_events.json"
 
 TRIDENT_STATS_BASE_URL = os.getenv("TRIDENT_STATS_BASE_URL", "").rstrip("/")
 HTTP_TIMEOUT_SECONDS = float(os.getenv("TRIDENT_TWIN_HTTP_TIMEOUT", "4"))
+ENTITY_CACHE_TTL_SECONDS = float(os.getenv("TRIDENT_TWIN_ENTITY_CACHE_TTL", "30"))
+MAX_COMMANDS = int(os.getenv("TRIDENT_TWIN_MAX_COMMANDS", "80"))
+
+_BASE_ENTITY_CACHE: dict[str, Any] | None = None
+_BASE_ENTITY_CACHE_TS = 0.0
+_COMMANDS: list[dict[str, Any]] = []
+_COMMAND_SEQ = 0
+
+CAMERA_PRESETS = [
+    {"id": "overview", "label": "Full Twin Overview", "zone": "overview", "camera_path": "/World/Cameras/Top_Overview"},
+    {"id": "ingest", "label": "Ingest Zone", "zone": "ingest", "camera_path": "/World/Cameras/Top_Ingest"},
+    {"id": "raw_bucket", "label": "Raw Bucket", "zone": "raw", "camera_path": "/World/Cameras/Top_RawBucket"},
+    {"id": "accumulation", "label": "Accumulation", "zone": "accumulation", "camera_path": "/World/Cameras/Top_Accumulation"},
+    {"id": "lakehouse", "label": "Lakehouse Tables", "zone": "lakehouse", "camera_path": "/World/Cameras/Top_Lakehouse"},
+    {"id": "staging", "label": "Staging Area", "zone": "staging", "camera_path": "/World/Cameras/Top_Staging"},
+    {"id": "search", "label": "Search Results", "zone": "search", "camera_path": "/World/Cameras/Top_Search"},
+    {"id": "delivery", "label": "Delivery Zone", "zone": "delivery", "camera_path": "/World/Cameras/Top_Delivery"},
+    {"id": "tower", "label": "Control Tower", "zone": "tower", "camera_path": "/World/Cameras/Top_Tower"},
+]
 
 # Keycloak client_credentials 자동 갱신 설정
 # TRIDENT_STATS_TOKEN을 직접 지정하면 자동 갱신 없이 해당 토큰 사용.
@@ -414,7 +434,7 @@ def load_live_entities() -> dict[str, Any]:
     }
 
 
-def current_entities() -> dict[str, Any]:
+def _load_base_entities_uncached() -> dict[str, Any]:
     if TRIDENT_STATS_BASE_URL:
         try:
             return load_live_entities()
@@ -427,6 +447,56 @@ def current_entities() -> dict[str, Any]:
     fixture["source"] = "fixture"
     return fixture
 
+
+def _current_base_entities() -> dict[str, Any]:
+    global _BASE_ENTITY_CACHE, _BASE_ENTITY_CACHE_TS
+    now = time.time()
+    if _BASE_ENTITY_CACHE is None or (now - _BASE_ENTITY_CACHE_TS) > ENTITY_CACHE_TTL_SECONDS:
+        _BASE_ENTITY_CACHE = _load_base_entities_uncached()
+        _BASE_ENTITY_CACHE_TS = now
+        cache_state = "miss"
+    else:
+        cache_state = "hit"
+
+    payload = copy.deepcopy(_BASE_ENTITY_CACHE)
+    payload["cache"] = {
+        "state": cache_state,
+        "ttl_seconds": ENTITY_CACHE_TTL_SECONDS,
+        "age_seconds": round(now - _BASE_ENTITY_CACHE_TS, 3),
+    }
+    return payload
+
+
+def current_entities() -> dict[str, Any]:
+    return _inject_ingest_entities(_current_base_entities())
+
+
+
+def _inject_ingest_entities(payload: dict) -> dict:
+    # 기존 엔티티에 event 필드 업데이트 (이미 존재하는 raw_bucket 포함)
+    existing = {e["id"]: e for e in payload.get("entities", [])}
+    for ns, ev in list(_ingest_events.items()):
+        eid = f"raw.{ns}"
+        evt = ev.get("event", "")
+        status = "done" if evt.endswith("_done") else "running"
+        if eid in existing:
+            existing[eid]["event"] = evt
+            existing[eid]["status"] = status
+        else:
+            payload["entities"].append({
+                "id": eid,
+                "type": "raw_bucket",
+                "name": ns,
+                "namespace": ns,
+                "zone": "zone.raw_bucket",
+                "stage": "raw_ingestion",
+                "status": status,
+                "event": evt,
+                "readiness_score": 0.0,
+                "quality_score": 0.0,
+                "object_count": 0,
+            })
+    return payload
 
 def compute_state(entities_payload: dict[str, Any] | None = None) -> dict[str, Any]:
     """Reduce the current entity source into latest trident:* attribute snapshot."""
@@ -460,8 +530,106 @@ def filter_events(since: float | None) -> dict[str, Any]:
     return {"timeline": timeline}
 
 
+
+# ── Ingest 이벤트 트래킹 ──────────────────────────────────────────────────────
+import time as _time
+_ingest_events: "dict[str, dict]" = {}  # namespace → latest event
+
+INGEST_STEP_ORDER = [
+    "analyze_started",
+    "struct_started", "struct_done",
+    "index_started",  "index_done",
+    "audit_started",  "audit_done",
+]
+
+def _step_no(event: str) -> int:
+    try:
+        return INGEST_STEP_ORDER.index(event)
+    except ValueError:
+        return -1
+
+def _append_command(kind: str, payload: dict[str, Any]) -> dict[str, Any]:
+    global _COMMAND_SEQ
+    _COMMAND_SEQ += 1
+    command = {
+        "seq": _COMMAND_SEQ,
+        "kind": kind,
+        "created_at": datetime.now(timezone.utc).isoformat(),
+        **payload,
+    }
+    _COMMANDS.append(command)
+    if len(_COMMANDS) > MAX_COMMANDS:
+        del _COMMANDS[: len(_COMMANDS) - MAX_COMMANDS]
+    return command
+
+
+def _camera_by_id(camera_id: str) -> dict[str, Any] | None:
+    return next((camera for camera in CAMERA_PRESETS if camera["id"] == camera_id), None)
+
 if FastAPI is not None:
     app = FastAPI(title="Trident Twin Hub", version="0.2.0")
+
+    @app.get("/api/twin/cameras")
+    def api_twin_cameras():
+        return {"cameras": CAMERA_PRESETS}
+
+    @app.post("/api/twin/camera")
+    def api_twin_camera(payload: dict[str, Any]):
+        camera_id = str(payload.get("camera_id") or "")
+        preset = _camera_by_id(camera_id) if camera_id else None
+        camera_path = str(payload.get("camera_path") or (preset or {}).get("camera_path") or "")
+        if not camera_path.startswith("/World/Cameras/"):
+            raise HTTPException(status_code=400, detail="camera_path must be under /World/Cameras")
+        command = _append_command("camera", {
+            "camera_id": camera_id or (preset or {}).get("id"),
+            "camera_path": camera_path,
+            "label": payload.get("label") or (preset or {}).get("label") or camera_path,
+        })
+        return {"ok": True, "command": command}
+
+    @app.post("/api/twin/highlight")
+    def api_twin_highlight(payload: dict[str, Any]):
+        entity_id = str(payload.get("entity_id") or "")
+        if not entity_id:
+            raise HTTPException(status_code=400, detail="entity_id is required")
+        command = _append_command("highlight", {
+            "entity_id": entity_id,
+            "label": payload.get("label"),
+            "query": payload.get("query"),
+            "table": payload.get("table"),
+        })
+        return {"ok": True, "command": command}
+
+    @app.get("/api/twin/commands")
+    def api_twin_commands(since: int = 0):
+        commands = [command for command in _COMMANDS if int(command.get("seq", 0)) > since]
+        return {"commands": commands, "latest_seq": _COMMAND_SEQ}
+
+
+    @app.post("/api/twin/ingest/event")
+    def ingest_event(payload: dict) -> dict:
+        ns  = str(payload.get("namespace", "")).strip()
+        evt = str(payload.get("event", "")).strip()
+        if not ns or not evt:
+            return {"ok": False, "error": "namespace and event required"}
+        prev = _ingest_events.get(ns, {})
+        if _step_no(evt) >= _step_no(prev.get("event", "")):
+            _ingest_events[ns] = {
+                "namespace": ns,
+                "event": evt,
+                "ts": _time.time(),
+                "dataset_name": payload.get("dataset_name", ns),
+            }
+        return {"ok": True, "namespace": ns, "event": evt}
+
+    @app.get("/api/twin/ingest/active")
+    def ingest_active() -> dict:
+        return {"namespaces": list(_ingest_events.values())}
+
+    @app.delete("/api/twin/ingest/clear")
+    def ingest_clear() -> dict:
+        _ingest_events.clear()
+        return {"ok": True}
 
     @app.get("/api/twin/health")
     def health() -> dict[str, Any]:

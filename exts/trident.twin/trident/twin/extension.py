@@ -9,8 +9,9 @@ Polls twin-hub /api/twin/entities using Kit's update loop (no threading).
   - AUDIT 완료 시 Lakehouse 방향으로 이동 후 제거
 
 Environment variables:
-  TWIN_HUB_URL         twin-hub base URL (default: http://localhost:8765)
-  TWIN_POLL_INTERVAL   poll cadence in seconds (default: 5)
+  TWIN_HUB_URL                  twin-hub base URL (default: http://172.17.0.1:8765)
+  TWIN_POLL_INTERVAL            live entity poll cadence in seconds (default: 5)
+  TWIN_COMMAND_POLL_INTERVAL    camera/highlight command poll cadence in seconds (default: 1)
 """
 from __future__ import annotations
 
@@ -25,10 +26,11 @@ import omni.ext
 import omni.kit.app
 import omni.ui as ui
 import omni.usd
-from pxr import Gf, Sdf, UsdGeom
+from pxr import Gf, Sdf, Usd, UsdGeom
 
-DEFAULT_TWIN_HUB_URL  = "http://localhost:8765"
+DEFAULT_TWIN_HUB_URL  = "http://172.17.0.1:8765"
 DEFAULT_POLL_INTERVAL = 5.0
+DEFAULT_COMMAND_INTERVAL = 1.0
 
 # 게이트 순서: (step_no, operation_id, 뱃지 색 RGB, 컨베이어 X 위치)
 GATES = [
@@ -89,7 +91,11 @@ def _ensure_scope(stage, path: str) -> None:
 # ── 상자 생성/이동/제거 ───────────────────────────────────────────────────────
 
 def _make_box(stage, path: str, x: float) -> None:
-    """컨베이어 위에 상자 prim 생성."""
+    """컨베이어 위에 상자 prim 생성. 이미 존재하면 위치만 업데이트한다."""
+    existing = stage.GetPrimAtPath(path)
+    if existing.IsValid():
+        _set_translate(existing, x, BELT_Y, BOX_Z)
+        return
     xform = UsdGeom.Xform.Define(stage, path)
     xform.AddTranslateOp().Set(Gf.Vec3d(x, BELT_Y, BOX_Z))
     xform.AddScaleOp().Set(Gf.Vec3f(BOX_SIDE, BOX_SIDE, BOX_SIDE))
@@ -104,14 +110,16 @@ def _move_box(stage, path: str, x: float) -> None:
     _set_translate(prim, x, BELT_Y, BOX_Z)
 
 
-def _add_badge(stage, box_path: str, badge_no: int, color: Gf.Vec3f) -> None:
-    """상자 위에 뱃지 cube를 순서대로 붙임 (badge_no: 1-based)."""
+def _add_badge(stage, box_path: str, badge_no: int, color: Gf.Vec3f, box_x: float = 0.0) -> None:
+    """상자 위에 뱃지 cube를 월드 좌표 독립 prim으로 배치."""
     badge_path = f"{box_path}/Badge_{badge_no:02d}"
     if stage.GetPrimAtPath(badge_path).IsValid():
         return
-    badge_x = (badge_no - 3) * (BADGE_SIDE + 0.02)   # 상자 중앙 기준 X 오프셋
+    badge_x_off = (badge_no - 3) * (BADGE_SIDE + 0.02)
+    world_x = box_x + badge_x_off
+    world_z = BOX_Z + BOX_SIDE / 2 + BADGE_SIDE / 2 + 0.02
     xform = UsdGeom.Xform.Define(stage, badge_path)
-    xform.AddTranslateOp().Set(Gf.Vec3d(badge_x, 0.0, BADGE_Z_OFF))
+    xform.AddTranslateOp().Set(Gf.Vec3d(world_x, BELT_Y, world_z))
     xform.AddScaleOp().Set(Gf.Vec3f(BADGE_SIDE, BADGE_SIDE, BADGE_SIDE))
     cube = UsdGeom.Cube.Define(stage, f"{badge_path}/Body")
     _set_display_color(cube.GetPrim(), color)
@@ -136,6 +144,65 @@ def _fetch_entities(base_url: str) -> list[dict] | None:
         return None
 
 
+def _fetch_commands(base_url: str, since: int) -> dict[str, Any] | None:
+    try:
+        req = urllib.request.Request(base_url.rstrip("/") + f"/api/twin/commands?since={since}")
+        with urllib.request.urlopen(req, timeout=2.0) as r:
+            return json.loads(r.read().decode("utf-8"))
+    except Exception as e:
+        carb.log_warn(f"[trident.twin] command fetch failed: {e}")
+        return None
+
+
+def _set_viewport_camera(camera_path: str) -> None:
+    if not camera_path:
+        return
+    try:
+        from omni.kit.viewport.utility import get_active_viewport
+
+        viewport = get_active_viewport()
+        if viewport:
+            viewport.camera_path = camera_path
+            carb.log_info(f"[trident.twin] camera switched: {camera_path}")
+            return
+    except Exception as e:  # pragma: no cover - Isaac runtime only
+        carb.log_warn(f"[trident.twin] viewport camera switch failed: {e}")
+    try:
+        carb.settings.get_settings().set("/app/viewport/defaultCameraPath", camera_path)
+    except Exception as e:  # pragma: no cover - Isaac runtime only
+        carb.log_warn(f"[trident.twin] default camera setting failed: {e}")
+
+
+def _find_prim_by_entity_id(stage, entity_id: str):
+    if not stage or not entity_id:
+        return None
+    for prim in stage.Traverse():
+        attr = prim.GetAttribute("trident:entity_id")
+        if attr and attr.Get() == entity_id:
+            return prim
+    return None
+
+
+def _highlight_entity(stage, entity_id: str) -> bool:
+    prim = _find_prim_by_entity_id(stage, entity_id)
+    if prim is None:
+        carb.log_warn(f"[trident.twin] highlight target not found: {entity_id}")
+        return False
+    for item in Usd.PrimRange(prim):
+        if item.IsA(UsdGeom.Gprim):
+            _set_display_color(item, Gf.Vec3f(0.05, 0.75, 0.90))
+    carb.log_info(f"[trident.twin] highlighted: {entity_id}")
+    return True
+
+
+def _apply_command(stage, command: dict[str, Any]) -> None:
+    kind = str(command.get("kind") or "")
+    if kind == "camera":
+        _set_viewport_camera(str(command.get("camera_path") or ""))
+    elif kind == "highlight":
+        _highlight_entity(stage, str(command.get("entity_id") or ""))
+
+
 # ── 핵심 로직 ─────────────────────────────────────────────────────────────────
 
 def _extract_gate_statuses(entities: list[dict]) -> dict[int, str]:
@@ -150,30 +217,35 @@ def _extract_gate_statuses(entities: list[dict]) -> dict[int, str]:
     return result
 
 
-def _extract_active_namespaces(entities: list[dict]) -> dict[str, str]:
-    """raw_bucket entity에서 현재 활성 namespace → status 추출.
+# ingest 이벤트 → 게이트 번호 매핑
+_EVENT_GATE: dict[str, int] = {
+    "analyze_started": 1,
+    "struct_started":  2,
+    "struct_done":     2,
+    "index_started":   3,
+    "index_done":      4,
+    "audit_started":   5,
+    "audit_done":      5,
+}
 
-    s3_file_count > 0 이거나 index_row_count > 0 인 namespace만 대상으로 한다.
-    status == "ok" / "PASS" 는 완료된 것이므로 제외 (상자 제거 대상).
-    """
+def _extract_active_namespaces(entities: list[dict]) -> dict[str, str]:
+    """raw_bucket entity에서 현재 활성 namespace → status 추출."""
     result: dict[str, str] = {}
     for e in entities:
         if e.get("type") != "raw_bucket":
             continue
         ns = e.get("namespace")
-        if not ns:
-            continue
-        status = e.get("status", "pending")
-        # 완료된 namespace는 active에서 제외 → _sync_boxes에서 상자 제거됨
-        if status in ("ok", "PASS", "done"):
-            continue
-        # 파일이 하나도 없으면 아직 업로드 안 된 것 — 표시 안 함
-        s3 = int(e.get("s3_file_count") or 0)
-        idx = int(e.get("index_row_count") or 0)
-        if s3 == 0 and idx == 0:
-            continue
-        result[ns] = status
+        if ns:
+            result[ns] = e.get("status", "pending")
     return result
+
+def _gate_from_entities(entities: list[dict], ns: str) -> int:
+    """namespace 의 raw_bucket event 에서 현재 완료 게이트 번호를 반환한다."""
+    for e in entities:
+        if e.get("type") == "raw_bucket" and e.get("namespace") == ns:
+            evt = e.get("event", "")
+            return _EVENT_GATE.get(evt, 0)
+    return 0
 
 
 def _box_x_for(gate_statuses: dict[int, str]) -> float:
@@ -201,13 +273,18 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
             del _box_state[ns]
             updated += 1
 
-    # 게이트별 완료 수
-    done_gates = [no for no in range(1, 6) if gate_statuses.get(no) == "done"]
-    target_x   = _box_x_for(gate_statuses)
-
     for ns in active_ns:
         safe     = ns.replace("-", "_").replace(".", "_")
         box_path = f"/World/LiveSync/Box_{safe}"
+        gate     = _gate_from_entities(entities, ns)
+        # gate: 0=이벤트없음(skip), 1=analyze, 2=struct, 3=index, 4=embed, 5=audit
+        if gate == 0:
+            continue  # 아직 이벤트 없음 — 박스 생성 안 함
+        elif gate <= 5:
+            target_x = GATES[min(gate - 1, 4)][3]
+        else:
+            target_x = LAKEHOUSE_X
+        done_gates = list(range(1, min(gate + 1, 6)))
 
         if ns not in _box_state:
             # 신규 상자 생성
@@ -225,10 +302,11 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
             updated += 1
 
         # 완료 게이트 수만큼 뱃지 추가
+        cur_x = state.get("last_x", target_x)
         for gate_no in done_gates:
             if gate_no > state["badges"]:
                 _, _, color, _ = GATES[gate_no - 1]
-                _add_badge(stage, box_path, gate_no, color)
+                _add_badge(stage, box_path, gate_no, color, box_x=cur_x)
                 state["badges"] = gate_no
                 carb.log_info(f"[trident.twin] Badge {gate_no} added to {ns}")
                 updated += 1
@@ -249,17 +327,25 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
 class TridentTwinExtension(omni.ext.IExt):
 
     def on_startup(self, ext_id: str) -> None:
-        self._hub_url       = os.environ.get("TWIN_HUB_URL", DEFAULT_TWIN_HUB_URL)
-        self._poll_interval = _env_float("TWIN_POLL_INTERVAL", DEFAULT_POLL_INTERVAL)
-        self._running       = False
-        self._elapsed       = 0.0
-        self._sub           = None
+        self._hub_url          = os.environ.get("TWIN_HUB_URL", DEFAULT_TWIN_HUB_URL)
+        self._poll_interval    = _env_float("TWIN_POLL_INTERVAL", DEFAULT_POLL_INTERVAL)
+        self._command_interval = _env_float("TWIN_COMMAND_POLL_INTERVAL", DEFAULT_COMMAND_INTERVAL)
+        self._running          = False
+        self._elapsed          = 0.0
+        self._command_elapsed  = self._command_interval
+        self._command_seq      = 0
+        self._sub              = None
 
         self._window = ui.Window("Trident Twin Live", width=420, height=180)
         self._build_ui()
+        app = omni.kit.app.get_app()
+        self._sub = app.get_update_event_stream().create_subscription_to_pop(
+            self._on_update, name="trident_twin_update"
+        )
 
     def on_shutdown(self) -> None:
         self._stop()
+        self._sub = None
         self._window = None
 
     def _build_ui(self) -> None:
@@ -299,21 +385,54 @@ class TridentTwinExtension(omni.ext.IExt):
             return
         self._running = True
         self._elapsed = self._poll_interval  # 첫 틱에 즉시 폴링
-        app = omni.kit.app.get_app()
-        self._sub = app.get_update_event_stream().create_subscription_to_pop(
-            self._on_update, name="trident_twin_poll"
-        )
+        if self._sub is None:
+            app = omni.kit.app.get_app()
+            self._sub = app.get_update_event_stream().create_subscription_to_pop(
+                self._on_update, name="trident_twin_update"
+            )
         self._set_status(f"Live polling {self._hub_url} every {self._poll_interval:.0f}s")
 
     def _stop(self) -> None:
         self._running = False
-        self._sub     = None
+        _box_state.clear()
+        # twin-hub ingest 이벤트 초기화
+        try:
+            import urllib.request as _ur
+            req = _ur.Request(f"{self._hub_url}/api/twin/ingest/clear", method="DELETE")
+            _ur.urlopen(req, timeout=2)
+        except Exception:
+            pass
+        # /World/LiveSync scope 삭제 — 씬 초기화
+        try:
+            ctx = omni.usd.get_context()
+            stage = ctx.get_stage()
+            if stage:
+                prim = stage.GetPrimAtPath("/World/LiveSync")
+                if prim.IsValid():
+                    stage.RemovePrim(prim.GetPath())
+        except Exception:
+            pass
         self._set_status("Stopped.")
 
     def _on_update(self, event) -> None:
+        payload = getattr(event, "payload", {}) or {}
+        dt = float(payload.get("dt", 0.016))
+
+        ctx = omni.usd.get_context()
+        stage = ctx.get_stage()
+
+        self._command_elapsed += dt
+        if self._command_elapsed >= self._command_interval:
+            self._command_elapsed = 0.0
+            commands_payload = _fetch_commands(self._hub_url, self._command_seq)
+            if commands_payload is not None:
+                for command in commands_payload.get("commands", []):
+                    _apply_command(stage, command)
+                self._command_seq = int(commands_payload.get("latest_seq", self._command_seq))
+
         if not self._running:
             return
-        dt = event.payload.get("dt", 0.016)
+
         self._elapsed += dt
         if self._elapsed < self._poll_interval:
             return
@@ -324,8 +443,6 @@ class TridentTwinExtension(omni.ext.IExt):
             self._set_status("Poll failed — twin-hub unreachable", f"url={self._hub_url}")
             return
 
-        ctx   = omni.usd.get_context()
-        stage = ctx.get_stage()
         if stage is None:
             self._set_status("No open stage.")
             return
