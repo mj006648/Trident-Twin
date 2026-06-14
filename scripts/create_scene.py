@@ -44,6 +44,9 @@ _FALLBACK_NAMESPACES = [
 ]
 
 
+DEFAULT_TWIN_HUB_URL = os.getenv("TWIN_HUB_URL", os.getenv("TRIDENT_TWIN_HUB_URL", "http://10.38.38.223:8765")).rstrip("/")
+
+
 def _fetch_raw_namespaces() -> tuple[list[str], set[str]]:
     """Return live raw namespaces and ready/indexed namespace set.
 
@@ -51,7 +54,7 @@ def _fetch_raw_namespaces() -> tuple[list[str], set[str]]:
     without carrying Keycloak secrets. Fall back to direct stats-service access,
     then to checked-in legacy fixtures.
     """
-    twin_hub = os.getenv("TWIN_HUB_URL", "").rstrip("/")
+    twin_hub = DEFAULT_TWIN_HUB_URL
     if twin_hub:
         try:
             req = urllib.request.Request(f"{twin_hub}/api/twin/entities")
@@ -179,6 +182,9 @@ COLORS = {
     "raw_box":            ((0.42, 0.28, 0.16), 1.00),
     "raw_box_dark":       ((0.32, 0.20, 0.12), 1.00),
     "iceberg_box":        ((0.94, 0.95, 0.97), 1.00),
+    "lakehouse_data_table": ((0.38, 0.72, 1.00), 1.00),
+    "lakehouse_metadata_table": ((1.00, 0.78, 0.22), 1.00),
+    "lakehouse_slot_base": ((0.18, 0.45, 0.38), 1.00),
     "milvus_label":       ((0.55, 0.25, 0.85), 1.00),
     "redis_card":         ((0.85, 0.18, 0.20), 1.00),
     "led_green":          ((0.20, 0.95, 0.30), 1.00),
@@ -452,20 +458,23 @@ def make_readiness_table_crate(stage, path, pos, scale, mats, *,
                                entity_id, namespace, component, row_count,
                                object_count, quality_score, access_frequency,
                                semantic=True, location=True, policy=True,
-                               freshness="fresh", workload_fit="AI"):
+                               freshness="fresh", workload_fit="AI",
+                               table_role="data"):
     """Create a live-bindable Lakehouse Inventory table crate.
 
     The body is the refined Iceberg table; thin top bars show schema, quality, semantic, location, and policy readiness without cluttering each crate.
     """
     UsdGeom.Xform.Define(stage, path)
     sx, sy, sz = scale
-    body = cube(stage, f"{path}/TableCrate", pos, scale, mats["iceberg_box"],
-                name=f"{namespace}.{component} table crate",
+    role = "metadata" if str(table_role).lower() == "metadata" else "data"
+    body_mat = mats["lakehouse_metadata_table" if role == "metadata" else "lakehouse_data_table"]
+    body = cube(stage, f"{path}/TableCrate", pos, scale, body_mat,
+                name=f"{namespace}.{component} {role} table crate",
                 entity_id=entity_id, entity_type="iceberg_table",
                 stage_name="lakehouse_inventory")
     set_trident_attrs(
         body, zone="zone.lakehouse_inventory", namespace=namespace,
-        component=component, row_count=row_count, object_count=object_count,
+        component=component, table_role=role, row_count=row_count, object_count=object_count,
         quality_score=quality_score, access_frequency=access_frequency,
         semantic_ready=semantic, location_ready=location, policy_ready=policy,
         freshness=freshness, workload_fit=workload_fit, readiness_score=quality_score,
@@ -1360,6 +1369,69 @@ def build_mannequin(stage, root_path, pos, role, mats):
 
 
 # ============================================================================
+# Live Lakehouse inventory lookup
+# ============================================================================
+def _table_workload_fit(table: str, namespace: str) -> str:
+    token = f"{namespace}.{table}".lower()
+    if any(k in token for k in ("image", "radiology", "waveform")):
+        return "AI+HPDA"
+    if any(k in token for k in ("event", "score", "cohort", "lab", "vital")):
+        return "HPDA"
+    if any(k in token for k in ("manifest", "metadata", "catalog")):
+        return "HPDA"
+    return "AI+HPDA"
+
+
+def _fetch_lakehouse_inventory_specs(max_tables: int = 64) -> list[dict]:
+    """Return live table specs from twin-hub entities; fallback caller decides on empty."""
+    if not DEFAULT_TWIN_HUB_URL:
+        return []
+    try:
+        req = urllib.request.Request(f"{DEFAULT_TWIN_HUB_URL}/api/twin/entities")
+        with urllib.request.urlopen(req, timeout=8) as r:
+            payload = json.loads(r.read())
+    except Exception as e:
+        print(f"[create_scene] twin-hub lakehouse 조회 실패: {e} — inventory fallback")
+        return []
+
+    tables = [e for e in payload.get("entities", []) if e.get("type") == "iceberg_table"]
+    specs: list[dict] = []
+    seen: set[str] = set()
+    for e in tables:
+        entity_id = str(e.get("id") or "").lower()
+        parts = entity_id.split(".")
+        ns = str(e.get("namespace") or (parts[1] if len(parts) >= 3 else "default"))
+        table = str((parts[2] if len(parts) >= 3 else "") or e.get("table") or e.get("name") or e.get("component") or "unknown")
+        if "." in table:
+            table = table.split(".")[-1]
+        entity_id = entity_id or f"table.{ns}.{table}".lower()
+        rel_path = f"{ns.title()}/{table.title()}".replace("-", "_").replace(".", "_")
+        if rel_path in seen:
+            continue
+        seen.add(rel_path)
+        readiness = float(e.get("readiness_score") or e.get("quality_score") or 0.85)
+        specs.append({
+            "rel_path": rel_path,
+            "entity_id": entity_id,
+            "namespace": ns,
+            "component": table,
+            "row_count": int(e.get("row_count") or 0),
+            "object_count": int(e.get("object_count") or e.get("total_assets") or 0),
+            "quality_score": round(max(0.0, min(1.0, readiness)), 2),
+            "access_frequency": int(e.get("access_frequency") or 0),
+            "semantic": e.get("semantic_ready") if isinstance(e.get("semantic_ready"), bool) else True,
+            "location": e.get("location_ready") if isinstance(e.get("location_ready"), bool) else True,
+            "policy": e.get("policy_ready") if isinstance(e.get("policy_ready"), bool) else True,
+            "freshness": str(e.get("freshness") or "live"),
+            "workload_fit": str(e.get("workload_fit") or _table_workload_fit(table, ns)),
+        })
+        if len(specs) >= max_tables:
+            break
+    print(f"[create_scene] twin-hub lakehouse tables {len(specs)} loaded from {DEFAULT_TWIN_HUB_URL}")
+    return specs
+
+
+# ============================================================================
 # MAIN
 # ============================================================================
 def main():
@@ -1555,6 +1627,7 @@ def main():
     x_cur  = X_START
     y_row  = Y_START
     row_idx = 0
+    raw_slot_centers: dict[str, tuple[float, float]] = {}
 
     for ns_i, ns in enumerate(RAW_NAMESPACES):
         safe_ns = ns.replace("-", "_")
@@ -1575,6 +1648,8 @@ def main():
         x_lo = x_cur
         y_lo = y_row  # 이름 텍스트 영역 시작
         y_box_start = y_lo + LABEL_H  # 박스 시작 Y
+
+        raw_slot_centers[ns] = (x_lo + ZONE_W / 2, y_box_start + ZONE_D / 2)
 
         # 구역 X 구분선 (첫 구역 제외): 바닥 위 얇은 판
         if x_cur > X_START:
@@ -1742,23 +1817,10 @@ def main():
                     right_gap=(+11.0, 2.0, 1.1))
     # Open floor plan — no internal divider between table zone and staging zone.
     # ===== TABLE STORE (lower half, Y: -4 ~ +10) =====
-    # Actual tables with boxes on top. 4 columns x 4 rows.
+    # Tables are not drawn as a fixed furniture grid. Instead, Lakehouse slots
+    # mirror Raw Bucket dataset slots: each raw namespace gets one Lakehouse
+    # group, and only the actual generated tables for that namespace are shown.
     UsdGeom.Scope.Define(stage, "/World/Lakehouse/Tables")
-    # Table zone: lower half only (Y: -4 ~ +9.5, i.e. lh_cy-15 ~ lh_cy-1.5)
-    # Expanding DOWNWARD only — do not cross staging boundary at lh_cy+11=+22
-    table_xs = [lh_cx - 6.5, lh_cx - 2.5, lh_cx + 2.5, lh_cx + 6.5]
-    table_ys = [lh_cy - 14.5, lh_cy - 11.5, lh_cy - 8.5, lh_cy - 5.5, lh_cy - 2.5, lh_cy + 0.5]
-    table_idx = 0
-    for ri, ty in enumerate(table_ys):
-        for ci, tx in enumerate(table_xs):
-            table_idx += 1
-            led_choice = (["green", "green", "yellow"] if (ri + ci) % 4 == 0
-                          else ["green", "red", "green"] if (ri + ci) % 7 == 0
-                          else ["green", "green", "green"])
-            n_boxes = 3 if (ri + ci) % 2 == 0 else 2
-            build_storage_table(stage,
-                                f"/World/Lakehouse/Tables/Table_{table_idx}",
-                                (tx, ty), mats, n_boxes=n_boxes, leds=led_choice)
 
     # Inventory crates — auto-generated from live twin-hub/stats-service (sync_scene_from_live.py)
     # Namespace scopes
@@ -1836,14 +1898,75 @@ def main():
         ("Icu_Sepsis_Cohort_V1/Antibiotic_Events", "table.icu_sepsis_cohort_v1.antibiotic_events", "icu_sepsis_cohort_v1", "antibiotic_events",
          (36.2, 5.4, 1.45), 36000, 0, 1.0, 0, False, False, True, "observed", "HPDA"),
     ]
-    for rel_path, eid, ns, comp, pos, rows, objects, quality, access, semantic, location, policy, freshness, fit in inventory_specs:
-        make_readiness_table_crate(
-            stage, f"/World/DataReadiness/Inventory/{rel_path}", pos,
-            (0.82, 0.58, 0.48), mats, entity_id=eid, namespace=ns,
-            component=comp, row_count=rows, object_count=objects,
-            quality_score=quality, access_frequency=access, semantic=semantic,
-            location=location, policy=policy, freshness=freshness, workload_fit=fit,
-        )
+    live_inventory_specs = _fetch_lakehouse_inventory_specs(max_tables=64)
+    if live_inventory_specs:
+        inventory_specs = [
+            (s["rel_path"], s["entity_id"], s["namespace"], s["component"],
+             (0.0, 0.0, 0.0), s["row_count"], s["object_count"],
+             s["quality_score"], s["access_frequency"], s["semantic"],
+             s["location"], s["policy"], s["freshness"], s["workload_fit"])
+            for s in live_inventory_specs
+        ]
+
+    def _table_role(component: str) -> str:
+        token = component.lower()
+        metadata_tokens = ("manifest", "metadata", "catalog", "asset", "schema", "lineage", "link", "index")
+        return "metadata" if any(t in token for t in metadata_tokens) else "data"
+
+    def _safe_name(value: str) -> str:
+        return value.replace("-", "_").replace(".", "_").title()
+
+    def _lakehouse_slot_center(namespace: str, fallback_index: int) -> tuple[float, float]:
+        # Map Raw Bucket's slot coordinate range onto Lakehouse's lower table area.
+        raw_x, raw_y = raw_slot_centers.get(namespace, (None, None))
+        if raw_x is None or raw_y is None:
+            cols = 3
+            col = fallback_index % cols
+            row = fallback_index // cols
+            return (lh_cx - 5.6 + col * 5.6, lh_cy - 12.5 + row * 3.0)
+        x_norm = (raw_x - X_START) / max(X_END - X_START, 0.001)
+        raw_y_min = Y_START + LABEL_H
+        raw_y_max = Y_START + 4 * (ZONE_TOTAL_D + 0.20) + ZONE_TOTAL_D
+        y_norm = (raw_y - raw_y_min) / max(raw_y_max - raw_y_min, 0.001)
+        lx = (lh_cx - 7.0) + max(0.0, min(1.0, x_norm)) * 14.0
+        ly = (lh_cy - 13.0) + max(0.0, min(1.0, y_norm)) * 10.0
+        return (lx, ly)
+
+    grouped_inventory: dict[str, list[tuple]] = {}
+    for spec in inventory_specs:
+        grouped_inventory.setdefault(spec[2], []).append(spec)
+
+    for group_idx, (ns, specs) in enumerate(grouped_inventory.items()):
+        gx, gy = _lakehouse_slot_center(ns, group_idx)
+        safe_ns = _safe_name(ns)
+        slot_w = 3.6
+        slot_d = 2.35
+        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/SlotBase",
+             (gx, gy, 0.18), (slot_w, slot_d, 0.08), mats["lakehouse_slot_base"],
+             name=f"{ns} lakehouse slot", entity_id=f"lakehouse.slot.{ns}",
+             entity_type="lakehouse_dataset_slot", stage_name="lakehouse_inventory")
+        render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
+                    ns.upper().replace("_", " "), (gx, gy - slot_d / 2 + 0.22, 0.26),
+                    mats, pixel=0.025, height_z=0.018, color_key="black_panel")
+        cols = 4
+        cell_x = 0.78
+        cell_y = 0.62
+        x0 = gx - min(cols, max(1, len(specs))) * cell_x / 2 + cell_x / 2
+        y0 = gy - 0.22
+        for idx, (rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit) in enumerate(specs):
+            col = idx % cols
+            row = idx // cols
+            role = _table_role(comp)
+            tx = x0 + col * cell_x
+            ty = y0 + row * cell_y
+            make_readiness_table_crate(
+                stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, 0.68),
+                (0.52, 0.40, 0.34), mats, entity_id=eid, namespace=_ns,
+                component=comp, row_count=rows, object_count=objects,
+                quality_score=quality, access_frequency=access, semantic=semantic,
+                location=location, policy=policy, freshness=freshness, workload_fit=fit,
+                table_role=role,
+            )
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Bookshelf-style shelving units: 3 rows of shelf units, each with 3 shelves + boxes.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")

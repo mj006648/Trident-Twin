@@ -60,7 +60,6 @@ _COMMAND_SEQ = 0
 
 CAMERA_PRESETS = [
     {"id": "overview", "label": "Overview Full", "zone": "overview", "camera_path": "/World/Cameras/Overview_Top45"},
-    {"id": "ingest", "label": "Ingest Zone", "zone": "ingest", "camera_path": "/World/Cameras/zone_01_truck_yard"},
     {"id": "raw_bucket", "label": "Raw Bucket Zone", "zone": "raw", "camera_path": "/World/Cameras/zone_02_raw_bucket"},
     {"id": "accumulation", "label": "Accumulation Zone", "zone": "accumulation", "camera_path": "/World/Cameras/zone_03_accumulation"},
     {"id": "lakehouse", "label": "Lakehouse Zone", "zone": "lakehouse", "camera_path": "/World/Cameras/zone_04_lakehouse"},

@@ -337,31 +337,17 @@ def specs_to_python(specs: list[dict]) -> str:
 
 
 def patch_create_scene(specs: list[dict]) -> None:
-    """create_scene.py의 inventory 블록을 라이브 데이터 기반으로 교체."""
-    src = SCENE_SCRIPT.read_text(encoding="utf-8")
-    lines = src.splitlines()
+    """Compatibility no-op for the live-linked scene generator.
 
-    # BLOCK_START ~ BLOCK_END 직전 사이를 찾아 교체. First run may only
-    # have legacy namespace anchors; subsequent runs have the generated marker.
-    start_idx = end_idx = None
-    for i, line in enumerate(lines):
-        if start_idx is None and any(marker in line for marker in BLOCK_START_CANDIDATES):
-            start_idx = i
-        if start_idx is not None and BLOCK_END in line:
-            end_idx = i
-            break
-
-    if start_idx is None or end_idx is None:
-        print("[warn] create_scene.py에서 inventory 블록을 찾지 못했습니다.")
-        print(f"       BLOCK_START_CANDIDATES: {BLOCK_START_CANDIDATES!r}")
-        print(f"       BLOCK_END:   {BLOCK_END!r}")
-        return
-
-    new_block = specs_to_python(specs).splitlines()
-    patched = lines[:start_idx] + new_block + lines[end_idx:]
-    SCENE_SCRIPT.write_text("\n".join(patched) + "\n", encoding="utf-8")
-    print(f"[patch] create_scene.py 교체 완료 ({len(specs)}개 테이블, "
-          f"라인 {start_idx}~{end_idx})")
+    create_scene.py now fetches raw namespaces and lakehouse table entities from
+    the configured twin-hub at scene-generation time. Keeping this script from
+    rewriting create_scene.py prevents stale snapshot data from overwriting the
+    live Raw Bucket Zone -> Lakehouse Zone layout.
+    """
+    print(
+        "[noop] create_scene.py already reads live twin-hub entities; "
+        f"{len(specs)} fetched specs were validated but not written."
+    )
 
 
 # ============================================================================
@@ -446,8 +432,8 @@ def main() -> None:
         print(f"  {s['entity_id']:50s}  q={s['quality_score']:.2f}  {s['workload_fit']}")
 
     patch_create_scene(specs)
-    print("\n[done] create_scene.py 패치 완료.")
-    print("       Isaac Sim에서 아래 명령으로 USD 재생성 후 열어보세요:")
+    print("\n[done] 라이브 lakehouse inventory 확인 완료.")
+    print("       scene 생성은 create_scene.py가 실행 시점에 twin-hub live entities를 다시 읽습니다.")
     print("       /isaac-sim/python.sh scripts/create_scene.py")
 
 
