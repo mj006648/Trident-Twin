@@ -1784,17 +1784,8 @@ def main():
          entity_id="pipeline.to_lakehouse",
          entity_type="pipeline", stage_name="staging")
 
-    # Both belts converge to Y=0 at the Lakehouse entrance via two Y-bends.
-    # SILVER frames — feeding the Silver Lakehouse stage.
-    build_conveyor_Y(stage, "/World/AccumulationPipeline/MainConverge_YBend",
-                     y_start=-0.7, y_end=0.0, x_center=19.45,
-                     z_top=0.7, width=1.0, mats=mats,
-                     frame_mat_key="metal_silver")
-    build_conveyor_Y(stage, "/World/AccumulationPipeline/ExpressConverge_YBend",
-                     y_start=0.0, y_end=+0.7, x_center=19.45,
-                     z_top=0.7, width=1.0, mats=mats,
-                     frame_mat_key="metal_silver",
-                     belt_mat_key="conveyor_belt_express")
+    # No convergence Y-bends here: the two Accumulation lines stay straight into
+    # the Lakehouse west side so they do not clutter the view.
 
     # ===== Zone 4+5: Lakehouse unified (Y=11, 19 x 32 x 6) =====
     # Y range: 11-16=-5 ~ 11+16=+27. Labels at Y=-7.6 are visible south of warehouse.
@@ -1920,10 +1911,28 @@ def main():
 
     def _short_table_label(component: str) -> str:
         token = component.upper().replace("TRIDENT_", "").replace("_", " ")
-        words = token.split()
-        if len(words) > 2:
-            token = " ".join(words[:2])
-        return token[:14]
+        aliases = {
+            "DATASET MANIFEST": "DS",
+            "NOTE MANIFEST": "NOTE",
+            "IMAGE MANIFEST": "IMG",
+            "WAVEFORM MANIFEST": "WAVE",
+            "RADIOLOGY REPORTS": "RAD",
+            "VITAL EVENTS": "VITAL",
+            "PROCEDURE EVENTS": "PROC",
+            "MEDICATION EVENTS": "MED",
+            "LAB EVENTS": "LAB",
+            "SEPSIS SEGMENT MANIFEST": "SEPSIS",
+            "VASOPRESSOR EVENTS": "VASO",
+            "SOFA SCORES": "SOFA",
+            "QSOFA SCORES": "QSOFA",
+            "LACTATE RESULTS": "LACT",
+            "FLUID BOLUSES": "FLUID",
+            "BLOOD CULTURES": "CULT",
+            "ANTIBIOTIC EVENTS": "ABX",
+        }
+        if token in aliases:
+            return aliases[token]
+        return token.split()[0][:6] if token.split() else token[:6]
 
     def _slot_grid_center(slot_index: int) -> tuple[float, float]:
         # Fallback only for inventory namespaces that do not have a Raw Bucket slot.
@@ -1972,10 +1981,21 @@ def main():
              (gx + slot_w / 2, gy_slot, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
         render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
                     ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.28),
-                    mats, pixel=0.0065, height_z=0.010, color_key="black_panel")
+                    mats, pixel=0.0060, height_z=0.010, color_key="black_panel")
+        # A low tabletop supports the per-table crates. The tabletop footprint stays
+        # inside the Raw Bucket-sized namespace slot.
+        table_top_z = 0.38
+        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableTop",
+             (gx, gy_boxes, table_top_z), (slot_w * 0.90, ZONE_D * 0.66, 0.08), mats["table_top"])
+        for lx, ly, lname in [
+            (-1, -1, "SW"), (-1, +1, "NW"), (+1, -1, "SE"), (+1, +1, "NE"),
+        ]:
+            cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/Leg_{lname}",
+                 (gx + lx * slot_w * 0.36, gy_boxes + ly * ZONE_D * 0.24, 0.20),
+                 (0.05, 0.05, 0.34), mats["table_leg"])
         cols = COLS
         slots_per_layer = COLS * ROWS
-        box_scale = (0.28, 0.22, 0.18)
+        box_scale = (0.26, 0.20, 0.16)
         zone_x0 = gx - ZONE_W / 2
         zone_y0 = gy_boxes - ZONE_D / 2
         for idx, (rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit) in enumerate(specs):
@@ -1986,7 +2006,7 @@ def main():
             role = _table_role(comp)
             tx = zone_x0 + col * CELL + CELL / 2
             ty = zone_y0 + row * CELL + CELL / 2
-            tz = 0.50 + layer * 0.26
+            tz = 0.54 + layer * 0.23
             make_readiness_table_crate(
                 stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, tz),
                 box_scale, mats, entity_id=eid, namespace=_ns,
@@ -1996,72 +2016,41 @@ def main():
                 table_role=role,
             )
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, tz + 0.28), mats,
-                        pixel=0.006, height_z=0.008, color_key="black_panel")
+                        _short_table_label(comp), (tx, ty, tz + 0.115), mats,
+                        pixel=0.0042, height_z=0.006, color_key="black_panel")
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
-    # Bookshelf-style shelving units: 3 rows of shelf units, each with 3 shelves + boxes.
+    # Empty showcase tables for future frequently used datasets. No static boxes are
+    # placed here yet; live/curated bundles can be added later.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")
     UsdGeom.Scope.Define(stage, "/World/Lakehouse/Staging")
-    shelf_unit_positions = [
-        (22.0, 14.5), (27.0, 14.5), (32.0, 14.5), (37.0, 14.5),
-        (22.0, 19.5), (27.0, 19.5), (32.0, 19.5), (37.0, 19.5),
-        (22.0, 24.5), (27.0, 24.5), (32.0, 24.5), (37.0, 24.5),
-    ]
-    for ui, (scx, scy) in enumerate(shelf_unit_positions):
-        rp = f"/World/Lakehouse/Staging/Shelf_{ui + 1}"
+    staging_table_ys = [16.0, 20.0, 24.0]
+    for si, scy in enumerate(staging_table_ys, start=1):
+        rp = f"/World/Lakehouse/Staging/DisplayTable_{si}"
         UsdGeom.Scope.Define(stage, rp)
-        unit_w, unit_d, unit_h = 2.8, 0.7, 2.4
-        side_t = 0.07
-        # Side panels
-        cube(stage, f"{rp}/SideL",
-             (scx - unit_w / 2 + side_t / 2, scy, 0.1 + unit_h / 2),
-             (side_t, unit_d, unit_h), mats["table_top"])
-        cube(stage, f"{rp}/SideR",
-             (scx + unit_w / 2 - side_t / 2, scy, 0.1 + unit_h / 2),
-             (side_t, unit_d, unit_h), mats["table_top"])
-        # Back panel
-        cube(stage, f"{rp}/Back",
-             (scx, scy + unit_d / 2 - 0.03, 0.1 + unit_h / 2),
-             (unit_w, 0.04, unit_h), mats["table_leg"])
-        # 3 shelves
-        shelf_zs = [0.1 + 0.4, 0.1 + 1.0, 0.1 + 1.6]
-        for si, sz in enumerate(shelf_zs):
-            cube(stage, f"{rp}/Shelf_{si + 1}",
-                 (scx, scy, sz), (unit_w - side_t * 2, unit_d, 0.05),
-                 mats["table_top"])
-            # 3 boxes per shelf
-            for bi in range(3):
-                bx = scx - 0.80 + bi * 0.80
-                led = ["green", "yellow", "green"][bi % 3] if (ui + si) % 3 != 0 else ["green", "red", "green"][bi % 3]
-                make_iceberg_box(stage, f"{rp}/Shelf_{si + 1}/Box_{bi + 1}",
-                                 (bx, scy - 0.05, sz + 0.025 + 0.15),
-                                 (0.42, 0.30, 0.30), mats, led=led)
+        table_cx = lh_cx
+        table_w = 14.5
+        table_d = 1.15
+        table_top_z = 0.78
+        leg_h = table_top_z - 0.08
+        cube(stage, f"{rp}/Top",
+             (table_cx, scy, table_top_z), (table_w, table_d, 0.10), mats["table_top"],
+             name=f"Staging display table {si}", entity_id=f"staging.display_table.{si}",
+             entity_type="staging_display_table", stage_name="staging")
+        for lx, ly, lname in [
+            (-1, -1, "SW"), (-1, +1, "NW"), (+1, -1, "SE"), (+1, +1, "NE"),
+        ]:
+            cube(stage, f"{rp}/Leg_{lname}",
+                 (table_cx + lx * (table_w / 2 - 0.25), scy + ly * (table_d / 2 - 0.15), leg_h / 2),
+                 (0.10, 0.10, leg_h), mats["table_leg"])
+        cube(stage, f"{rp}/BackRail",
+             (table_cx, scy + table_d / 2 - 0.05, table_top_z + 0.12),
+             (table_w * 0.96, 0.08, 0.14), mats["metal_gold"])
+        render_text(stage, f"{rp}/Label",
+                    "FREQUENT DATASETS", (table_cx, scy - table_d / 2 + 0.10, table_top_z + 0.08),
+                    mats, pixel=0.022, height_z=0.010, color_key="black_panel")
 
-
-    # Canonical Staging / Ready Bundle prims. These are the targets for Portal
-    # Dataset Basket, hot collection, recommended join, and materialized view
-    # signals.
-    # Ready bundle prims — iceberg_box appearance, placed on shelf_unit_positions[0..3]
-    # shelf_zs middle shelf: 0.1 + 1.0 = 1.1, box center: 1.1 + 0.175 = 1.275
-    ready_specs = [
-        ("CameraLidarAI",        "bundle.camera_lidar.ai",          "camera+lidar",      "AI",       0.92, 57, (22.0, 14.5)),
-        ("WeatherGpsHPDA",       "bundle.weather_gps.hpda",         "weather+gps",       "HPDA",     0.80, 12, (27.0, 14.5)),
-        ("HotBasket",            "bundle.hot_basket.portal",        "camera+lidar+gps",  "AI+HPDA",  0.88, 73, (32.0, 14.5)),
-        ("MaterializedCollection","bundle.materialized.collection",  "fusion+weather",    "HPC+HPDA", 0.84, 21, (37.0, 14.5)),
-    ]
-    _shelf_z_mid = 0.1 + 1.0 + 0.175  # middle shelf box centre
-    for slug, eid, comps, fit, confidence, access, (rx, ry) in ready_specs:
-        led = "green" if confidence >= 0.88 else ("yellow" if confidence >= 0.82 else "red")
-        bx = make_iceberg_box(
-            stage, f"/World/DataReadiness/ReadyBundles/{slug}",
-            (rx, ry, _shelf_z_mid), (0.42, 0.30, 0.30), mats, led=led,
-        )
-        set_trident_attrs(bx, entity_id=eid, entity_type="ready_bundle",
-                          zone="zone.staging_ready_bundles",
-                          components=comps, workload_fit=fit,
-                          confidence=confidence, access_frequency=access,
-                          policy_ready=True, readiness_score=confidence)
-
+    # Keep the ReadyBundles scope as a semantic target, but leave it empty until
+    # real frequently-used dataset selections are available.
     # Lakehouse -> Showcase promotion belt removed; zones are now unified as LAKEHOUSE ZONE.
 
     # ===== Zone 0+7 MERGED: Lobby + Search Counter (previous design restored,
@@ -2143,15 +2132,27 @@ def main():
     # Live packages appear only after Send to Delivery.
     big_t_west = big_table_cx - big_table_w / 2
     lakehouse_east = lh_cx + lh_sx / 2
+    search_south_y = 2.2  # below Search Zone pad (y min ~= 3)
+    search_north_y = 18.2 # above Search Zone pad (y max ~= 17)
+    detour_x = big_t_west + 0.25
     build_conveyor(stage, "/World/DeliveryYard/InBelt_Lakehouse",
-                   x_start=lakehouse_east + 0.2, x_end=big_t_west, y_center=6.4,
+                   x_start=lakehouse_east + 0.2, x_end=detour_x, y_center=search_south_y,
                    z_top=0.7, width=0.72, mats=mats,
                    frame_mat_key="metal_silver")
+    build_conveyor_Y(stage, "/World/DeliveryYard/InBelt_Lakehouse_ToTable",
+                     y_start=search_south_y, y_end=6.4, x_center=detour_x,
+                     z_top=0.7, width=0.72, mats=mats,
+                     frame_mat_key="metal_silver")
     build_conveyor(stage, "/World/DeliveryYard/InBelt_Staging",
-                   x_start=lakehouse_east + 0.2, x_end=big_t_west, y_center=13.6,
+                   x_start=lakehouse_east + 0.2, x_end=detour_x, y_center=search_north_y,
                    z_top=0.7, width=0.72, mats=mats,
                    frame_mat_key="metal_gold",
                    belt_mat_key="conveyor_belt_express")
+    build_conveyor_Y(stage, "/World/DeliveryYard/InBelt_Staging_ToTable",
+                     y_start=13.6, y_end=search_north_y, x_center=detour_x,
+                     z_top=0.7, width=0.72, mats=mats,
+                     frame_mat_key="metal_gold",
+                     belt_mat_key="conveyor_belt_express")
 
     # ---- 3 STRAIGHT outgoing belts: big table east edge -> each truck (no bends) ----
     # Big Table now wide enough in Y to cover all 3 truck Y lanes, so each belt is

@@ -361,10 +361,16 @@ def _start_delivery(stage, command: dict[str, Any]) -> None:
     _set_display_color(body.GetPrim(), Gf.Vec3f(0.62, 0.40, 0.95))
     xform.GetPrim().CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set(f"delivery.{_delivery_seq:03d}.{entity_id}")
     xform.GetPrim().CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("live_delivery_package")
+    start_z = max(sz + 0.35, 1.0)
+    # Follow the visible incoming rails around Search Zone instead of cutting through it.
+    # Lakehouse tables use the south detour; Staging-ready bundles use the north detour.
+    route_y = 18.2 if sy >= 13.0 else 2.2
+    detour_x = 50.25
     points = [
-        (sx, sy, max(sz + 0.35, 1.0)),
-        (39.0, sy, 1.05),
-        (50.0, lane_y, 1.05),
+        (sx, sy, start_z),
+        (sx, route_y, 1.05),
+        (detour_x, route_y, 1.05),
+        (detour_x, lane_y, 1.05),
         (61.5, lane_y, 1.05),
     ]
     _delivery_state.append({"path": root_path, "points": points, "elapsed": 0.0, "duration": 8.0})
