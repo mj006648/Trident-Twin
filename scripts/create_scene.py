@@ -432,16 +432,17 @@ GATE_BADGES = [
     ("CATALOG", "policy_tag"),
 ]
 
-def add_gate_badges(stage, path, pos, scale, mats):
+def add_gate_badges(stage, path, pos, scale, mats, *, y_offset_ratio=0.0, z_offset=0.004):
     sx, sy, sz = scale
     badge_w = sx * 0.14
     badge_d = sy * 0.14
     badge_t = 0.018
     spacing = sx * 0.19
     x0 = pos[0] - spacing * 2
+    badge_y = pos[1] + sy * y_offset_ratio
     for i, (gname, gmat) in enumerate(GATE_BADGES):
         cube(stage, f"{path}/GateBadges/{gname}",
-             (x0 + i * spacing, pos[1], pos[2] + sz / 2 + badge_t / 2 + 0.004),
+             (x0 + i * spacing, badge_y, pos[2] + sz / 2 + badge_t / 2 + z_offset),
              (badge_w, badge_d, badge_t), mats[gmat])
 
 
@@ -479,7 +480,9 @@ def make_readiness_table_crate(stage, path, pos, scale, mats, *,
         semantic_ready=semantic, location_ready=location, policy_ready=policy,
         freshness=freshness, workload_fit=workload_fit, readiness_score=quality_score,
     )
-    add_gate_badges(stage, path, pos, scale, mats)
+    # Keep readiness badges on the lower/front part of the crate top so the
+    # table name can sit above them without being hidden in the zone cameras.
+    add_gate_badges(stage, path, pos, scale, mats, y_offset_ratio=-0.42, z_offset=0.001)
     return body
 
 
@@ -557,6 +560,17 @@ def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label,
          name=f"{operation} badge",
          entity_id=f"operation.{step_no:02d}.{operation}.badge",
          entity_type="operation_badge", stage_name=operation)
+
+    # Visible per-step plate. Output tags are generated separately so the
+    # scene distinguishes process steps from the six common result tables.
+    cube(stage, f"{path}/StepPlate",
+         (x, y + 1.62, z + 0.08), (0.70, 0.24, 0.045), mats[bar_mat_key],
+         name=f"Step {step_no} plate",
+         entity_id=f"operation.{step_no:02d}.{operation}.step_plate",
+         entity_type="operation_step_plate", stage_name=operation)
+    render_text(stage, f"{path}/StepPlateLabel", f"S{step_no}",
+                (x, y + 1.62, z + 0.115), mats,
+                pixel=0.018, height_z=0.004, color_key="black_panel")
 
     # code_label 텍스트 — PillarL 앞 바닥면에 작게 배치
     render_text(stage, f"{path}/Label", code_label,
@@ -1679,8 +1693,8 @@ def main():
         label_full = _NS_LABEL.get(ns, ns.upper()).replace("_", " ")
         render_text(stage,
                     f"/World/DataReadiness/RawObjects/{safe_ns}/Label",
-                    label_full, (slot_cx, slot_cy - ZONE_TOTAL_D / 2 + 0.16, 0.150),
-                    mats, pixel=0.0052, height_z=0.0012,
+                    label_full, (slot_cx, slot_cy - ZONE_TOTAL_D / 2 + 0.16, 0.152),
+                    mats, pixel=0.0100, height_z=0.0020,
                     color_key="black_panel")
 
         # 박스 3D 배치: col(X) × row(Y) × layer(Z)
@@ -1714,9 +1728,9 @@ def main():
     # and run all the way through the pipeline stations to Lakehouse west.
 
     # ===== Zone 3: Accumulation Zone =====
-    # 7 catalog-first security gates, one per station_x position, straddling BOTH belts together.
+    # 3 conceptual processing gates, followed by 6 concrete output tags.
     # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
-    station_x = [6.6, 8.4, 10.2, 12.0, 13.8, 15.6, 17.4]
+    station_x = [7.2, 11.8, 15.8]
     UsdGeom.Scope.Define(stage, "/World/Pipeline")
 
     # Main belt — starts just east of Raw east wall (+5.5), Y=-0.7. SILVER frame.
@@ -1736,18 +1750,14 @@ def main():
                    frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
 
-    # 7 gates at station_x positions, each spanning both belts.
+    # 3 gates at station_x positions, each spanning both belts.
     # Shifted east so the Accumulation belts no longer visually intrude into Raw Bucket.
-    # Current one-shot catalog-first pipeline:
-    #   PROFILE → MATERIALIZE → CATALOG → LINK → GRAPH → SEMANTIC → READY
+    # Current catalog-first pipeline:
+    #   INGEST/PROFILE → CATALOG/LINK → READY/MANIFEST
     operation_specs = [
-        (1, "PROFILE",  "object_schema_profile",   "asset_registry",   "trident.{ns}.trident_asset_registry",    "metal_bronze"),
-        (2, "MATERIAL", "cardinality_materialize", "iceberg_table",    "trident.{ns}.*",                         "schema_bar"),
-        (3, "CATALOG",  "catalog_tables_columns",  "catalog_metadata", "trident.{ns}.trident_catalog_tables",    "quality_bar"),
-        (4, "LINK",     "asset_link_audit",        "link_audit",       "trident.{ns}.trident_asset_links",       "policy_tag"),
-        (5, "GRAPH",    "redis_component_graph",   "component_graph",  "redis.trident:component_graph:{ns}",     "redis_card"),
-        (6, "SEMANTIC", "milvus_semantic_index",   "semantic_index",   "milvus.trident_catalog",                "semantic_tag"),
-        (7, "READY",    "dataset_ready_status",    "dataset_manifest", "trident.{ns}.trident_dataset_manifest",  "policy_tag"),
+        (1, "INGEST",  "ingest_profile", "audit_asset",   "trident.{ns}.trident_ingest_audit|trident.{ns}.trident_asset_registry", "metal_bronze"),
+        (2, "CATALOG", "catalog_link",   "catalog_asset", "trident.{ns}.trident_catalog_tables|trident.{ns}.trident_catalog_columns|trident.{ns}.trident_asset_links", "quality_bar"),
+        (3, "READY",   "ready_manifest", "manifest",      "trident.{ns}.trident_dataset_manifest", "policy_tag"),
     ]
     for step_no, code_label, operation, output_kind, output_entity, mat_key in operation_specs:
         gx = station_x[step_no - 1]
@@ -1757,13 +1767,41 @@ def main():
             output_kind=output_kind, output_entity=output_entity, bar_mat_key=mat_key,
         )
 
+    # Six common outputs materialized for every dataset after accumulation.
+    # These are visual tags only; the Lakehouse Zone still renders concrete
+    # data/metadata table crates from the actual catalog inventory.
+    output_tag_specs = [
+        ("AUDIT",    "trident_ingest_audit",     "audit",   "quality_bar"),
+        ("REGISTRY", "trident_asset_registry",   "asset",   "metal_bronze"),
+        ("TABLES",   "trident_catalog_tables",   "catalog", "quality_bar"),
+        ("COLUMNS",  "trident_catalog_columns",  "catalog", "schema_bar"),
+        ("LINKS",    "trident_asset_links",      "asset",   "policy_tag"),
+        ("MANIFEST", "trident_dataset_manifest", "catalog", "semantic_tag"),
+    ]
+    UsdGeom.Scope.Define(stage, "/World/DataReadiness/ProcessFlow/OutputTags")
+    for i, (tag_label, table_name, output_kind, mat_key) in enumerate(output_tag_specs):
+        col = i % 3
+        row = i // 3
+        tx = 17.05 + col * 0.92
+        ty = -2.25 if row == 0 else 2.25
+        tag = cube(stage, f"/World/DataReadiness/ProcessFlow/OutputTags/OutputTag_{i + 1:02d}_{tag_label}",
+                   (tx, ty, 0.10), (0.78, 0.28, 0.055), mats[mat_key],
+                   name=f"{table_name} output tag",
+                   entity_id=f"accumulation.output.{table_name}",
+                   entity_type="accumulation_output_tag", stage_name="accumulation_output")
+        set_trident_attrs(tag, output_kind=output_kind, output_table=table_name,
+                          zone="zone.refinement_pipeline")
+        render_text(stage, f"/World/DataReadiness/ProcessFlow/OutputTags/OutputTagLabel_{i + 1:02d}",
+                    tag_label, (tx, ty, 0.145), mats,
+                    pixel=0.0095, height_z=0.004, color_key="black_panel")
+
     # Metadata station anchors (tiny floor anchors for live binding compat)
     cube(stage, "/World/Metadata/ExplainingStation",
-         (station_x[5], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
+         (station_x[1], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
          name="Explaining Metadata Station", entity_id="station.metadata.explaining",
          entity_type="metadata_station", stage_name="explaining")
     cube(stage, "/World/Metadata/SharingStation",
-         (station_x[6], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
+         (station_x[2], 0.0, 0.04), (1.6, 3.0, 0.04), mats["concrete"],
          name="Sharing Metadata Station", entity_id="station.metadata.sharing",
          entity_type="metadata_station", stage_name="sharing")
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor",
@@ -1968,8 +2006,8 @@ def main():
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerE",
              (gx + slot_w / 2, gy_slot, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
         render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
-                    ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.222),
-                    mats, pixel=0.0052, height_z=0.0012, color_key="black_panel")
+                    ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.224),
+                    mats, pixel=0.0100, height_z=0.0020, color_key="black_panel")
         cols = COLS
         slots_per_layer = COLS * ROWS
         box_scale = (0.26, 0.20, 0.16)
@@ -2003,8 +2041,8 @@ def main():
             # Put the label directly on the crate top so it reads attached, not floating.
             label_color = "black_panel" if role == "metadata" else "white_panel"
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 + 0.0008), mats,
-                        pixel=0.0048, height_z=0.0012, color_key=label_color)
+                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 + 0.018), mats,
+                        pixel=0.0056, height_z=0.0025, color_key=label_color)
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Empty showcase tables for future frequently used datasets. No static boxes are
     # placed here yet; live/curated bundles can be added later.
@@ -2183,8 +2221,8 @@ def main():
     top_cams = [
         ("Top_Overview",      ( 15,  +7, 95), 14),
         ("Top_Ingest",        (-22,   0, 22), 22),
-        ("Top_RawBucket",     ( -4,  11, 32), 22),
-        ("zone_02_raw_bucket",( -4,  11, 32), 22),
+        ("Top_RawBucket",     ( -4,  -2, 32), 22),
+        ("zone_02_raw_bucket",( -4,  -2, 32), 22),
         ("Top_Accumulation",  (+12,   0, 18), 24),
         ("Top_Lakehouse",     (+29,  -1, 30), 24),
         ("zone_04_lakehouse", (+29,  -1, 30), 24),
