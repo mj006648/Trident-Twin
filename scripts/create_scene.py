@@ -425,20 +425,21 @@ def make_raw_box(stage, path, pos, scale, mats, dark=False):
 
 
 GATE_BADGES = [
-    ("INGEST",  "metal_bronze"),
-    ("STAGE",   "metal_silver"),
-    ("CLEAN",   "quality_bar"),
-    ("TAG",     "semantic_tag"),
-    ("CATALOG", "policy_tag"),
+    ("AUDIT",    "quality_bar"),
+    ("REGISTRY", "metal_bronze"),
+    ("TABLES",   "quality_bar"),
+    ("COLUMNS",  "schema_bar"),
+    ("LINKS",    "policy_tag"),
+    ("MANIFEST", "semantic_tag"),
 ]
 
 def add_gate_badges(stage, path, pos, scale, mats, *, y_offset_ratio=0.0, z_offset=0.004):
     sx, sy, sz = scale
-    badge_w = sx * 0.14
+    badge_w = sx * 0.12
     badge_d = sy * 0.14
     badge_t = 0.018
-    spacing = sx * 0.19
-    x0 = pos[0] - spacing * 2
+    spacing = sx * 0.16
+    x0 = pos[0] - spacing * (len(GATE_BADGES) - 1) / 2
     badge_y = pos[1] + sy * y_offset_ratio
     for i, (gname, gmat) in enumerate(GATE_BADGES):
         cube(stage, f"{path}/GateBadges/{gname}",
@@ -555,27 +556,11 @@ def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label,
     cube(stage, f"{path}/PillarL", (x, y - 1.35, z + 1.00), (0.10, 0.10, 2.0), mats["steel_frame"])
     cube(stage, f"{path}/PillarR", (x, y + 1.35, z + 1.00), (0.10, 0.10, 2.0), mats["steel_frame"])
     cube(stage, f"{path}/Crossbar", (x, y, z + 2.08), (0.10, 2.9, 0.10), mats["steel_frame"])
-    # Colored badge hanging center of crossbar
-    cube(stage, f"{path}/Badge", (x, y, z + 1.78), (0.30, 0.30, 0.30), mats[bar_mat_key],
-         name=f"{operation} badge",
-         entity_id=f"operation.{step_no:02d}.{operation}.badge",
-         entity_type="operation_badge", stage_name=operation)
-
-    # Visible per-step plate. Output tags are generated separately so the
-    # scene distinguishes process steps from the six common result tables.
-    cube(stage, f"{path}/StepPlate",
-         (x, y + 1.62, z + 0.08), (0.70, 0.24, 0.045), mats[bar_mat_key],
-         name=f"Step {step_no} plate",
-         entity_id=f"operation.{step_no:02d}.{operation}.step_plate",
-         entity_type="operation_step_plate", stage_name=operation)
-    render_text(stage, f"{path}/StepPlateLabel", f"S{step_no}",
-                (x, y + 1.62, z + 0.115), mats,
-                pixel=0.018, height_z=0.004, color_key="black_panel")
-
-    # code_label 텍스트 — PillarL 앞 바닥면에 작게 배치
-    render_text(stage, f"{path}/Label", code_label,
+    # Section label only: no colored top badge/plate. Live movement can place a
+    # package in STEP 1/2/3 while the gate itself stays visually quiet.
+    render_text(stage, f"{path}/Label", f"STEP {step_no}",
                 (x, y - 1.60, z + 0.02), mats,
-                pixel=0.032, height_z=0.02, color_key="black_panel")
+                pixel=0.034, height_z=0.010, color_key="black_panel")
 
     return gate
 
@@ -1728,7 +1713,8 @@ def main():
     # and run all the way through the pipeline stations to Lakehouse west.
 
     # ===== Zone 3: Accumulation Zone =====
-    # 3 conceptual processing gates, followed by 6 concrete output tags.
+    # 3 conceptual processing sections. Concrete outputs are represented by the
+    # Lakehouse table/metadata crates, not extra Accumulation tags.
     # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
     station_x = [7.2, 11.8, 15.8]
     UsdGeom.Scope.Define(stage, "/World/Pipeline")
@@ -1766,34 +1752,6 @@ def main():
             (gx, 0.0, 0.0), mats, step_no=step_no, code_label=code_label, operation=operation,
             output_kind=output_kind, output_entity=output_entity, bar_mat_key=mat_key,
         )
-
-    # Six common outputs materialized for every dataset after accumulation.
-    # These are visual tags only; the Lakehouse Zone still renders concrete
-    # data/metadata table crates from the actual catalog inventory.
-    output_tag_specs = [
-        ("AUDIT",    "trident_ingest_audit",     "audit",   "quality_bar"),
-        ("REGISTRY", "trident_asset_registry",   "asset",   "metal_bronze"),
-        ("TABLES",   "trident_catalog_tables",   "catalog", "quality_bar"),
-        ("COLUMNS",  "trident_catalog_columns",  "catalog", "schema_bar"),
-        ("LINKS",    "trident_asset_links",      "asset",   "policy_tag"),
-        ("MANIFEST", "trident_dataset_manifest", "catalog", "semantic_tag"),
-    ]
-    UsdGeom.Scope.Define(stage, "/World/DataReadiness/ProcessFlow/OutputTags")
-    for i, (tag_label, table_name, output_kind, mat_key) in enumerate(output_tag_specs):
-        col = i % 3
-        row = i // 3
-        tx = 17.05 + col * 0.92
-        ty = -2.25 if row == 0 else 2.25
-        tag = cube(stage, f"/World/DataReadiness/ProcessFlow/OutputTags/OutputTag_{i + 1:02d}_{tag_label}",
-                   (tx, ty, 0.10), (0.78, 0.28, 0.055), mats[mat_key],
-                   name=f"{table_name} output tag",
-                   entity_id=f"accumulation.output.{table_name}",
-                   entity_type="accumulation_output_tag", stage_name="accumulation_output")
-        set_trident_attrs(tag, output_kind=output_kind, output_table=table_name,
-                          zone="zone.refinement_pipeline")
-        render_text(stage, f"/World/DataReadiness/ProcessFlow/OutputTags/OutputTagLabel_{i + 1:02d}",
-                    tag_label, (tx, ty, 0.145), mats,
-                    pixel=0.0095, height_z=0.004, color_key="black_panel")
 
     # Metadata station anchors (tiny floor anchors for live binding compat)
     cube(stage, "/World/Metadata/ExplainingStation",
@@ -2041,8 +1999,8 @@ def main():
             # Put the label directly on the crate top so it reads attached, not floating.
             label_color = "black_panel" if role == "metadata" else "white_panel"
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 + 0.018), mats,
-                        pixel=0.0056, height_z=0.0025, color_key=label_color)
+                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 - 0.0003), mats,
+                        pixel=0.0056, height_z=0.0012, color_key=label_color)
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Empty showcase tables for future frequently used datasets. No static boxes are
     # placed here yet; live/curated bundles can be added later.

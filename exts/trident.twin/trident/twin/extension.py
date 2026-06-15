@@ -4,7 +4,7 @@ Polls twin-hub /api/twin/entities using Kit's update loop (no threading).
 
 동작:
   - ingest 중인 namespace마다 컨베이어 벨트 위에 상자 prim 생성
-  - 각 게이트(INGEST/STRUCT/INDEX/EMBED/AUDIT) 완료 시 해당 뱃지를 상자에 attach
+  - 3개 축적 단계(STEP 1/2/3) 진행에 맞춰 상자 위치/뱃지를 갱신
   - 상자는 완료된 마지막 게이트 다음 위치로 이동
   - AUDIT 완료 시 Lakehouse 방향으로 이동 후 제거
 
@@ -35,14 +35,12 @@ DEFAULT_COMMAND_INTERVAL = 1.0
 DEFAULT_SCENE_CAMERA = "/World/Cameras/Overview_Top45"
 
 # 게이트 순서: (step_no, operation_id, 뱃지 색 RGB, 컨베이어 X 위치)
+# The visual Accumulation Zone is intentionally three conceptual sections:
+# STEP 1 ingest/profile, STEP 2 catalog/link, STEP 3 ready/manifest.
 GATES = [
-    (1, "object_schema_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  6.6),
-    (2, "cardinality_materialize",Gf.Vec3f(0.40, 0.65, 0.95),  8.4),
-    (3, "catalog_tables_columns", Gf.Vec3f(0.20, 0.80, 0.35), 10.2),
-    (4, "asset_link_audit",      Gf.Vec3f(0.95, 0.75, 0.05), 12.0),
-    (5, "redis_component_graph", Gf.Vec3f(0.35, 0.85, 0.85), 13.8),
-    (6, "milvus_semantic_index", Gf.Vec3f(0.75, 0.30, 0.90), 15.6),
-    (7, "dataset_ready_status",  Gf.Vec3f(0.15, 0.90, 0.45), 17.4),
+    (1, "ingest_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  7.2),
+    (2, "catalog_link",    Gf.Vec3f(0.20, 0.80, 0.35), 11.8),
+    (3, "ready_manifest",  Gf.Vec3f(0.15, 0.90, 0.45), 15.8),
 ]
 
 BELT_Y      =  -0.7    # main belt Y center
@@ -205,6 +203,13 @@ def _set_viewport_camera(camera_path: str) -> None:
 
         viewport = get_active_viewport()
         if viewport:
+            # Re-clicking the same Portal camera should reset the viewport back
+            # to the authored camera, not preserve a manually orbited view.
+            if str(getattr(viewport, "camera_path", "") or "") == camera_path:
+                try:
+                    viewport.camera_path = "/OmniverseKit_Persp"
+                except Exception:
+                    pass
             viewport.camera_path = camera_path
             carb.log_info(f"[trident.twin] camera switched: {camera_path}")
             return
@@ -424,11 +429,11 @@ def _extract_gate_statuses(entities: list[dict]) -> dict[int, str]:
 _EVENT_GATE: dict[str, int] = {
     "analyze_started": 1,
     "struct_started":  2,
-    "struct_done":     4,
-    "index_started":   5,
-    "index_done":      6,
-    "audit_started":   7,
-    "audit_done":      7,
+    "struct_done":     2,
+    "index_started":   3,
+    "index_done":      3,
+    "audit_started":   3,
+    "audit_done":      3,
 }
 
 def _extract_active_namespaces(entities: list[dict]) -> dict[str, str]:

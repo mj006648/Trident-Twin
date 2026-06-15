@@ -598,6 +598,9 @@ if FastAPI is not None:
             "camera_id": camera_id or (preset or {}).get("id"),
             "camera_path": camera_path,
             "label": payload.get("label") or (preset or {}).get("label") or camera_path,
+            "force": bool(payload.get("force", True)),
+            "command_id": payload.get("command_id"),
+            "issued_at": payload.get("issued_at"),
         })
         return {"ok": True, "command": command}
 
