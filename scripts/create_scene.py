@@ -1650,7 +1650,23 @@ def main():
         y_lo = y_row  # 이름 텍스트 영역 시작
         y_box_start = y_lo + LABEL_H  # 박스 시작 Y
 
-        raw_slot_centers[ns] = (x_lo + ZONE_W / 2, y_box_start + ZONE_D / 2)
+        slot_cx = x_lo + ZONE_W / 2
+        slot_cy = y_lo + ZONE_TOTAL_D / 2
+        raw_slot_centers[ns] = (slot_cx, y_box_start + ZONE_D / 2)
+
+        # Raw Bucket도 Lakehouse와 동일한 slot base/divider 형태로 보여준다.
+        cube(stage, f"/World/DataReadiness/RawObjects/{safe_ns}/SlotBase",
+             (slot_cx, slot_cy, 0.12), (ZONE_W, ZONE_TOTAL_D, 0.055), mats["lakehouse_slot_base"],
+             name=f"{ns} raw bucket slot", entity_id=f"raw.slot.{ns}",
+             entity_type="raw_dataset_slot", stage_name="raw_bucket")
+        cube(stage, f"/World/DataReadiness/RawObjects/{safe_ns}/DividerS",
+             (slot_cx, slot_cy - ZONE_TOTAL_D / 2, 0.20), (ZONE_W, 0.030, 0.10), mats["steel_frame"])
+        cube(stage, f"/World/DataReadiness/RawObjects/{safe_ns}/DividerN",
+             (slot_cx, slot_cy + ZONE_TOTAL_D / 2, 0.20), (ZONE_W, 0.030, 0.10), mats["steel_frame"])
+        cube(stage, f"/World/DataReadiness/RawObjects/{safe_ns}/DividerW",
+             (slot_cx - ZONE_W / 2, slot_cy, 0.20), (0.030, ZONE_TOTAL_D, 0.10), mats["steel_frame"])
+        cube(stage, f"/World/DataReadiness/RawObjects/{safe_ns}/DividerE",
+             (slot_cx + ZONE_W / 2, slot_cy, 0.20), (0.030, ZONE_TOTAL_D, 0.10), mats["steel_frame"])
 
         # 구역 X 구분선 (첫 구역 제외): 바닥 위 얇은 판
         if x_cur > X_START:
@@ -1982,17 +1998,6 @@ def main():
         render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
                     ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.28),
                     mats, pixel=0.0060, height_z=0.010, color_key="black_panel")
-        # A low tabletop supports the per-table crates. The tabletop footprint stays
-        # inside the Raw Bucket-sized namespace slot.
-        table_top_z = 0.38
-        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableTop",
-             (gx, gy_boxes, table_top_z), (slot_w * 0.90, ZONE_D * 0.66, 0.08), mats["table_top"])
-        for lx, ly, lname in [
-            (-1, -1, "SW"), (-1, +1, "NW"), (+1, -1, "SE"), (+1, +1, "NE"),
-        ]:
-            cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/Leg_{lname}",
-                 (gx + lx * slot_w * 0.36, gy_boxes + ly * ZONE_D * 0.24, 0.20),
-                 (0.05, 0.05, 0.34), mats["table_leg"])
         cols = COLS
         slots_per_layer = COLS * ROWS
         box_scale = (0.26, 0.20, 0.16)
@@ -2006,7 +2011,15 @@ def main():
             role = _table_role(comp)
             tx = zone_x0 + col * CELL + CELL / 2
             ty = zone_y0 + row * CELL + CELL / 2
-            tz = 0.54 + layer * 0.23
+            tabletop_z = 0.37 + layer * 0.23
+            tz = tabletop_z + 0.13
+            support_root = f"/World/Lakehouse/Tables/{safe_ns}/TableSupport_{idx:02d}"
+            cube(stage, f"{support_root}/Top",
+                 (tx, ty, tabletop_z), (0.36, 0.30, 0.045), mats["table_top"])
+            for lx, ly, lname in [(-1, -1, "SW"), (-1, +1, "NW"), (+1, -1, "SE"), (+1, +1, "NE")]:
+                cube(stage, f"{support_root}/Leg_{lname}",
+                     (tx + lx * 0.14, ty + ly * 0.11, tabletop_z / 2),
+                     (0.030, 0.030, tabletop_z), mats["table_leg"])
             make_readiness_table_crate(
                 stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, tz),
                 box_scale, mats, entity_id=eid, namespace=_ns,
@@ -2015,9 +2028,10 @@ def main():
                 location=location, policy=policy, freshness=freshness, workload_fit=fit,
                 table_role=role,
             )
+            # Put the label almost on the crate top so it reads attached, not floating.
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, tz + 0.115), mats,
-                        pixel=0.0042, height_z=0.006, color_key="black_panel")
+                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 + 0.004), mats,
+                        pixel=0.0036, height_z=0.003, color_key="black_panel")
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Empty showcase tables for future frequently used datasets. No static boxes are
     # placed here yet; live/curated bundles can be added later.
@@ -2042,12 +2056,6 @@ def main():
             cube(stage, f"{rp}/Leg_{lname}",
                  (table_cx + lx * (table_w / 2 - 0.25), scy + ly * (table_d / 2 - 0.15), leg_h / 2),
                  (0.10, 0.10, leg_h), mats["table_leg"])
-        cube(stage, f"{rp}/BackRail",
-             (table_cx, scy + table_d / 2 - 0.05, table_top_z + 0.12),
-             (table_w * 0.96, 0.08, 0.14), mats["metal_gold"])
-        render_text(stage, f"{rp}/Label",
-                    "FREQUENT DATASETS", (table_cx, scy - table_d / 2 + 0.10, table_top_z + 0.08),
-                    mats, pixel=0.022, height_z=0.010, color_key="black_panel")
 
     # Keep the ReadyBundles scope as a semantic target, but leave it empty until
     # real frequently-used dataset selections are available.
@@ -2132,25 +2140,26 @@ def main():
     # Live packages appear only after Send to Delivery.
     big_t_west = big_table_cx - big_table_w / 2
     lakehouse_east = lh_cx + lh_sx / 2
-    search_south_y = 2.2  # below Search Zone pad (y min ~= 3)
-    search_north_y = 18.2 # above Search Zone pad (y max ~= 17)
-    detour_x = big_t_west + 0.25
+    search_south_y = 0.9   # farther below Search Zone pad (y min ~= 3)
+    search_north_y = 19.6  # farther above Search Zone pad (y max ~= 17)
+    table_entry_y = big_table_cy
+    detour_x = big_t_west - 0.35
     build_conveyor(stage, "/World/DeliveryYard/InBelt_Lakehouse",
                    x_start=lakehouse_east + 0.2, x_end=detour_x, y_center=search_south_y,
-                   z_top=0.7, width=0.72, mats=mats,
+                   z_top=0.7, width=0.62, mats=mats,
                    frame_mat_key="metal_silver")
     build_conveyor_Y(stage, "/World/DeliveryYard/InBelt_Lakehouse_ToTable",
-                     y_start=search_south_y, y_end=6.4, x_center=detour_x,
-                     z_top=0.7, width=0.72, mats=mats,
+                     y_start=search_south_y, y_end=table_entry_y, x_center=detour_x,
+                     z_top=0.7, width=0.62, mats=mats,
                      frame_mat_key="metal_silver")
     build_conveyor(stage, "/World/DeliveryYard/InBelt_Staging",
                    x_start=lakehouse_east + 0.2, x_end=detour_x, y_center=search_north_y,
-                   z_top=0.7, width=0.72, mats=mats,
+                   z_top=0.7, width=0.62, mats=mats,
                    frame_mat_key="metal_gold",
                    belt_mat_key="conveyor_belt_express")
     build_conveyor_Y(stage, "/World/DeliveryYard/InBelt_Staging_ToTable",
-                     y_start=13.6, y_end=search_north_y, x_center=detour_x,
-                     z_top=0.7, width=0.72, mats=mats,
+                     y_start=table_entry_y, y_end=search_north_y, x_center=detour_x,
+                     z_top=0.7, width=0.62, mats=mats,
                      frame_mat_key="metal_gold",
                      belt_mat_key="conveyor_belt_express")
 
@@ -2202,8 +2211,8 @@ def main():
     top_cams = [
         ("Top_Overview",      ( 15,  +7, 95), 14),
         ("Top_Ingest",        (-22,   0, 22), 22),
-        ("Top_RawBucket",     ( -4,  -1, 13), 45),
-        ("zone_02_raw_bucket",( -4,  -1, 13), 45),
+        ("Top_RawBucket",     ( -4,   8, 20), 32),
+        ("zone_02_raw_bucket",( -4,   8, 20), 32),
         ("Top_Accumulation",  (+12,   0, 18), 24),
         ("Top_Lakehouse",     (+29,  -1, 13), 45),
         ("zone_04_lakehouse", (+29,  -1, 13), 45),
