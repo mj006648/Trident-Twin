@@ -81,6 +81,7 @@ _box_state: dict[str, dict[str, Any]] = {}
 _completed_ingest_ns: set[str] = set()
 _highlight_state: dict[str, dict[str, Any]] = {}
 _delivery_state: list[dict[str, Any]] = []
+_package_locations: dict[str, dict[str, Any]] = {}
 _delivery_seq = 0
 
 
@@ -461,11 +462,49 @@ def _create_highlight_plate(stage, entity_id: str, target_xyz: tuple[float, floa
     return path
 
 
-def _highlight_entity(stage, entity_id: str) -> bool:
+def _restore_highlight_state(stage, entity_id: str) -> None:
+    state = _highlight_state.pop(entity_id, None)
+    if not state or stage is None:
+        return
+    for entry in state.get("entries", []):
+        prim = stage.GetPrimAtPath(entry.get("path", ""))
+        if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
+            _restore_display_color(prim, entry.get("original"))
+    for path in state.get("remove_paths", []):
+        prim = stage.GetPrimAtPath(path)
+        if prim.IsValid():
+            stage.RemovePrim(prim.GetPath())
+
+
+def _clear_highlight_entity(stage, entity_id: str) -> None:
+    if entity_id:
+        _restore_highlight_state(stage, entity_id)
+
+
+def _clear_workload(stage) -> None:
+    if stage is None:
+        return
+    for entity_id in list(_highlight_state.keys()):
+        _restore_highlight_state(stage, entity_id)
+    for root_path in ("/World/LiveDelivery", "/World/LiveHighlights"):
+        prim = stage.GetPrimAtPath(root_path)
+        if prim.IsValid():
+            stage.RemovePrim(prim.GetPath())
+    _delivery_state.clear()
+    _package_locations.clear()
+    carb.log_info("[trident.twin] workload visual state cleared")
+
+
+def _highlight_entity(stage, entity_id: str, *, sticky: bool = True) -> bool:
     prim = _find_prim_by_entity_id(stage, entity_id)
     if prim is None:
         carb.log_warn(f"[trident.twin] highlight target not found: {entity_id}")
         return False
+
+    # Re-highlighting while the item is blinking would otherwise save the
+    # temporary blink color as the "original" role color. Restore first, then
+    # rebuild the stronger whole-cell highlight.
+    _restore_highlight_state(stage, entity_id)
 
     parent = prim.GetParent() if prim.GetParent().IsValid() else prim
     target_xyz = _prim_translate(prim)
@@ -495,6 +534,7 @@ def _highlight_entity(stage, entity_id: str) -> bool:
         "remove_paths": [plate_path],
         "elapsed": 0.0,
         "duration": 10.0,
+        "sticky": sticky,
     }
     carb.log_info(f"[trident.twin] highlighted dataset/table: {entity_id} paths={len(entries)}")
     return True
@@ -512,16 +552,10 @@ def _animate_highlights(stage, dt: float) -> None:
             prim = stage.GetPrimAtPath(entry.get("path", ""))
             if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
                 _set_display_color(prim, color)
+        if state.get("sticky"):
+            continue
         if elapsed >= float(state.get("duration", 10.0)):
-            for entry in state.get("entries", []):
-                prim = stage.GetPrimAtPath(entry.get("path", ""))
-                if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
-                    _restore_display_color(prim, entry.get("original"))
-            for path in state.get("remove_paths", []):
-                prim = stage.GetPrimAtPath(path)
-                if prim.IsValid():
-                    stage.RemovePrim(prim.GetPath())
-            del _highlight_state[entity_id]
+            _restore_highlight_state(stage, entity_id)
 
 
 def _delivery_lane(workload_type: str) -> float:
@@ -547,40 +581,131 @@ def _interpolate(points: list[tuple[float, float, float]], t: float) -> tuple[fl
     return tuple(a[i] + (b[i] - a[i]) * local for i in range(3))  # type: ignore[return-value]
 
 
-def _start_delivery(stage, command: dict[str, Any]) -> None:
+def _command_items(command: dict[str, Any]) -> list[dict[str, Any]]:
+    raw_items = command.get("items")
+    if isinstance(raw_items, list) and raw_items:
+        return [item for item in raw_items if isinstance(item, dict) and str(item.get("entity_id") or "").strip()]
+    entity_id = str(command.get("entity_id") or "").strip()
+    if not entity_id:
+        return []
+    return [{
+        "entity_id": entity_id,
+        "label": command.get("label") or entity_id,
+        "table": command.get("table"),
+    }]
+
+
+def _big_table_y(index: int, total: int) -> float:
+    if total <= 1:
+        return 10.0
+    low, high = 6.7, 13.3
+    return low + (high - low) * (index / max(1, total - 1))
+
+
+def _package_color(destination: str, workload_type: str) -> Gf.Vec3f:
+    if destination == "ai_bus" or workload_type.upper() == "AI":
+        return Gf.Vec3f(0.10, 0.55, 1.00)
+    if workload_type.upper() == "HPC":
+        return Gf.Vec3f(0.25, 0.85, 0.35)
+    return Gf.Vec3f(0.62, 0.40, 0.95)
+
+
+def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, float], *, destination: str, workload_type: str) -> str:
     global _delivery_seq
-    if stage is None:
-        return
-    entity_id = str(command.get("entity_id") or "")
-    prim = _find_prim_by_entity_id(stage, entity_id)
-    sx, sy, sz = _prim_translate(prim, (29.0, 2.0, 0.9))
-    lane_y = _delivery_lane(str(command.get("workload_type") or "HPDA"))
+    existing = _package_locations.get(entity_id)
+    if destination == "ai_bus" and existing:
+        path = str(existing.get("path") or "")
+        prim = stage.GetPrimAtPath(path)
+        if prim.IsValid():
+            return path
+    if existing:
+        old = stage.GetPrimAtPath(str(existing.get("path") or ""))
+        if old.IsValid():
+            stage.RemovePrim(old.GetPath())
     _delivery_seq += 1
-    root_path = f"/World/LiveDelivery/Package_{_delivery_seq:03d}"
+    root_path = f"/World/LiveDelivery/Package_{_delivery_seq:03d}_{_safe_token(entity_id)[:48]}"
     _ensure_scope(stage, "/World/LiveDelivery")
     xform = UsdGeom.Xform.Define(stage, root_path)
-    xform.AddTranslateOp().Set(Gf.Vec3d(sx, sy, max(sz + 0.35, 1.0)))
+    xform.AddTranslateOp().Set(Gf.Vec3d(*start))
     xform.AddScaleOp().Set(Gf.Vec3f(0.42, 0.32, 0.32))
     body = UsdGeom.Cube.Define(stage, f"{root_path}/Body")
-    _set_display_color(body.GetPrim(), Gf.Vec3f(0.62, 0.40, 0.95))
+    _set_display_color(body.GetPrim(), _package_color(destination, workload_type))
     xform.GetPrim().CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set(f"delivery.{_delivery_seq:03d}.{entity_id}")
     xform.GetPrim().CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("live_delivery_package")
-    start_z = max(sz + 0.35, 1.0)
-    # Follow the visible incoming rails around Search Zone instead of cutting through it.
-    # Lakehouse tables use the south detour; Staging-ready bundles use the north detour.
+    xform.GetPrim().CreateAttribute("trident:source_entity_id", Sdf.ValueTypeNames.String).Set(entity_id)
+    return root_path
+
+
+def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workload_type: str, index: int, total: int) -> None:
+    entity_id = str(item.get("entity_id") or "").strip()
+    if not entity_id:
+        return
+    prim = _find_prim_by_entity_id(stage, entity_id)
+    sx, sy, sz = _prim_translate(prim, (29.0, 2.0, 0.9))
+    existing = _package_locations.get(entity_id)
+    if destination == "ai_bus" and existing and existing.get("pos"):
+        sx, sy, sz = existing["pos"]
+    start_z = max(float(sz) + 0.35, 1.0) if destination != "ai_bus" else max(float(sz), 1.05)
+    start = (float(sx), float(sy), start_z)
+    root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type)
+
     route_y = 19.6 if sy >= 13.0 else 0.9
     detour_x = 52.0
-    table_entry_y = 10.0
-    points = [
-        (sx, sy, start_z),
-        (sx, route_y, 1.05),
-        (detour_x, route_y, 1.05),
-        (detour_x, table_entry_y, 1.05),
-        (61.5, lane_y, 1.05),
-    ]
-    _delivery_state.append({"path": root_path, "points": points, "elapsed": 0.0, "duration": 8.0})
+    if destination in {"big_table", "selection_table", "table"}:
+        end_y = _big_table_y(index, total)
+        points = [
+            start,
+            (float(sx), route_y, 1.05),
+            (detour_x, route_y, 1.05),
+            (detour_x, end_y, 1.18),
+        ]
+        remove_on_finish = False
+        final_stage = "big_table"
+    elif destination == "ai_bus":
+        lane_y = _delivery_lane("AI")
+        points = [
+            start,
+            (54.0, float(sy), 1.18),
+            (54.0, lane_y, 1.18),
+            (61.5, lane_y, 1.05),
+        ]
+        remove_on_finish = False
+        final_stage = "ai_bus"
+    else:
+        lane_y = _delivery_lane(workload_type)
+        points = [
+            start,
+            (float(sx), route_y, 1.05),
+            (detour_x, route_y, 1.05),
+            (detour_x, 10.0, 1.05),
+            (61.5, lane_y, 1.05),
+        ]
+        remove_on_finish = True
+        final_stage = "delivery"
+
+    _delivery_state.append({
+        "path": root_path,
+        "entity_id": entity_id,
+        "points": points,
+        "elapsed": 0.0,
+        "duration": 7.0 if destination == "ai_bus" else 8.0,
+        "remove_on_finish": remove_on_finish,
+        "final_stage": final_stage,
+    })
     _highlight_entity(stage, entity_id)
-    carb.log_info(f"[trident.twin] delivery started: {entity_id} -> {command.get('workload_type') or 'HPDA'}")
+    carb.log_info(f"[trident.twin] package move started: {entity_id} -> {destination}/{workload_type}")
+
+
+def _start_delivery(stage, command: dict[str, Any]) -> None:
+    if stage is None:
+        return
+    items = _command_items(command)
+    if not items:
+        return
+    destination = str(command.get("destination") or "delivery").strip().lower()
+    workload_type = str(command.get("workload_type") or "HPDA").strip().upper()
+    for idx, item in enumerate(items):
+        _start_delivery_item(stage, item, destination=destination, workload_type=workload_type, index=idx, total=len(items))
 
 
 def _animate_deliveries(stage, dt: float) -> None:
@@ -595,6 +720,17 @@ def _animate_deliveries(stage, dt: float) -> None:
         if prim.IsValid():
             _set_translate(prim, pos[0], pos[1], pos[2])
         if t >= 1.0:
+            entity_id = str(state.get("entity_id") or "")
+            if state.get("remove_on_finish"):
+                if prim.IsValid():
+                    stage.RemovePrim(prim.GetPath())
+                _package_locations.pop(entity_id, None)
+            else:
+                _package_locations[entity_id] = {
+                    "path": state.get("path"),
+                    "pos": pos,
+                    "stage": state.get("final_stage"),
+                }
             _delivery_state.remove(state)
 
 
@@ -603,9 +739,13 @@ def _apply_command(stage, command: dict[str, Any]) -> None:
     if kind == "camera":
         _set_viewport_camera(str(command.get("camera_path") or ""), stage)
     elif kind == "highlight":
-        _highlight_entity(stage, str(command.get("entity_id") or ""))
+        _highlight_entity(stage, str(command.get("entity_id") or ""), sticky=bool(command.get("sticky", True)))
+    elif kind == "highlight_clear":
+        _clear_highlight_entity(stage, str(command.get("entity_id") or ""))
     elif kind == "delivery":
         _start_delivery(stage, command)
+    elif kind == "workload_stop":
+        _clear_workload(stage)
     elif kind == "viewer_state":
         _replace_active_viewer(stage, command)
 

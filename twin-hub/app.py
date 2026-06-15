@@ -609,25 +609,65 @@ if FastAPI is not None:
         entity_id = str(payload.get("entity_id") or "")
         if not entity_id:
             raise HTTPException(status_code=400, detail="entity_id is required")
+        if payload.get("active") is False or payload.get("clear") is True:
+            command = _append_command("highlight_clear", {
+                "entity_id": entity_id,
+                "label": payload.get("label"),
+                "query": payload.get("query"),
+                "table": payload.get("table"),
+            })
+            return {"ok": True, "command": command}
         command = _append_command("highlight", {
             "entity_id": entity_id,
             "label": payload.get("label"),
             "query": payload.get("query"),
             "table": payload.get("table"),
+            "sticky": bool(payload.get("sticky", True)),
         })
         return {"ok": True, "command": command}
 
     @app.post("/api/twin/delivery")
     def api_twin_delivery(payload: dict[str, Any]):
-        entity_id = str(payload.get("entity_id") or "")
-        if not entity_id:
-            raise HTTPException(status_code=400, detail="entity_id is required")
+        items = payload.get("items")
+        if isinstance(items, list):
+            normalized_items = [
+                {
+                    "entity_id": str(item.get("entity_id") or ""),
+                    "label": item.get("label"),
+                    "table": item.get("table"),
+                    "dataset": item.get("dataset"),
+                }
+                for item in items
+                if isinstance(item, dict) and str(item.get("entity_id") or "").strip()
+            ]
+        else:
+            entity_id = str(payload.get("entity_id") or "")
+            normalized_items = [{
+                "entity_id": entity_id,
+                "label": payload.get("label") or entity_id,
+                "table": payload.get("table"),
+                "dataset": payload.get("dataset"),
+            }] if entity_id else []
+        if not normalized_items:
+            raise HTTPException(status_code=400, detail="entity_id or items[] is required")
         command = _append_command("delivery", {
-            "entity_id": entity_id,
-            "label": payload.get("label") or entity_id,
+            "entity_id": normalized_items[0]["entity_id"],
+            "items": normalized_items,
+            "label": payload.get("label") or normalized_items[0].get("label") or normalized_items[0]["entity_id"],
             "query": payload.get("query"),
             "table": payload.get("table"),
+            "destination": payload.get("destination") or "delivery",
+            "selection_id": payload.get("selection_id"),
             "workload_type": payload.get("workload_type") or "HPDA",
+        })
+        return {"ok": True, "command": command}
+
+    @app.post("/api/twin/workload/stop")
+    def api_twin_workload_stop(payload: dict[str, Any] | None = None):
+        payload = payload or {}
+        command = _append_command("workload_stop", {
+            "selection_id": payload.get("selection_id"),
+            "reason": payload.get("reason") or "portal_stop",
         })
         return {"ok": True, "command": command}
 
