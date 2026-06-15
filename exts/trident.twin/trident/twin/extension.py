@@ -365,7 +365,7 @@ def _start_delivery(stage, command: dict[str, Any]) -> None:
     # Follow the visible incoming rails around Search Zone instead of cutting through it.
     # Lakehouse tables use the south detour; Staging-ready bundles use the north detour.
     route_y = 19.6 if sy >= 13.0 else 0.9
-    detour_x = 49.65
+    detour_x = 52.0
     table_entry_y = 10.0
     points = [
         (sx, sy, start_z),

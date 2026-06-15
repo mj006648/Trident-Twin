@@ -1674,42 +1674,14 @@ def main():
                  (x_lo - ZONE_GAP_X / 2, y_lo + ZONE_TOTAL_D / 2, 0.15),
                  (0.03, ZONE_TOTAL_D, 0.25), mats["steel_frame"])
 
-        # 구역 이름: ZONE_W 안에 맞게 pixel 자동 계산
-        # render_text 글자폭 = 5*pixel, 공백 = 3*pixel, gap = pixel
-        # 최대 한 줄 폭 = ZONE_W - 0.06 (여백)
-        label_full = _NS_LABEL.get(ns, ns.upper())
-        # 단어를 절반씩 2줄로 분리 (3단어면 2/1, 4단어면 2/2 등)
-        words = label_full.split()
-        split = max(1, len(words) // 2 + len(words) % 2)
-        line1 = " ".join(words[:split])
-        line2 = " ".join(words[split:]) if len(words) > split else ""
-
-        # render_text total_w 공식: 각 글자 5px + gap(1px), 공백 3px + gap(1px)
-        # total_w = sum(5+1 per char, 3+1 per space) - 1 (마지막 gap 없음)
-        def _pixel_for(text: str, max_w: float) -> float:
-            chars = list(text)
-            slots = sum(6 if c != " " else 4 for c in chars) - 1
-            return (max_w - 0.10) / max(slots, 1)
-
-        longer = line1 if len(line1) >= len(line2) else line2
-        px = min(0.026, _pixel_for(longer, ZONE_W))
-
-        lx = x_lo + ZONE_W / 2   # 구역 X 중앙 (render_text가 중앙 정렬)
-        # 위에서부터: Y 큰 쪽(구역 뒤)에서 시작해 아래로 내림
-        ly1 = y_lo + LABEL_H - px * 9
-        ly2 = ly1 - px * 9
-
+        # Raw Bucket labels use the same small, flat slot-header style as
+        # Lakehouse so both zones read as mirrored dataset cells.
+        label_full = _NS_LABEL.get(ns, ns.upper()).replace("_", " ")
         render_text(stage,
-                    f"/World/DataReadiness/RawObjects/{safe_ns}/Label1",
-                    line1, (lx, ly1, 0.025),
-                    mats, pixel=px, height_z=0.018,
+                    f"/World/DataReadiness/RawObjects/{safe_ns}/Label",
+                    label_full, (slot_cx, slot_cy - ZONE_TOTAL_D / 2 + 0.16, 0.150),
+                    mats, pixel=0.0052, height_z=0.0012,
                     color_key="black_panel")
-        if line2:
-            render_text(stage,
-                        f"/World/DataReadiness/RawObjects/{safe_ns}/Label2",
-                        line2, (lx, ly2, 0.025),
-                        mats, pixel=px, height_z=0.018,
-                        color_key="black_panel")
 
         # 박스 3D 배치: col(X) × row(Y) × layer(Z)
         slots = COLS * ROWS
@@ -1996,8 +1968,8 @@ def main():
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerE",
              (gx + slot_w / 2, gy_slot, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
         render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
-                    ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.28),
-                    mats, pixel=0.0060, height_z=0.010, color_key="black_panel")
+                    ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.222),
+                    mats, pixel=0.0052, height_z=0.0012, color_key="black_panel")
         cols = COLS
         slots_per_layer = COLS * ROWS
         box_scale = (0.26, 0.20, 0.16)
@@ -2028,10 +2000,11 @@ def main():
                 location=location, policy=policy, freshness=freshness, workload_fit=fit,
                 table_role=role,
             )
-            # Put the label almost on the crate top so it reads attached, not floating.
+            # Put the label directly on the crate top so it reads attached, not floating.
+            label_color = "black_panel" if role == "metadata" else "white_panel"
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 + 0.004), mats,
-                        pixel=0.0036, height_z=0.003, color_key="black_panel")
+                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 + 0.0008), mats,
+                        pixel=0.0048, height_z=0.0012, color_key=label_color)
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Empty showcase tables for future frequently used datasets. No static boxes are
     # placed here yet; live/curated bundles can be added later.
@@ -2138,12 +2111,11 @@ def main():
 
     # Incoming rails: Lakehouse and Staging feed the consolidation table, but no static boxes.
     # Live packages appear only after Send to Delivery.
-    big_t_west = big_table_cx - big_table_w / 2
     lakehouse_east = lh_cx + lh_sx / 2
     search_south_y = 0.9   # farther below Search Zone pad (y min ~= 3)
     search_north_y = 19.6  # farther above Search Zone pad (y max ~= 17)
     table_entry_y = big_table_cy
-    detour_x = big_t_west - 0.35
+    detour_x = big_table_cx
     build_conveyor(stage, "/World/DeliveryYard/InBelt_Lakehouse",
                    x_start=lakehouse_east + 0.2, x_end=detour_x, y_center=search_south_y,
                    z_top=0.7, width=0.62, mats=mats,
@@ -2211,13 +2183,13 @@ def main():
     top_cams = [
         ("Top_Overview",      ( 15,  +7, 95), 14),
         ("Top_Ingest",        (-22,   0, 22), 22),
-        ("Top_RawBucket",     ( -4,   8, 20), 32),
-        ("zone_02_raw_bucket",( -4,   8, 20), 32),
+        ("Top_RawBucket",     ( -4,  11, 32), 22),
+        ("zone_02_raw_bucket",( -4,  11, 32), 22),
         ("Top_Accumulation",  (+12,   0, 18), 24),
-        ("Top_Lakehouse",     (+29,  -1, 13), 45),
-        ("zone_04_lakehouse", (+29,  -1, 13), 45),
-        ("Top_Staging",       (+29, +21, 22), 28),
-        ("zone_04_staging",   (+29, +21, 22), 28),
+        ("Top_Lakehouse",     (+29,  -1, 30), 24),
+        ("zone_04_lakehouse", (+29,  -1, 30), 24),
+        ("Top_Staging",       (+29, +21, 34), 22),
+        ("zone_04_staging",   (+29, +21, 34), 22),
         ("Top_Search",        (+44, +10, 18), 26),
         ("Top_Delivery",      (+59, +10, 22), 26),
         ("Top_Tower",         (-22, +25, 22), 22),
