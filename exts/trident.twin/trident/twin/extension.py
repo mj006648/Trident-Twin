@@ -82,6 +82,7 @@ _completed_ingest_ns: set[str] = set()
 _highlight_state: dict[str, dict[str, Any]] = {}
 _delivery_state: list[dict[str, Any]] = []
 _package_locations: dict[str, dict[str, Any]] = {}
+_staging_state: dict[str, dict[str, Any]] = {}
 _delivery_seq = 0
 
 
@@ -491,7 +492,12 @@ def _clear_workload(stage) -> None:
         if prim.IsValid():
             stage.RemovePrim(prim.GetPath())
     _delivery_state.clear()
+    staging_locations = {
+        entity_id: state for entity_id, state in _package_locations.items()
+        if str(state.get("path") or "").startswith("/World/LiveStaging/")
+    }
     _package_locations.clear()
+    _package_locations.update(staging_locations)
     carb.log_info("[trident.twin] workload visual state cleared")
 
 
@@ -662,16 +668,118 @@ def _make_table_crate_package(stage, root_path: str, *, entity_id: str, role: st
         )
 
 
+
+STAGING_TABLE_YS = (16.0, 20.0, 24.0)
+STAGING_CENTER_X = 29.0
+STAGING_CRATE_Z = 0.98
+STAGING_ITEM_STEP_X = 0.64
+STAGING_MAX_ITEMS_PER_BUNDLE = 9
+STAGING_MAX_BUNDLES = 9
+
+
+def _staging_pos(bundle_index: int, item_index: int, total_items: int) -> tuple[float, float, float]:
+    row = bundle_index % len(STAGING_TABLE_YS)
+    lane = bundle_index // len(STAGING_TABLE_YS)
+    count = max(1, min(total_items, STAGING_MAX_ITEMS_PER_BUNDLE))
+    width = (count - 1) * STAGING_ITEM_STEP_X
+    x = STAGING_CENTER_X - width / 2 + item_index * STAGING_ITEM_STEP_X + lane * 0.18
+    y = STAGING_TABLE_YS[row]
+    return (x, y, STAGING_CRATE_Z)
+
+
+def _clear_live_staging(stage) -> None:
+    root = stage.GetPrimAtPath("/World/LiveStaging")
+    if root.IsValid():
+        stage.RemovePrim(root.GetPath())
+    for entity_id, state in list(_package_locations.items()):
+        if str(state.get("path") or "").startswith("/World/LiveStaging/"):
+            _package_locations.pop(entity_id, None)
+
+
+def _rebuild_staging(stage) -> None:
+    if stage is None:
+        return
+    _clear_live_staging(stage)
+    if not _staging_state:
+        return
+    _ensure_scope(stage, "/World/LiveStaging")
+    for bundle_index, (bundle_id, bundle) in enumerate(list(_staging_state.items())[:STAGING_MAX_BUNDLES]):
+        items = [item for item in bundle.get("items", []) if isinstance(item, dict) and str(item.get("entity_id") or "").strip()]
+        if not items:
+            continue
+        safe_bundle = _safe_token(bundle_id or f"bundle_{bundle_index}")[:64]
+        bundle_root = f"/World/LiveStaging/Bundle_{bundle_index + 1:02d}_{safe_bundle}"
+        _ensure_scope(stage, bundle_root)
+        for item_index, item in enumerate(items[:STAGING_MAX_ITEMS_PER_BUNDLE]):
+            entity_id = str(item.get("entity_id") or "").strip()
+            if not entity_id:
+                continue
+            pos = _staging_pos(bundle_index, item_index, len(items))
+            root_path = f"{bundle_root}/Item_{item_index + 1:02d}_{_safe_token(entity_id)[:48]}"
+            xform = UsdGeom.Xform.Define(stage, root_path)
+            xform.AddTranslateOp().Set(Gf.Vec3d(*pos))
+            role = _table_role_for_package(stage, entity_id, item)
+            _make_table_crate_package(stage, root_path, entity_id=entity_id, role=role)
+            prim = xform.GetPrim()
+            prim.CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set(f"staging.{safe_bundle}.{entity_id}")
+            prim.CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("staged_dataset_package")
+            prim.CreateAttribute("trident:source_entity_id", Sdf.ValueTypeNames.String).Set(entity_id)
+            prim.CreateAttribute("trident:bundle_id", Sdf.ValueTypeNames.String).Set(str(bundle_id))
+            prim.CreateAttribute("trident:table_role", Sdf.ValueTypeNames.String).Set(role)
+            _package_locations[entity_id] = {
+                "path": root_path,
+                "pos": pos,
+                "stage": "staging",
+                "bundle_id": bundle_id,
+            }
+    carb.log_info(f"[trident.twin] staging bundles rebuilt: {len(_staging_state)}")
+
+
+def _apply_staging(stage, command: dict[str, Any]) -> None:
+    if stage is None:
+        return
+    action = str(command.get("action") or "upsert").strip().lower()
+    bundle_id = str(command.get("bundle_id") or command.get("selection_id") or "staged_bundle")
+    if action == "clear":
+        _staging_state.clear()
+        _clear_live_staging(stage)
+        carb.log_info("[trident.twin] staging cleared")
+        return
+    if action == "remove":
+        _staging_state.pop(bundle_id, None)
+        _rebuild_staging(stage)
+        carb.log_info(f"[trident.twin] staging removed: {bundle_id}")
+        return
+    items = _command_items(command)
+    if not items:
+        return
+    # Re-insert selected/upserted bundle at the front so the active basket is on
+    # the nearest display table while preserving older Dataset Basket records.
+    existing = {k: v for k, v in _staging_state.items() if k != bundle_id}
+    _staging_state.clear()
+    _staging_state[bundle_id] = {
+        "title": command.get("title") or bundle_id,
+        "items": items,
+        "query": command.get("query"),
+        "question": command.get("question"),
+    }
+    _staging_state.update(existing)
+    _rebuild_staging(stage)
+    carb.log_info(f"[trident.twin] staging {action}: {bundle_id} items={len(items)}")
+
+
 def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, float], *, destination: str, workload_type: str, item: dict[str, Any] | None = None) -> str:
     global _delivery_seq
     existing = _package_locations.get(entity_id)
-    if destination == "ai_bus" and existing:
-        path = str(existing.get("path") or "")
+    existing_path = str((existing or {}).get("path") or "")
+    existing_is_staging = existing_path.startswith("/World/LiveStaging/")
+    if destination == "ai_bus" and existing and not existing_is_staging:
+        path = existing_path
         prim = stage.GetPrimAtPath(path)
         if prim.IsValid():
             return path
-    if existing:
-        old = stage.GetPrimAtPath(str(existing.get("path") or ""))
+    if existing and not existing_is_staging:
+        old = stage.GetPrimAtPath(existing_path)
         if old.IsValid():
             stage.RemovePrim(old.GetPath())
     _delivery_seq += 1
@@ -695,8 +803,9 @@ def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workl
     prim = _find_prim_by_entity_id(stage, entity_id)
     sx, sy, sz = _prim_translate(prim, (29.0, 2.0, 0.9))
     existing = _package_locations.get(entity_id)
-    if destination == "ai_bus" and existing and existing.get("pos"):
-        sx, sy, sz = existing["pos"]
+    if existing and existing.get("pos"):
+        if destination == "ai_bus" or (destination in {"big_table", "selection_table", "table"} and existing.get("stage") == "staging"):
+            sx, sy, sz = existing["pos"]
     start_z = max(float(sz) + 0.35, 1.0) if destination != "ai_bus" else max(float(sz), 1.05)
     start = (float(sx), float(sy), start_z)
     root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type, item=item)
@@ -796,6 +905,8 @@ def _apply_command(stage, command: dict[str, Any]) -> None:
         _clear_highlight_entity(stage, str(command.get("entity_id") or ""))
     elif kind == "delivery":
         _start_delivery(stage, command)
+    elif kind == "staging":
+        _apply_staging(stage, command)
     elif kind == "workload_stop":
         _clear_workload(stage)
     elif kind == "viewer_state":

@@ -626,6 +626,38 @@ if FastAPI is not None:
         })
         return {"ok": True, "command": command}
 
+    @app.post("/api/twin/staging")
+    def api_twin_staging(payload: dict[str, Any]):
+        action = str(payload.get("action") or "upsert").strip().lower()
+        if action not in {"upsert", "select", "remove", "clear"}:
+            raise HTTPException(status_code=400, detail="action must be upsert, select, remove, or clear")
+        raw_items = payload.get("items")
+        normalized_items = []
+        if isinstance(raw_items, list):
+            normalized_items = [
+                {
+                    "entity_id": str(item.get("entity_id") or ""),
+                    "label": item.get("label"),
+                    "table": item.get("table"),
+                    "dataset": item.get("dataset"),
+                    "table_type": item.get("table_type"),
+                }
+                for item in raw_items
+                if isinstance(item, dict) and str(item.get("entity_id") or "").strip()
+            ]
+        if action in {"upsert", "select"} and not normalized_items:
+            raise HTTPException(status_code=400, detail="items[] is required for staging upsert/select")
+        command = _append_command("staging", {
+            "action": action,
+            "bundle_id": payload.get("bundle_id") or payload.get("selection_id") or "staged_bundle",
+            "title": payload.get("title") or "Staged Bundle",
+            "items": normalized_items,
+            "query": payload.get("query"),
+            "question": payload.get("question"),
+            "selection_id": payload.get("selection_id"),
+        })
+        return {"ok": True, "command": command}
+
     @app.post("/api/twin/delivery")
     def api_twin_delivery(payload: dict[str, Any]):
         items = payload.get("items")
