@@ -1728,12 +1728,12 @@ def main():
     # ===== Zone 3: Accumulation Zone =====
     # 7 catalog-first security gates, one per station_x position, straddling BOTH belts together.
     # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
-    station_x = [5.9, 7.9, 9.9, 11.9, 13.9, 15.9, 17.9]
+    station_x = [6.6, 8.4, 10.2, 12.0, 13.8, 15.6, 17.4]
     UsdGeom.Scope.Define(stage, "/World/Pipeline")
 
-    # Main belt — starts at Raw east wall (+4.7), Y=-0.7. SILVER frame.
+    # Main belt — starts just east of Raw east wall (+5.5), Y=-0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/InputConveyor",
-                   x_start=4.7, x_end=18.8, y_center=-0.7,
+                   x_start=5.8, x_end=19.4, y_center=-0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver")
     p = stage.GetPrimAtPath("/World/AccumulationPipeline/InputConveyor")
@@ -1743,12 +1743,13 @@ def main():
     p.CreateAttribute("trident:name", Sdf.ValueTypeNames.String).Set("Pipeline Main Line (Full Mode)")
     # Express belt — parallel at Y=+0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/ExpressLine",
-                   x_start=4.7, x_end=18.8, y_center=+0.7,
+                   x_start=5.8, x_end=19.4, y_center=+0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
 
     # 7 gates at station_x positions, each spanning both belts.
+    # Shifted east so the Accumulation belts no longer visually intrude into Raw Bucket.
     # Current one-shot catalog-first pipeline:
     #   PROFILE → MATERIALIZE → CATALOG → LINK → GRAPH → SEMANTIC → READY
     operation_specs = [
@@ -1778,7 +1779,7 @@ def main():
          name="Sharing Metadata Station", entity_id="station.metadata.sharing",
          entity_type="metadata_station", stage_name="sharing")
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor",
-         (18.95, 0.0, 0.65), (0.05, 0.05, 0.05), mats["conveyor_belt"],
+         (19.75, 0.0, 0.65), (0.05, 0.05, 0.05), mats["conveyor_belt"],
          name="To Lakehouse Conveyor (anchor)",
          entity_id="pipeline.to_lakehouse",
          entity_type="pipeline", stage_name="staging")
@@ -1786,11 +1787,11 @@ def main():
     # Both belts converge to Y=0 at the Lakehouse entrance via two Y-bends.
     # SILVER frames — feeding the Silver Lakehouse stage.
     build_conveyor_Y(stage, "/World/AccumulationPipeline/MainConverge_YBend",
-                     y_start=-0.7, y_end=0.0, x_center=18.4,
+                     y_start=-0.7, y_end=0.0, x_center=19.45,
                      z_top=0.7, width=1.0, mats=mats,
                      frame_mat_key="metal_silver")
     build_conveyor_Y(stage, "/World/AccumulationPipeline/ExpressConverge_YBend",
-                     y_start=0.0, y_end=+0.7, x_center=18.4,
+                     y_start=0.0, y_end=+0.7, x_center=19.45,
                      z_top=0.7, width=1.0, mats=mats,
                      frame_mat_key="metal_silver",
                      belt_mat_key="conveyor_belt_express")
@@ -1925,11 +1926,23 @@ def main():
         return token[:14]
 
     def _slot_grid_center(slot_index: int) -> tuple[float, float]:
-        # Lakehouse lower half: clear Raw-Bucket-like dataset cells, not a dense table pile.
-        cols = 2
+        # Fallback only for inventory namespaces that do not have a Raw Bucket slot.
+        # Normal Lakehouse placement mirrors the Raw Bucket 3x3 namespace cells.
+        cols = 8
         col = slot_index % cols
         row = slot_index // cols
-        return (lh_cx - 4.8 + col * 9.6, lh_cy - 10.2 + row * 4.15)
+        return (lh_cx - 7.6 + col * (ZONE_W + ZONE_GAP_X), lh_cy - 13.7 + row * (ZONE_TOTAL_D + 0.20))
+
+    def _lakehouse_slot_from_raw(ns: str, fallback_index: int) -> tuple[float, float, float]:
+        raw_center = raw_slot_centers.get(ns)
+        if raw_center is None:
+            gx, gy_boxes = _slot_grid_center(fallback_index)
+            return gx, gy_boxes, gy_boxes - LABEL_H / 2
+        # Preserve the exact 3x3 Raw Bucket cell footprint, translated into Lakehouse.
+        gx = raw_center[0] + (lh_cx - raw_cx)
+        gy_boxes = raw_center[1]
+        gy_slot = gy_boxes - LABEL_H / 2
+        return gx, gy_boxes, gy_slot
 
     grouped_inventory: dict[str, list[tuple]] = {}
     for spec in inventory_specs:
@@ -1940,48 +1953,51 @@ def main():
 
     for group_idx, ns in enumerate(ordered_namespaces):
         specs = grouped_inventory[ns]
-        gx, gy = _slot_grid_center(group_idx)
+        gx, gy_boxes, gy_slot = _lakehouse_slot_from_raw(ns, group_idx)
         safe_ns = _safe_name(ns)
-        slot_w = 8.15
-        slot_d = 3.35
+        slot_w = ZONE_W
+        slot_d = ZONE_TOTAL_D
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/SlotBase",
-             (gx, gy, 0.18), (slot_w, slot_d, 0.08), mats["lakehouse_slot_base"],
+             (gx, gy_slot, 0.18), (slot_w, slot_d, 0.08), mats["lakehouse_slot_base"],
              name=f"{ns} lakehouse slot", entity_id=f"lakehouse.slot.{ns}",
              entity_type="lakehouse_dataset_slot", stage_name="lakehouse_inventory")
         # Thin dividers make the Lakehouse cells read like Raw Bucket cells.
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerS",
-             (gx, gy - slot_d / 2, 0.24), (slot_w, 0.035, 0.12), mats["steel_frame"])
+             (gx, gy_slot - slot_d / 2, 0.24), (slot_w, 0.035, 0.12), mats["steel_frame"])
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerN",
-             (gx, gy + slot_d / 2, 0.24), (slot_w, 0.035, 0.12), mats["steel_frame"])
+             (gx, gy_slot + slot_d / 2, 0.24), (slot_w, 0.035, 0.12), mats["steel_frame"])
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerW",
-             (gx - slot_w / 2, gy, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
+             (gx - slot_w / 2, gy_slot, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerE",
-             (gx + slot_w / 2, gy, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
+             (gx + slot_w / 2, gy_slot, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
         render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
-                    ns.upper().replace("_", " "), (gx, gy - slot_d / 2 + 0.22, 0.28),
-                    mats, pixel=0.020, height_z=0.018, color_key="black_panel")
-        cols = 5 if len(specs) >= 5 else max(1, len(specs))
-        cell_x = 1.48
-        cell_y = 0.92
-        x0 = gx - (cols - 1) * cell_x / 2
-        y0 = gy - 0.38
+                    ns.upper().replace("_", " "), (gx, gy_slot - slot_d / 2 + 0.16, 0.28),
+                    mats, pixel=0.0065, height_z=0.010, color_key="black_panel")
+        cols = COLS
+        slots_per_layer = COLS * ROWS
+        box_scale = (0.28, 0.22, 0.18)
+        zone_x0 = gx - ZONE_W / 2
+        zone_y0 = gy_boxes - ZONE_D / 2
         for idx, (rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit) in enumerate(specs):
-            col = idx % cols
-            row = idx // cols
+            slot = idx % slots_per_layer
+            layer = idx // slots_per_layer
+            col = slot % cols
+            row = slot // cols
             role = _table_role(comp)
-            tx = x0 + col * cell_x
-            ty = y0 + row * cell_y
+            tx = zone_x0 + col * CELL + CELL / 2
+            ty = zone_y0 + row * CELL + CELL / 2
+            tz = 0.50 + layer * 0.26
             make_readiness_table_crate(
-                stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, 0.62),
-                (0.40, 0.30, 0.26), mats, entity_id=eid, namespace=_ns,
+                stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, tz),
+                box_scale, mats, entity_id=eid, namespace=_ns,
                 component=comp, row_count=rows, object_count=objects,
                 quality_score=quality, access_frequency=access, semantic=semantic,
                 location=location, policy=policy, freshness=freshness, workload_fit=fit,
                 table_role=role,
             )
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, 0.99), mats,
-                        pixel=0.014, height_z=0.012, color_key="black_panel")
+                        _short_table_label(comp), (tx, ty, tz + 0.28), mats,
+                        pixel=0.006, height_z=0.008, color_key="black_panel")
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Bookshelf-style shelving units: 3 rows of shelf units, each with 3 shelves + boxes.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")
@@ -2071,8 +2087,19 @@ def main():
                       query="camera + lidar", compares="quality,policy,semantic,location,cache",
                       explains_missing_metadata=True)
 
-    # Active Search Zone users are created by the Isaac extension from viewer_state commands.
+    # Search Zone starts with one static scene user so the zone is visible before Live starts.
+    # The Isaac extension replaces /World/Avatars/ActiveUser from viewer_state commands when Portal is open.
     UsdGeom.Scope.Define(stage, "/World/Avatars")
+    define_scope(stage, "/World/Avatars/SceneUser",
+                 entity_id="viewer.scene.default", entity_type="active_viewer",
+                 zone="zone.search", role="researcher")
+    cube(stage, "/World/Avatars/SceneUser/Body", (44.0, 8.0, 0.82),
+         (0.24, 0.18, 0.70), mats["role_researcher"])
+    sphere(stage, "/World/Avatars/SceneUser/Head", (44.0, 8.0, 1.55), 0.18, mats["skin_tone"])
+    cube(stage, "/World/Avatars/SceneUser/RoleBadge", (44.0, 8.0, 1.90),
+         (0.34, 0.34, 0.08), mats["role_operator"])
+    render_text(stage, "/World/Avatars/SceneUser/Label",
+                "USER", (44.0, 7.55, 0.035), mats, pixel=0.030, height_z=0.012, color_key="black_panel")
 
     # ===== Zone 8: Delivery Yard — single big table + 3 STRAIGHT outgoing belts =====
     # Trucks and Big Table aligned with Lobby Y line: HPC = Lobby Y = +10
@@ -2112,7 +2139,19 @@ def main():
 
     # Canonical workload delivery packages generated from selected ready bundles.
 
-    # Incoming Lakehouse/Staging rails are intentionally hidden; live delivery boxes animate only after user action.
+    # Incoming rails: Lakehouse and Staging feed the consolidation table, but no static boxes.
+    # Live packages appear only after Send to Delivery.
+    big_t_west = big_table_cx - big_table_w / 2
+    lakehouse_east = lh_cx + lh_sx / 2
+    build_conveyor(stage, "/World/DeliveryYard/InBelt_Lakehouse",
+                   x_start=lakehouse_east + 0.2, x_end=big_t_west, y_center=6.4,
+                   z_top=0.7, width=0.72, mats=mats,
+                   frame_mat_key="metal_silver")
+    build_conveyor(stage, "/World/DeliveryYard/InBelt_Staging",
+                   x_start=lakehouse_east + 0.2, x_end=big_t_west, y_center=13.6,
+                   z_top=0.7, width=0.72, mats=mats,
+                   frame_mat_key="metal_gold",
+                   belt_mat_key="conveyor_belt_express")
 
     # ---- 3 STRAIGHT outgoing belts: big table east edge -> each truck (no bends) ----
     # Big Table now wide enough in Y to cover all 3 truck Y lanes, so each belt is
@@ -2162,11 +2201,11 @@ def main():
     top_cams = [
         ("Top_Overview",      ( 15,  +7, 95), 14),
         ("Top_Ingest",        (-22,   0, 22), 22),
-        ("Top_RawBucket",     ( -4,  11, 24), 28),
-        ("zone_02_raw_bucket",( -4,  11, 24), 28),
+        ("Top_RawBucket",     ( -4,  -1, 13), 45),
+        ("zone_02_raw_bucket",( -4,  -1, 13), 45),
         ("Top_Accumulation",  (+12,   0, 18), 24),
-        ("Top_Lakehouse",     (+29,   2, 24), 28),
-        ("zone_04_lakehouse", (+29,   2, 24), 28),
+        ("Top_Lakehouse",     (+29,  -1, 13), 45),
+        ("zone_04_lakehouse", (+29,  -1, 13), 45),
         ("Top_Staging",       (+29, +21, 22), 28),
         ("zone_04_staging",   (+29, +21, 22), 28),
         ("Top_Search",        (+44, +10, 18), 26),

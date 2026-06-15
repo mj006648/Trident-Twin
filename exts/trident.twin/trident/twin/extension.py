@@ -36,13 +36,13 @@ DEFAULT_SCENE_CAMERA = "/World/Cameras/Overview_Top45"
 
 # 게이트 순서: (step_no, operation_id, 뱃지 색 RGB, 컨베이어 X 위치)
 GATES = [
-    (1, "object_schema_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  5.9),
-    (2, "cardinality_materialize",Gf.Vec3f(0.40, 0.65, 0.95),  7.9),
-    (3, "catalog_tables_columns", Gf.Vec3f(0.20, 0.80, 0.35),  9.9),
-    (4, "asset_link_audit",      Gf.Vec3f(0.95, 0.75, 0.05), 11.9),
-    (5, "redis_component_graph", Gf.Vec3f(0.35, 0.85, 0.85), 13.9),
-    (6, "milvus_semantic_index", Gf.Vec3f(0.75, 0.30, 0.90), 15.9),
-    (7, "dataset_ready_status",  Gf.Vec3f(0.15, 0.90, 0.45), 17.9),
+    (1, "object_schema_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  6.6),
+    (2, "cardinality_materialize",Gf.Vec3f(0.40, 0.65, 0.95),  8.4),
+    (3, "catalog_tables_columns", Gf.Vec3f(0.20, 0.80, 0.35), 10.2),
+    (4, "asset_link_audit",      Gf.Vec3f(0.95, 0.75, 0.05), 12.0),
+    (5, "redis_component_graph", Gf.Vec3f(0.35, 0.85, 0.85), 13.8),
+    (6, "milvus_semantic_index", Gf.Vec3f(0.75, 0.30, 0.90), 15.6),
+    (7, "dataset_ready_status",  Gf.Vec3f(0.15, 0.90, 0.45), 17.4),
 ]
 
 BELT_Y      =  -0.7    # main belt Y center
@@ -51,7 +51,7 @@ BOX_SIDE    =   0.40   # 상자 한 변 길이
 BOX_Z       =   BELT_Z_TOP + BOX_SIDE / 2
 BADGE_SIDE  =   0.12
 BADGE_Z_OFF =   BOX_SIDE / 2 + BADGE_SIDE / 2 + 0.02
-LAKEHOUSE_X =   19.2   # READY 완료 후 Accumulation exit anchor
+LAKEHOUSE_X =   19.75   # READY 완료 후 Accumulation exit anchor
 
 # namespace별 상자 상태
 # { ns: { "box_path": str, "badges": int (완료 게이트 수) } }
@@ -363,8 +363,8 @@ def _start_delivery(stage, command: dict[str, Any]) -> None:
     xform.GetPrim().CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("live_delivery_package")
     points = [
         (sx, sy, max(sz + 0.35, 1.0)),
-        (40.0, sy, 1.05),
-        (52.0, lane_y, 1.05),
+        (39.0, sy, 1.05),
+        (50.0, lane_y, 1.05),
         (61.5, lane_y, 1.05),
     ]
     _delivery_state.append({"path": root_path, "points": points, "elapsed": 0.0, "duration": 8.0})
