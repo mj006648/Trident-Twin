@@ -78,6 +78,7 @@ LAKEHOUSE_X =   19.75   # READY 완료 후 Accumulation exit anchor
 # namespace별 상자 상태
 # { ns: { "box_path": str, "badges": int (완료 게이트 수) } }
 _box_state: dict[str, dict[str, Any]] = {}
+_completed_ingest_ns: set[str] = set()
 _highlight_state: dict[str, dict[str, Any]] = {}
 _delivery_state: list[dict[str, Any]] = []
 _delivery_seq = 0
@@ -507,23 +508,15 @@ _EVENT_GATE: dict[str, int] = {
 }
 
 def _extract_active_namespaces(entities: list[dict]) -> dict[str, str]:
-    """raw_bucket entity에서 현재 활성 namespace → status 추출."""
+    """raw_bucket entity에서 현재 활성 namespace → latest ingest event 추출."""
     result: dict[str, str] = {}
     for e in entities:
         if e.get("type") != "raw_bucket":
             continue
         ns = e.get("namespace")
         if ns:
-            result[ns] = e.get("status", "pending")
+            result[ns] = str(e.get("event") or "")
     return result
-
-def _gate_from_entities(entities: list[dict], ns: str) -> int:
-    """namespace 의 raw_bucket event 에서 현재 완료 게이트 번호를 반환한다."""
-    for e in entities:
-        if e.get("type") == "raw_bucket" and e.get("namespace") == ns:
-            evt = e.get("event", "")
-            return _EVENT_GATE.get(evt, 0)
-    return 0
 
 
 def _box_x_for(gate_statuses: dict[int, str]) -> float:
@@ -551,10 +544,15 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
             del _box_state[ns]
             updated += 1
 
-    for ns in active_ns:
+    for ns, event in active_ns.items():
+        if event == "audit_done" and ns in _completed_ingest_ns:
+            continue
+        if event != "audit_done":
+            _completed_ingest_ns.discard(ns)
+
         safe     = ns.replace("-", "_").replace(".", "_")
         box_path = f"/World/LiveSync/Box_{safe}"
-        gate     = _gate_from_entities(entities, ns)
+        gate     = _EVENT_GATE.get(event, 0)
         # gate: 0=이벤트없음(skip), 1..N=current catalog-first pipeline gate
         if gate == 0:
             continue  # 아직 이벤트 없음 — 박스 생성 안 함
@@ -589,11 +587,12 @@ def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> i
                 carb.log_info(f"[trident.twin] Badge {gate_no} added to {ns}")
                 updated += 1
 
-        # AUDIT 완료 → Lakehouse 이동 후 제거 예약
-        if gate_statuses.get(len(GATES)) == "done" and state.get("badges") >= len(GATES):
+        # AUDIT 완료 → Lakehouse 방향으로 이동 후 제거.
+        if event == "audit_done" and state.get("badges") >= len(GATES):
             _move_box(stage, box_path, LAKEHOUSE_X + 3.0)
             _remove_box(stage, box_path)
             del _box_state[ns]
+            _completed_ingest_ns.add(ns)
             updated += 1
             break
 
@@ -677,6 +676,7 @@ class TridentTwinExtension(omni.ext.IExt):
     def _stop(self) -> None:
         self._running = False
         _box_state.clear()
+        _completed_ingest_ns.clear()
         # twin-hub ingest 이벤트 초기화
         try:
             import urllib.request as _ur

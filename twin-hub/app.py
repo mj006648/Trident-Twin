@@ -664,12 +664,15 @@ if FastAPI is not None:
         if not ns or not evt:
             return {"ok": False, "error": "namespace and event required"}
         prev = _ingest_events.get(ns, {})
-        if _step_no(evt) >= _step_no(prev.get("event", "")):
+        prev_event = str(prev.get("event", ""))
+        new_run = prev_event == "audit_done" and evt in {"analyze_started", "struct_started"}
+        if new_run or _step_no(evt) >= _step_no(prev_event):
             _ingest_events[ns] = {
                 "namespace": ns,
                 "event": evt,
                 "ts": _time.time(),
                 "dataset_name": payload.get("dataset_name", ns),
+                "job_name": payload.get("job_name"),
             }
         return {"ok": True, "namespace": ns, "event": evt}
 
