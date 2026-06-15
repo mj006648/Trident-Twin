@@ -139,6 +139,30 @@ def _set_display_color(prim, color: Gf.Vec3f) -> None:
     attr.Set([color])
 
 
+def _get_display_color(prim) -> Any:
+    gprim = UsdGeom.Gprim(prim)
+    if not gprim:
+        return None
+    attr = gprim.GetDisplayColorAttr()
+    if attr and attr.HasAuthoredValueOpinion():
+        return attr.Get()
+    return None
+
+
+def _restore_display_color(prim, value: Any) -> None:
+    gprim = UsdGeom.Gprim(prim)
+    if not gprim:
+        return
+    attr = gprim.GetDisplayColorAttr()
+    if value is None:
+        if attr:
+            attr.Clear()
+        return
+    if not attr:
+        attr = gprim.CreateDisplayColorAttr()
+    attr.Set(value)
+
+
 def _set_translate(prim, x: float, y: float, z: float) -> None:
     xform = UsdGeom.Xformable(prim)
     ops = xform.GetOrderedXformOps()
@@ -218,6 +242,16 @@ def _fetch_commands(base_url: str, since: int) -> dict[str, Any] | None:
     except Exception as e:
         carb.log_warn(f"[trident.twin] command fetch failed: {e}")
         return None
+
+
+def _latest_command_seq(base_url: str) -> int:
+    payload = _fetch_commands(base_url, 0)
+    if not payload:
+        return 0
+    try:
+        return int(payload.get("latest_seq", 0))
+    except Exception:
+        return 0
 
 
 def _set_camera_focal(cam: UsdGeom.Camera, focal: float) -> None:
@@ -361,18 +395,108 @@ def _replace_active_viewer(stage, command: dict[str, Any]) -> None:
     carb.log_info(f"[trident.twin] active viewer shown: {viewer_id} ({role})")
 
 
+def _safe_token(value: str) -> str:
+    return "".join(ch if ch.isalnum() or ch == "_" else "_" for ch in value.replace("-", "_").replace(".", "_"))
+
+
+def _scene_safe_name(value: str) -> str:
+    return value.replace("-", "_").replace(".", "_").title()
+
+
+def _namespace_from_entity_id(entity_id: str) -> str:
+    parts = [p for p in entity_id.split(".") if p]
+    if len(parts) >= 3 and parts[0] == "table":
+        return parts[1]
+    return ""
+
+
+def _collect_gprims_under(prim) -> list[str]:
+    result: list[str] = []
+    if prim is None or not prim.IsValid():
+        return result
+    for item in Usd.PrimRange(prim):
+        if item.IsA(UsdGeom.Gprim):
+            result.append(str(item.GetPath()))
+    return result
+
+
+def _nearby_lakehouse_paths(stage, namespace: str, target_xyz: tuple[float, float, float]) -> list[str]:
+    if not namespace:
+        return []
+    root = stage.GetPrimAtPath(f"/World/Lakehouse/Tables/{_scene_safe_name(namespace)}")
+    if not root.IsValid():
+        return []
+    tx, ty, _ = target_xyz
+    result: list[str] = []
+    for item in Usd.PrimRange(root):
+        path = str(item.GetPath())
+        if not item.IsA(UsdGeom.Gprim):
+            continue
+        # The whole dataset cell should pulse faintly so the selected dataset is obvious.
+        if any(token in path for token in ("/SlotBase", "/DividerS", "/DividerN", "/DividerW", "/DividerE")):
+            result.append(path)
+            continue
+        # The selected table support and flat table-name label are separate from
+        # the Iceberg table crate, so include nearby pieces in the same cell.
+        if "/TableSupport_" in path or "/TableLabel_" in path:
+            x, y, _z = _prim_translate(item)
+            if abs(x - tx) <= 0.70 and abs(y - ty) <= 0.55:
+                result.append(path)
+    return result
+
+
+def _create_highlight_plate(stage, entity_id: str, target_xyz: tuple[float, float, float]) -> str:
+    root = "/World/LiveHighlights"
+    _ensure_scope(stage, root)
+    path = f"{root}/Selection_{_safe_token(entity_id)}"
+    old = stage.GetPrimAtPath(path)
+    if old.IsValid():
+        stage.RemovePrim(old.GetPath())
+    x, y, z = target_xyz
+    plate = UsdGeom.Cube.Define(stage, path)
+    plate.CreateSizeAttr(1.0)
+    UsdGeom.XformCommonAPI(plate).SetTranslate(Gf.Vec3d(x, y, max(0.40, z - 0.18)))
+    UsdGeom.XformCommonAPI(plate).SetScale(Gf.Vec3f(0.78, 0.58, 0.055))
+    _set_display_color(plate.GetPrim(), Gf.Vec3f(1.0, 0.12, 0.12))
+    return path
+
+
 def _highlight_entity(stage, entity_id: str) -> bool:
     prim = _find_prim_by_entity_id(stage, entity_id)
     if prim is None:
         carb.log_warn(f"[trident.twin] highlight target not found: {entity_id}")
         return False
+
+    parent = prim.GetParent() if prim.GetParent().IsValid() else prim
+    target_xyz = _prim_translate(prim)
+    namespace = _namespace_from_entity_id(entity_id)
+
     paths: list[str] = []
-    for item in Usd.PrimRange(prim):
-        if item.IsA(UsdGeom.Gprim):
-            paths.append(str(item.GetPath()))
-            _set_display_color(item, Gf.Vec3f(0.05, 0.75, 0.90))
-    _highlight_state[entity_id] = {"paths": paths, "elapsed": 0.0}
-    carb.log_info(f"[trident.twin] highlighted: {entity_id}")
+    paths.extend(_collect_gprims_under(parent))  # crate + readiness badges
+    paths.extend(_nearby_lakehouse_paths(stage, namespace, target_xyz))  # support/table label/dataset slot
+    plate_path = _create_highlight_plate(stage, entity_id, target_xyz)
+    paths.append(plate_path)
+
+    # De-duplicate while preserving order and save original display colors so
+    # blue data tables and yellow metadata tables return to their real role color.
+    seen: set[str] = set()
+    entries: list[dict[str, Any]] = []
+    for path in paths:
+        if path in seen:
+            continue
+        seen.add(path)
+        p = stage.GetPrimAtPath(path)
+        if p.IsValid() and p.IsA(UsdGeom.Gprim):
+            entries.append({"path": path, "original": _get_display_color(p)})
+            _set_display_color(p, Gf.Vec3f(1.0, 0.10, 0.10))
+
+    _highlight_state[entity_id] = {
+        "entries": entries,
+        "remove_paths": [plate_path],
+        "elapsed": 0.0,
+        "duration": 10.0,
+    }
+    carb.log_info(f"[trident.twin] highlighted dataset/table: {entity_id} paths={len(entries)}")
     return True
 
 
@@ -383,16 +507,20 @@ def _animate_highlights(stage, dt: float) -> None:
         state = _highlight_state[entity_id]
         state["elapsed"] = float(state.get("elapsed", 0.0)) + dt
         elapsed = state["elapsed"]
-        color = Gf.Vec3f(1.0, 0.86, 0.15) if int(elapsed / 0.35) % 2 == 0 else Gf.Vec3f(0.05, 0.75, 0.90)
-        for path in state.get("paths", []):
-            prim = stage.GetPrimAtPath(path)
+        color = Gf.Vec3f(1.0, 0.08, 0.08) if int(elapsed / 0.28) % 2 == 0 else Gf.Vec3f(1.0, 0.92, 0.05)
+        for entry in state.get("entries", []):
+            prim = stage.GetPrimAtPath(entry.get("path", ""))
             if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
                 _set_display_color(prim, color)
-        if elapsed >= 6.0:
-            for path in state.get("paths", []):
-                prim = stage.GetPrimAtPath(path)
+        if elapsed >= float(state.get("duration", 10.0)):
+            for entry in state.get("entries", []):
+                prim = stage.GetPrimAtPath(entry.get("path", ""))
                 if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
-                    _set_display_color(prim, Gf.Vec3f(0.05, 0.75, 0.90))
+                    _restore_display_color(prim, entry.get("original"))
+            for path in state.get("remove_paths", []):
+                prim = stage.GetPrimAtPath(path)
+                if prim.IsValid():
+                    stage.RemovePrim(prim.GetPath())
             del _highlight_state[entity_id]
 
 
@@ -618,7 +746,7 @@ class TridentTwinExtension(omni.ext.IExt):
         self._running          = False
         self._elapsed          = 0.0
         self._command_elapsed  = self._command_interval
-        self._command_seq      = 0
+        self._command_seq      = _latest_command_seq(self._hub_url)
         self._sub              = None
         self._auto_open_pending = _env_bool("TWIN_AUTO_OPEN_SCENE", False)
         self._auto_start_live   = _env_bool("TWIN_AUTO_START_LIVE", True)
@@ -670,6 +798,7 @@ class TridentTwinExtension(omni.ext.IExt):
         except ValueError:
             self._poll_interval = DEFAULT_POLL_INTERVAL
 
+        self._command_seq = max(self._command_seq, _latest_command_seq(self._hub_url))
         if self._running:
             return
         self._running = True
