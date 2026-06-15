@@ -353,6 +353,16 @@ def zone_pad(stage, path, center, size, color_mat):
 # Used for zone labels (INGEST ZONE / RAW BUCKET ZONE / ...) and truck labels.
 # ============================================================================
 ALPHABET_5x7 = {
+    "0": ["01110", "10001", "10011", "10101", "11001", "10001", "01110"],
+    "1": ["00100", "01100", "00100", "00100", "00100", "00100", "01110"],
+    "2": ["01110", "10001", "00001", "00010", "00100", "01000", "11111"],
+    "3": ["11110", "00001", "00001", "01110", "00001", "00001", "11110"],
+    "4": ["00010", "00110", "01010", "10010", "11111", "00010", "00010"],
+    "5": ["11111", "10000", "10000", "11110", "00001", "00001", "11110"],
+    "6": ["01110", "10000", "10000", "11110", "10001", "10001", "01110"],
+    "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
+    "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
+    "9": ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
     "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
     "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
     "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
@@ -556,11 +566,11 @@ def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label,
     cube(stage, f"{path}/PillarL", (x, y - 1.35, z + 1.00), (0.10, 0.10, 2.0), mats["steel_frame"])
     cube(stage, f"{path}/PillarR", (x, y + 1.35, z + 1.00), (0.10, 0.10, 2.0), mats["steel_frame"])
     cube(stage, f"{path}/Crossbar", (x, y, z + 2.08), (0.10, 2.9, 0.10), mats["steel_frame"])
-    # Section label only: no colored top badge/plate. Live movement can place a
-    # package in STEP 1/2/3 while the gate itself stays visually quiet.
+    # Section label only: no colored top badge/plate. Keep it large and flat
+    # on the floor so the full "STEP 1/2/3" text reads in the zone camera.
     render_text(stage, f"{path}/Label", f"STEP {step_no}",
-                (x, y - 1.60, z + 0.02), mats,
-                pixel=0.034, height_z=0.010, color_key="black_panel")
+                (x, y - 2.05, z + 0.018), mats,
+                pixel=0.052, height_z=0.008, color_key="black_panel")
 
     return gate
 
@@ -1716,12 +1726,15 @@ def main():
     # 3 conceptual processing sections. Concrete outputs are represented by the
     # Lakehouse table/metadata crates, not extra Accumulation tags.
     # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
-    station_x = [7.2, 11.8, 15.8]
+    acc_x_start = 5.8
+    acc_x_end = 19.4
+    acc_section_w = (acc_x_end - acc_x_start) / 3.0
+    station_x = [acc_x_start + acc_section_w * (i + 0.5) for i in range(3)]
     UsdGeom.Scope.Define(stage, "/World/Pipeline")
 
     # Main belt — starts just east of Raw east wall (+5.5), Y=-0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/InputConveyor",
-                   x_start=5.8, x_end=19.4, y_center=-0.7,
+                   x_start=acc_x_start, x_end=acc_x_end, y_center=-0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver")
     p = stage.GetPrimAtPath("/World/AccumulationPipeline/InputConveyor")
@@ -1731,10 +1744,16 @@ def main():
     p.CreateAttribute("trident:name", Sdf.ValueTypeNames.String).Set("Pipeline Main Line (Full Mode)")
     # Express belt — parallel at Y=+0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/ExpressLine",
-                   x_start=5.8, x_end=19.4, y_center=+0.7,
+                   x_start=acc_x_start, x_end=acc_x_end, y_center=+0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
+
+    # Thin dividers show three equal-width accumulation sections.
+    for div_i in (1, 2):
+        div_x = acc_x_start + acc_section_w * div_i
+        cube(stage, f"/World/AccumulationPipeline/StepDivider_{div_i}",
+             (div_x, 0.0, 0.045), (0.040, 4.20, 0.055), mats["steel_frame"])
 
     # 3 gates at station_x positions, each spanning both belts.
     # Shifted east so the Accumulation belts no longer visually intrude into Raw Bucket.
@@ -2181,7 +2200,7 @@ def main():
         ("Top_Ingest",        (-22,   0, 22), 22),
         ("Top_RawBucket",     ( -4,  -2, 32), 22),
         ("zone_02_raw_bucket",( -4,  -2, 32), 22),
-        ("Top_Accumulation",  (+12,   0, 18), 24),
+        ("Top_Accumulation",  (+12.6, 0, 18), 24),
         ("Top_Lakehouse",     (+29,  -1, 30), 24),
         ("zone_04_lakehouse", (+29,  -1, 30), 24),
         ("Top_Staging",       (+29, +21, 34), 22),
@@ -2224,7 +2243,7 @@ def main():
     oblique_cams = [
         ("/World/Cameras/Overview_Top45",       (25.0, -65.0, 65.0), (25.0, 10.0, 0.0), 12.0),
         ("/World/Cameras/zone_01_truck_yard",  (-22.0, -22.0, 22.0), (-22.0,  0.0, 1.5), 18.0),
-        ("/World/Cameras/zone_03_accumulation",( 12.0, -12.0, 14.0), ( 12.0,  0.0, 1.2), 24.0),
+        ("/World/Cameras/zone_03_accumulation",( 12.6, -12.0, 14.0), ( 12.6,  0.0, 1.2), 24.0),
         ("/World/Cameras/zone_05_search",      ( 44.0,  -2.0, 13.0), ( 44.0, 10.0, 1.2), 24.0),
         ("/World/Cameras/zone_06_delivery",    ( 59.0,  -5.0, 17.0), ( 59.0, 10.0, 1.2), 24.0),
         ("/World/Cameras/zone_07_tower",       (-22.0,  10.0, 15.0), (-22.0, 25.0, 1.2), 24.0),

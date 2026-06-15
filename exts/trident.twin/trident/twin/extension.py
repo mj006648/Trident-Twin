@@ -34,13 +34,37 @@ DEFAULT_POLL_INTERVAL = 5.0
 DEFAULT_COMMAND_INTERVAL = 1.0
 DEFAULT_SCENE_CAMERA = "/World/Cameras/Overview_Top45"
 
+CAMERA_TOPDOWN_PRESETS = {
+    "/World/Cameras/Top_Overview": ((15.0, 7.0, 95.0), 14.0),
+    "/World/Cameras/Top_Ingest": ((-22.0, 0.0, 22.0), 22.0),
+    "/World/Cameras/Top_RawBucket": ((-4.0, -2.0, 32.0), 22.0),
+    "/World/Cameras/zone_02_raw_bucket": ((-4.0, -2.0, 32.0), 22.0),
+    "/World/Cameras/Top_Accumulation": ((12.6, 0.0, 18.0), 24.0),
+    "/World/Cameras/Top_Lakehouse": ((29.0, -1.0, 30.0), 24.0),
+    "/World/Cameras/zone_04_lakehouse": ((29.0, -1.0, 30.0), 24.0),
+    "/World/Cameras/Top_Staging": ((29.0, 21.0, 34.0), 22.0),
+    "/World/Cameras/zone_04_staging": ((29.0, 21.0, 34.0), 22.0),
+    "/World/Cameras/Top_Search": ((44.0, 10.0, 18.0), 26.0),
+    "/World/Cameras/Top_Delivery": ((59.0, 10.0, 22.0), 26.0),
+    "/World/Cameras/Top_Tower": ((-22.0, 25.0, 22.0), 22.0),
+}
+
+CAMERA_LOOK_AT_PRESETS = {
+    "/World/Cameras/Overview_Top45": ((25.0, -65.0, 65.0), (25.0, 10.0, 0.0), 12.0),
+    "/World/Cameras/zone_01_truck_yard": ((-22.0, -22.0, 22.0), (-22.0, 0.0, 1.5), 18.0),
+    "/World/Cameras/zone_03_accumulation": ((12.6, -12.0, 14.0), (12.6, 0.0, 1.2), 24.0),
+    "/World/Cameras/zone_05_search": ((44.0, -2.0, 13.0), (44.0, 10.0, 1.2), 24.0),
+    "/World/Cameras/zone_06_delivery": ((59.0, -5.0, 17.0), (59.0, 10.0, 1.2), 24.0),
+    "/World/Cameras/zone_07_tower": ((-22.0, 10.0, 15.0), (-22.0, 25.0, 1.2), 24.0),
+}
+
 # 게이트 순서: (step_no, operation_id, 뱃지 색 RGB, 컨베이어 X 위치)
 # The visual Accumulation Zone is intentionally three conceptual sections:
 # STEP 1 ingest/profile, STEP 2 catalog/link, STEP 3 ready/manifest.
 GATES = [
-    (1, "ingest_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  7.2),
-    (2, "catalog_link",    Gf.Vec3f(0.20, 0.80, 0.35), 11.8),
-    (3, "ready_manifest",  Gf.Vec3f(0.15, 0.90, 0.45), 15.8),
+    (1, "ingest_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  8.0666666667),
+    (2, "catalog_link",    Gf.Vec3f(0.20, 0.80, 0.35), 12.6),
+    (3, "ready_manifest",  Gf.Vec3f(0.15, 0.90, 0.45), 17.1333333333),
 ]
 
 BELT_Y      =  -0.7    # main belt Y center
@@ -195,9 +219,55 @@ def _fetch_commands(base_url: str, since: int) -> dict[str, Any] | None:
         return None
 
 
-def _set_viewport_camera(camera_path: str) -> None:
+def _set_camera_focal(cam: UsdGeom.Camera, focal: float) -> None:
+    attr = cam.GetFocalLengthAttr()
+    if attr:
+        attr.Set(float(focal))
+    else:
+        cam.CreateFocalLengthAttr(float(focal))
+
+
+def _look_at_matrix(translate: tuple[float, float, float], look_at: tuple[float, float, float]) -> Gf.Matrix4d:
+    eye = Gf.Vec3d(*translate)
+    center = Gf.Vec3d(*look_at)
+    up = Gf.Vec3d(0, 1, 0)
+    fwd = (center - eye).GetNormalized()
+    right = Gf.Cross(fwd, up).GetNormalized()
+    up_corrected = Gf.Cross(right, fwd).GetNormalized()
+    return Gf.Matrix4d(
+        right[0],        right[1],        right[2],        0,
+        up_corrected[0], up_corrected[1], up_corrected[2], 0,
+        -fwd[0],         -fwd[1],         -fwd[2],         0,
+        eye[0],          eye[1],          eye[2],          1,
+    )
+
+
+def _reset_authored_camera(stage, camera_path: str) -> None:
+    if stage is None or not camera_path:
+        return
+    prim = stage.GetPrimAtPath(camera_path)
+    if not prim or not prim.IsValid():
+        return
+    cam = UsdGeom.Camera(prim)
+    xf = UsdGeom.Xformable(prim)
+    if camera_path in CAMERA_LOOK_AT_PRESETS:
+        translate, look_at, focal = CAMERA_LOOK_AT_PRESETS[camera_path]
+        xf.ClearXformOpOrder()
+        op = xf.AddXformOp(UsdGeom.XformOp.TypeTransform, UsdGeom.XformOp.PrecisionDouble)
+        op.Set(_look_at_matrix(translate, look_at))
+        _set_camera_focal(cam, focal)
+    elif camera_path in CAMERA_TOPDOWN_PRESETS:
+        translate, focal = CAMERA_TOPDOWN_PRESETS[camera_path]
+        xf.ClearXformOpOrder()
+        op = xf.AddTranslateOp(UsdGeom.XformOp.PrecisionDouble)
+        op.Set(Gf.Vec3d(*translate))
+        _set_camera_focal(cam, focal)
+
+
+def _set_viewport_camera(camera_path: str, stage=None) -> None:
     if not camera_path:
         return
+    _reset_authored_camera(stage, camera_path)
     try:
         from omni.kit.viewport.utility import get_active_viewport
 
@@ -402,7 +472,7 @@ def _animate_deliveries(stage, dt: float) -> None:
 def _apply_command(stage, command: dict[str, Any]) -> None:
     kind = str(command.get("kind") or "")
     if kind == "camera":
-        _set_viewport_camera(str(command.get("camera_path") or ""))
+        _set_viewport_camera(str(command.get("camera_path") or ""), stage)
     elif kind == "highlight":
         _highlight_entity(stage, str(command.get("entity_id") or ""))
     elif kind == "delivery":
