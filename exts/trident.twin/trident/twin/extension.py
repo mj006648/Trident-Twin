@@ -36,13 +36,13 @@ DEFAULT_SCENE_CAMERA = "/World/Cameras/Overview_Top45"
 
 # 게이트 순서: (step_no, operation_id, 뱃지 색 RGB, 컨베이어 X 위치)
 GATES = [
-    (1, "object_schema_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  6.5),
-    (2, "cardinality_materialize",Gf.Vec3f(0.40, 0.65, 0.95),  8.8),
-    (3, "catalog_tables_columns", Gf.Vec3f(0.20, 0.80, 0.35), 11.1),
-    (4, "asset_link_audit",      Gf.Vec3f(0.95, 0.75, 0.05), 13.4),
-    (5, "redis_component_graph", Gf.Vec3f(0.35, 0.85, 0.85), 15.7),
-    (6, "milvus_semantic_index", Gf.Vec3f(0.75, 0.30, 0.90), 18.0),
-    (7, "dataset_ready_status",  Gf.Vec3f(0.15, 0.90, 0.45), 20.3),
+    (1, "object_schema_profile",  Gf.Vec3f(0.80, 0.50, 0.10),  5.9),
+    (2, "cardinality_materialize",Gf.Vec3f(0.40, 0.65, 0.95),  7.9),
+    (3, "catalog_tables_columns", Gf.Vec3f(0.20, 0.80, 0.35),  9.9),
+    (4, "asset_link_audit",      Gf.Vec3f(0.95, 0.75, 0.05), 11.9),
+    (5, "redis_component_graph", Gf.Vec3f(0.35, 0.85, 0.85), 13.9),
+    (6, "milvus_semantic_index", Gf.Vec3f(0.75, 0.30, 0.90), 15.9),
+    (7, "dataset_ready_status",  Gf.Vec3f(0.15, 0.90, 0.45), 17.9),
 ]
 
 BELT_Y      =  -0.7    # main belt Y center
@@ -51,11 +51,14 @@ BOX_SIDE    =   0.40   # 상자 한 변 길이
 BOX_Z       =   BELT_Z_TOP + BOX_SIDE / 2
 BADGE_SIDE  =   0.12
 BADGE_Z_OFF =   BOX_SIDE / 2 + BADGE_SIDE / 2 + 0.02
-LAKEHOUSE_X =   23.0   # AUDIT 완료 후 이동할 X
+LAKEHOUSE_X =   19.2   # READY 완료 후 Accumulation exit anchor
 
 # namespace별 상자 상태
 # { ns: { "box_path": str, "badges": int (완료 게이트 수) } }
 _box_state: dict[str, dict[str, Any]] = {}
+_highlight_state: dict[str, dict[str, Any]] = {}
+_delivery_state: list[dict[str, Any]] = []
+_delivery_seq = 0
 
 
 def _env_float(key: str, default: float) -> float:
@@ -223,16 +226,165 @@ def _find_prim_by_entity_id(stage, entity_id: str):
     return None
 
 
+def _prim_translate(prim, fallback=(29.0, 2.0, 0.8)) -> tuple[float, float, float]:
+    if prim is None or not prim.IsValid():
+        return fallback
+    try:
+        xform = UsdGeom.Xformable(prim)
+        for op in xform.GetOrderedXformOps():
+            if op.GetOpType() == UsdGeom.XformOp.TypeTranslate:
+                v = op.Get()
+                return (float(v[0]), float(v[1]), float(v[2]))
+    except Exception:
+        pass
+    return fallback
+
+
+def _role_color(role: str) -> Gf.Vec3f:
+    role = (role or "viewer").lower()
+    if role in {"admin", "service"}:
+        return Gf.Vec3f(0.95, 0.25, 0.20)
+    if role == "operator":
+        return Gf.Vec3f(0.95, 0.75, 0.10)
+    if role == "researcher":
+        return Gf.Vec3f(0.60, 0.35, 0.95)
+    return Gf.Vec3f(0.20, 0.65, 0.95)
+
+
+def _replace_active_viewer(stage, command: dict[str, Any]) -> None:
+    if stage is None:
+        return
+    _ensure_scope(stage, "/World/Avatars")
+    root_path = "/World/Avatars/ActiveUser"
+    old = stage.GetPrimAtPath(root_path)
+    if old.IsValid():
+        stage.RemovePrim(old.GetPath())
+    role = str(command.get("role") or "viewer")
+    viewer_id = str(command.get("viewer_id") or command.get("user") or "portal-user")
+    color = _role_color(role)
+    root = UsdGeom.Xform.Define(stage, root_path)
+    root.AddTranslateOp().Set(Gf.Vec3d(44.0, 8.0, 0.10))
+    body = UsdGeom.Cube.Define(stage, f"{root_path}/Body")
+    body.CreateSizeAttr(1.0)
+    UsdGeom.XformCommonAPI(body).SetTranslate(Gf.Vec3d(0.0, 0.0, 0.75))
+    UsdGeom.XformCommonAPI(body).SetScale(Gf.Vec3f(0.26, 0.18, 0.75))
+    _set_display_color(body.GetPrim(), Gf.Vec3f(0.72, 0.78, 0.86))
+    head = UsdGeom.Sphere.Define(stage, f"{root_path}/Head")
+    head.CreateRadiusAttr(0.18)
+    UsdGeom.XformCommonAPI(head).SetTranslate(Gf.Vec3d(0.0, 0.0, 1.62))
+    _set_display_color(head.GetPrim(), Gf.Vec3f(0.92, 0.82, 0.70))
+    badge = UsdGeom.Cube.Define(stage, f"{root_path}/RoleBadge")
+    badge.CreateSizeAttr(1.0)
+    UsdGeom.XformCommonAPI(badge).SetTranslate(Gf.Vec3d(0.0, 0.0, 1.98))
+    UsdGeom.XformCommonAPI(badge).SetScale(Gf.Vec3f(0.32, 0.32, 0.10))
+    _set_display_color(badge.GetPrim(), color)
+    set_prim = root.GetPrim()
+    set_prim.CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set(f"viewer.{viewer_id}")
+    set_prim.CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("active_viewer")
+    set_prim.CreateAttribute("trident:role", Sdf.ValueTypeNames.String).Set(role)
+    carb.log_info(f"[trident.twin] active viewer shown: {viewer_id} ({role})")
+
+
 def _highlight_entity(stage, entity_id: str) -> bool:
     prim = _find_prim_by_entity_id(stage, entity_id)
     if prim is None:
         carb.log_warn(f"[trident.twin] highlight target not found: {entity_id}")
         return False
+    paths: list[str] = []
     for item in Usd.PrimRange(prim):
         if item.IsA(UsdGeom.Gprim):
+            paths.append(str(item.GetPath()))
             _set_display_color(item, Gf.Vec3f(0.05, 0.75, 0.90))
+    _highlight_state[entity_id] = {"paths": paths, "elapsed": 0.0}
     carb.log_info(f"[trident.twin] highlighted: {entity_id}")
     return True
+
+
+def _animate_highlights(stage, dt: float) -> None:
+    if stage is None:
+        return
+    for entity_id in list(_highlight_state.keys()):
+        state = _highlight_state[entity_id]
+        state["elapsed"] = float(state.get("elapsed", 0.0)) + dt
+        elapsed = state["elapsed"]
+        color = Gf.Vec3f(1.0, 0.86, 0.15) if int(elapsed / 0.35) % 2 == 0 else Gf.Vec3f(0.05, 0.75, 0.90)
+        for path in state.get("paths", []):
+            prim = stage.GetPrimAtPath(path)
+            if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
+                _set_display_color(prim, color)
+        if elapsed >= 6.0:
+            for path in state.get("paths", []):
+                prim = stage.GetPrimAtPath(path)
+                if prim.IsValid() and prim.IsA(UsdGeom.Gprim):
+                    _set_display_color(prim, Gf.Vec3f(0.05, 0.75, 0.90))
+            del _highlight_state[entity_id]
+
+
+def _delivery_lane(workload_type: str) -> float:
+    kind = (workload_type or "HPDA").upper()
+    if kind == "AI":
+        return 6.0
+    if kind == "HPC":
+        return 10.0
+    return 14.0
+
+
+def _interpolate(points: list[tuple[float, float, float]], t: float) -> tuple[float, float, float]:
+    if not points:
+        return (59.0, 10.0, 1.0)
+    if len(points) == 1:
+        return points[0]
+    t = max(0.0, min(1.0, t))
+    scaled = t * (len(points) - 1)
+    idx = min(int(scaled), len(points) - 2)
+    local = scaled - idx
+    a = points[idx]
+    b = points[idx + 1]
+    return tuple(a[i] + (b[i] - a[i]) * local for i in range(3))  # type: ignore[return-value]
+
+
+def _start_delivery(stage, command: dict[str, Any]) -> None:
+    global _delivery_seq
+    if stage is None:
+        return
+    entity_id = str(command.get("entity_id") or "")
+    prim = _find_prim_by_entity_id(stage, entity_id)
+    sx, sy, sz = _prim_translate(prim, (29.0, 2.0, 0.9))
+    lane_y = _delivery_lane(str(command.get("workload_type") or "HPDA"))
+    _delivery_seq += 1
+    root_path = f"/World/LiveDelivery/Package_{_delivery_seq:03d}"
+    _ensure_scope(stage, "/World/LiveDelivery")
+    xform = UsdGeom.Xform.Define(stage, root_path)
+    xform.AddTranslateOp().Set(Gf.Vec3d(sx, sy, max(sz + 0.35, 1.0)))
+    xform.AddScaleOp().Set(Gf.Vec3f(0.42, 0.32, 0.32))
+    body = UsdGeom.Cube.Define(stage, f"{root_path}/Body")
+    _set_display_color(body.GetPrim(), Gf.Vec3f(0.62, 0.40, 0.95))
+    xform.GetPrim().CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set(f"delivery.{_delivery_seq:03d}.{entity_id}")
+    xform.GetPrim().CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("live_delivery_package")
+    points = [
+        (sx, sy, max(sz + 0.35, 1.0)),
+        (40.0, sy, 1.05),
+        (52.0, lane_y, 1.05),
+        (61.5, lane_y, 1.05),
+    ]
+    _delivery_state.append({"path": root_path, "points": points, "elapsed": 0.0, "duration": 8.0})
+    _highlight_entity(stage, entity_id)
+    carb.log_info(f"[trident.twin] delivery started: {entity_id} -> {command.get('workload_type') or 'HPDA'}")
+
+
+def _animate_deliveries(stage, dt: float) -> None:
+    if stage is None:
+        return
+    for state in list(_delivery_state):
+        state["elapsed"] = float(state.get("elapsed", 0.0)) + dt
+        duration = max(float(state.get("duration", 8.0)), 0.1)
+        t = min(state["elapsed"] / duration, 1.0)
+        pos = _interpolate(state.get("points", []), t)
+        prim = stage.GetPrimAtPath(state["path"])
+        if prim.IsValid():
+            _set_translate(prim, pos[0], pos[1], pos[2])
+        if t >= 1.0:
+            _delivery_state.remove(state)
 
 
 def _apply_command(stage, command: dict[str, Any]) -> None:
@@ -241,6 +393,10 @@ def _apply_command(stage, command: dict[str, Any]) -> None:
         _set_viewport_camera(str(command.get("camera_path") or ""))
     elif kind == "highlight":
         _highlight_entity(stage, str(command.get("entity_id") or ""))
+    elif kind == "delivery":
+        _start_delivery(stage, command)
+    elif kind == "viewer_state":
+        _replace_active_viewer(stage, command)
 
 
 # ── 핵심 로직 ─────────────────────────────────────────────────────────────────
@@ -477,6 +633,10 @@ class TridentTwinExtension(omni.ext.IExt):
                 for command in commands_payload.get("commands", []):
                     _apply_command(stage, command)
                 self._command_seq = int(commands_payload.get("latest_seq", self._command_seq))
+
+        if stage is not None:
+            _animate_highlights(stage, dt)
+            _animate_deliveries(stage, dt)
 
         if not self._running:
             return

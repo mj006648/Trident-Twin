@@ -57,12 +57,14 @@ _BASE_ENTITY_CACHE: dict[str, Any] | None = None
 _BASE_ENTITY_CACHE_TS = 0.0
 _COMMANDS: list[dict[str, Any]] = []
 _COMMAND_SEQ = 0
+_VIEWERS: dict[str, dict[str, Any]] = {}
 
 CAMERA_PRESETS = [
     {"id": "overview", "label": "Overview Full", "zone": "overview", "camera_path": "/World/Cameras/Overview_Top45"},
     {"id": "raw_bucket", "label": "Raw Bucket Zone", "zone": "raw", "camera_path": "/World/Cameras/zone_02_raw_bucket"},
     {"id": "accumulation", "label": "Accumulation Zone", "zone": "accumulation", "camera_path": "/World/Cameras/zone_03_accumulation"},
     {"id": "lakehouse", "label": "Lakehouse Zone", "zone": "lakehouse", "camera_path": "/World/Cameras/zone_04_lakehouse"},
+    {"id": "staging", "label": "Staging Zone", "zone": "staging", "camera_path": "/World/Cameras/zone_04_staging"},
     {"id": "search", "label": "Search Zone", "zone": "search", "camera_path": "/World/Cameras/zone_05_search"},
     {"id": "delivery", "label": "Delivery Zone", "zone": "delivery", "camera_path": "/World/Cameras/zone_06_delivery"},
     {"id": "tower", "label": "Control Tower Zone", "zone": "tower", "camera_path": "/World/Cameras/zone_07_tower"},
@@ -611,6 +613,40 @@ if FastAPI is not None:
             "table": payload.get("table"),
         })
         return {"ok": True, "command": command}
+
+    @app.post("/api/twin/delivery")
+    def api_twin_delivery(payload: dict[str, Any]):
+        entity_id = str(payload.get("entity_id") or "")
+        if not entity_id:
+            raise HTTPException(status_code=400, detail="entity_id is required")
+        command = _append_command("delivery", {
+            "entity_id": entity_id,
+            "label": payload.get("label") or entity_id,
+            "query": payload.get("query"),
+            "table": payload.get("table"),
+            "workload_type": payload.get("workload_type") or "HPDA",
+        })
+        return {"ok": True, "command": command}
+
+    @app.post("/api/twin/viewer-state")
+    def api_twin_viewer_state(payload: dict[str, Any]):
+        viewer_id = str(payload.get("viewer_id") or payload.get("user") or "portal-user").strip() or "portal-user"
+        role = str(payload.get("role") or "viewer").strip().lower() or "viewer"
+        viewer = {
+            "viewer_id": viewer_id,
+            "user": payload.get("user") or viewer_id,
+            "role": role,
+            "display_name": payload.get("display_name") or payload.get("user") or viewer_id,
+            "last_seen": datetime.now(timezone.utc).isoformat(),
+        }
+        _VIEWERS.clear()  # current implementation intentionally shows the active Portal user only
+        _VIEWERS[viewer_id] = viewer
+        command = _append_command("viewer_state", viewer)
+        return {"ok": True, "viewer": viewer, "command": command}
+
+    @app.get("/api/twin/viewers")
+    def api_twin_viewers():
+        return {"viewers": list(_VIEWERS.values())}
 
     @app.get("/api/twin/commands")
     def api_twin_commands(since: int = 0):

@@ -184,7 +184,7 @@ COLORS = {
     "iceberg_box":        ((0.94, 0.95, 0.97), 1.00),
     "lakehouse_data_table": ((0.38, 0.72, 1.00), 1.00),
     "lakehouse_metadata_table": ((1.00, 0.78, 0.22), 1.00),
-    "lakehouse_slot_base": ((0.18, 0.45, 0.38), 1.00),
+    "lakehouse_slot_base": ((0.70, 0.74, 0.78), 1.00),
     "milvus_label":       ((0.55, 0.25, 0.85), 1.00),
     "redis_card":         ((0.85, 0.18, 0.20), 1.00),
     "led_green":          ((0.20, 0.95, 0.30), 1.00),
@@ -549,20 +549,19 @@ def make_pipeline_operation_step(stage, path, pos, mats, *, step_no, code_label,
 
     # Pillars span both belts (belt centers at y=-0.7 and y=+0.7 relative to gate center y=0)
     # Outer edge of rails ≈ y=±1.25; pillars placed at y=±1.8 for clearance.
-    cube(stage, f"{path}/PillarL", (x, y - 1.8, z + 1.25), (0.14, 0.14, 2.5), mats["steel_frame"])
-    cube(stage, f"{path}/PillarR", (x, y + 1.8, z + 1.25), (0.14, 0.14, 2.5), mats["steel_frame"])
-    # Crossbar at z=2.5+0.07=2.57 → top of pillars
-    cube(stage, f"{path}/Crossbar", (x, y, z + 2.57), (0.12, 3.8, 0.12), mats["steel_frame"])
+    cube(stage, f"{path}/PillarL", (x, y - 1.35, z + 1.00), (0.10, 0.10, 2.0), mats["steel_frame"])
+    cube(stage, f"{path}/PillarR", (x, y + 1.35, z + 1.00), (0.10, 0.10, 2.0), mats["steel_frame"])
+    cube(stage, f"{path}/Crossbar", (x, y, z + 2.08), (0.10, 2.9, 0.10), mats["steel_frame"])
     # Colored badge hanging center of crossbar
-    cube(stage, f"{path}/Badge", (x, y, z + 2.20), (0.40, 0.40, 0.40), mats[bar_mat_key],
+    cube(stage, f"{path}/Badge", (x, y, z + 1.78), (0.30, 0.30, 0.30), mats[bar_mat_key],
          name=f"{operation} badge",
          entity_id=f"operation.{step_no:02d}.{operation}.badge",
          entity_type="operation_badge", stage_name=operation)
 
     # code_label 텍스트 — PillarL 앞 바닥면에 작게 배치
     render_text(stage, f"{path}/Label", code_label,
-                (x, y - 2.1, z + 0.02), mats,
-                pixel=0.04, height_z=0.02, color_key="black_panel")
+                (x, y - 1.60, z + 0.02), mats,
+                pixel=0.032, height_z=0.02, color_key="black_panel")
 
     return gate
 
@@ -1531,6 +1530,8 @@ def main():
                 "ACCUMULATION ZONE", (+13.0, -4.3, 0.025), mats, pixel=0.075)
     render_text(stage, "/World/ZonePads/Labels/Lakehouse",
                 "LAKEHOUSE ZONE",   (+29.0, -7.5, 0.025), mats, pixel=0.12)
+    render_text(stage, "/World/ZonePads/Labels/Staging",
+                "STAGING ZONE",     (+29.0, +13.9, 0.025), mats, pixel=0.08)
     render_text(stage, "/World/ZonePads/Labels/Search",
                 "SEARCH ZONE",      (+44.0,  +4.0, 0.025), mats, pixel=0.10)
     render_text(stage, "/World/ZonePads/Labels/Delivery",
@@ -1727,12 +1728,12 @@ def main():
     # ===== Zone 3: Accumulation Zone =====
     # 7 catalog-first security gates, one per station_x position, straddling BOTH belts together.
     # Belt centers: y=-0.7 and y=+0.7. Gate spans both belts (pillars at y=±1.8).
-    station_x = [6.5, 8.8, 11.1, 13.4, 15.7, 18.0, 20.3]
+    station_x = [5.9, 7.9, 9.9, 11.9, 13.9, 15.9, 17.9]
     UsdGeom.Scope.Define(stage, "/World/Pipeline")
 
     # Main belt — starts at Raw east wall (+4.7), Y=-0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/InputConveyor",
-                   x_start=4.7, x_end=21.5, y_center=-0.7,
+                   x_start=4.7, x_end=18.8, y_center=-0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver")
     p = stage.GetPrimAtPath("/World/AccumulationPipeline/InputConveyor")
@@ -1742,7 +1743,7 @@ def main():
     p.CreateAttribute("trident:name", Sdf.ValueTypeNames.String).Set("Pipeline Main Line (Full Mode)")
     # Express belt — parallel at Y=+0.7. SILVER frame.
     build_conveyor(stage, "/World/AccumulationPipeline/ExpressLine",
-                   x_start=4.7, x_end=21.5, y_center=+0.7,
+                   x_start=4.7, x_end=18.8, y_center=+0.7,
                    z_top=0.7, width=1.0, mats=mats,
                    frame_mat_key="metal_silver",
                    belt_mat_key="conveyor_belt_express")
@@ -1777,7 +1778,7 @@ def main():
          name="Sharing Metadata Station", entity_id="station.metadata.sharing",
          entity_type="metadata_station", stage_name="sharing")
     cube(stage, "/World/AccumulationPipeline/ToLakehouseConveyor",
-         (22.0, 0.0, 0.65), (0.06, 0.06, 0.06), mats["conveyor_belt"],
+         (18.95, 0.0, 0.65), (0.05, 0.05, 0.05), mats["conveyor_belt"],
          name="To Lakehouse Conveyor (anchor)",
          entity_id="pipeline.to_lakehouse",
          entity_type="pipeline", stage_name="staging")
@@ -1785,11 +1786,11 @@ def main():
     # Both belts converge to Y=0 at the Lakehouse entrance via two Y-bends.
     # SILVER frames — feeding the Silver Lakehouse stage.
     build_conveyor_Y(stage, "/World/AccumulationPipeline/MainConverge_YBend",
-                     y_start=-0.7, y_end=0.0, x_center=20.4,
+                     y_start=-0.7, y_end=0.0, x_center=18.4,
                      z_top=0.7, width=1.0, mats=mats,
                      frame_mat_key="metal_silver")
     build_conveyor_Y(stage, "/World/AccumulationPipeline/ExpressConverge_YBend",
-                     y_start=0.0, y_end=+0.7, x_center=20.4,
+                     y_start=0.0, y_end=+0.7, x_center=18.4,
                      z_top=0.7, width=1.0, mats=mats,
                      frame_mat_key="metal_silver",
                      belt_mat_key="conveyor_belt_express")
@@ -1916,43 +1917,54 @@ def main():
     def _safe_name(value: str) -> str:
         return value.replace("-", "_").replace(".", "_").title()
 
-    def _lakehouse_slot_center(namespace: str, fallback_index: int) -> tuple[float, float]:
-        # Map Raw Bucket's slot coordinate range onto Lakehouse's lower table area.
-        raw_x, raw_y = raw_slot_centers.get(namespace, (None, None))
-        if raw_x is None or raw_y is None:
-            cols = 3
-            col = fallback_index % cols
-            row = fallback_index // cols
-            return (lh_cx - 5.6 + col * 5.6, lh_cy - 12.5 + row * 3.0)
-        x_norm = (raw_x - X_START) / max(X_END - X_START, 0.001)
-        raw_y_min = Y_START + LABEL_H
-        raw_y_max = Y_START + 4 * (ZONE_TOTAL_D + 0.20) + ZONE_TOTAL_D
-        y_norm = (raw_y - raw_y_min) / max(raw_y_max - raw_y_min, 0.001)
-        lx = (lh_cx - 7.0) + max(0.0, min(1.0, x_norm)) * 14.0
-        ly = (lh_cy - 13.0) + max(0.0, min(1.0, y_norm)) * 10.0
-        return (lx, ly)
+    def _short_table_label(component: str) -> str:
+        token = component.upper().replace("TRIDENT_", "").replace("_", " ")
+        words = token.split()
+        if len(words) > 2:
+            token = " ".join(words[:2])
+        return token[:14]
+
+    def _slot_grid_center(slot_index: int) -> tuple[float, float]:
+        # Lakehouse lower half: clear Raw-Bucket-like dataset cells, not a dense table pile.
+        cols = 2
+        col = slot_index % cols
+        row = slot_index // cols
+        return (lh_cx - 4.8 + col * 9.6, lh_cy - 10.2 + row * 4.15)
 
     grouped_inventory: dict[str, list[tuple]] = {}
     for spec in inventory_specs:
         grouped_inventory.setdefault(spec[2], []).append(spec)
 
-    for group_idx, (ns, specs) in enumerate(grouped_inventory.items()):
-        gx, gy = _lakehouse_slot_center(ns, group_idx)
+    ordered_namespaces = [ns for ns in RAW_NAMESPACES if ns in grouped_inventory]
+    ordered_namespaces.extend(ns for ns in grouped_inventory if ns not in ordered_namespaces)
+
+    for group_idx, ns in enumerate(ordered_namespaces):
+        specs = grouped_inventory[ns]
+        gx, gy = _slot_grid_center(group_idx)
         safe_ns = _safe_name(ns)
-        slot_w = 3.6
-        slot_d = 2.35
+        slot_w = 8.15
+        slot_d = 3.35
         cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/SlotBase",
              (gx, gy, 0.18), (slot_w, slot_d, 0.08), mats["lakehouse_slot_base"],
              name=f"{ns} lakehouse slot", entity_id=f"lakehouse.slot.{ns}",
              entity_type="lakehouse_dataset_slot", stage_name="lakehouse_inventory")
+        # Thin dividers make the Lakehouse cells read like Raw Bucket cells.
+        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerS",
+             (gx, gy - slot_d / 2, 0.24), (slot_w, 0.035, 0.12), mats["steel_frame"])
+        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerN",
+             (gx, gy + slot_d / 2, 0.24), (slot_w, 0.035, 0.12), mats["steel_frame"])
+        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerW",
+             (gx - slot_w / 2, gy, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
+        cube(stage, f"/World/Lakehouse/Tables/{safe_ns}/DividerE",
+             (gx + slot_w / 2, gy, 0.24), (0.035, slot_d, 0.12), mats["steel_frame"])
         render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/Label",
-                    ns.upper().replace("_", " "), (gx, gy - slot_d / 2 + 0.22, 0.26),
-                    mats, pixel=0.025, height_z=0.018, color_key="black_panel")
-        cols = 4
-        cell_x = 0.78
-        cell_y = 0.62
-        x0 = gx - min(cols, max(1, len(specs))) * cell_x / 2 + cell_x / 2
-        y0 = gy - 0.22
+                    ns.upper().replace("_", " "), (gx, gy - slot_d / 2 + 0.22, 0.28),
+                    mats, pixel=0.020, height_z=0.018, color_key="black_panel")
+        cols = 5 if len(specs) >= 5 else max(1, len(specs))
+        cell_x = 1.48
+        cell_y = 0.92
+        x0 = gx - (cols - 1) * cell_x / 2
+        y0 = gy - 0.38
         for idx, (rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit) in enumerate(specs):
             col = idx % cols
             row = idx // cols
@@ -1960,13 +1972,16 @@ def main():
             tx = x0 + col * cell_x
             ty = y0 + row * cell_y
             make_readiness_table_crate(
-                stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, 0.68),
-                (0.52, 0.40, 0.34), mats, entity_id=eid, namespace=_ns,
+                stage, f"/World/DataReadiness/Inventory/{rel_path}", (tx, ty, 0.62),
+                (0.40, 0.30, 0.26), mats, entity_id=eid, namespace=_ns,
                 component=comp, row_count=rows, object_count=objects,
                 quality_score=quality, access_frequency=access, semantic=semantic,
                 location=location, policy=policy, freshness=freshness, workload_fit=fit,
                 table_role=role,
             )
+            render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
+                        _short_table_label(comp), (tx, ty, 0.99), mats,
+                        pixel=0.014, height_z=0.012, color_key="black_panel")
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Bookshelf-style shelving units: 3 rows of shelf units, each with 3 shelves + boxes.
     UsdGeom.Scope.Define(stage, "/World/Showcase/Displays")
@@ -2056,16 +2071,8 @@ def main():
                       query="camera + lidar", compares="quality,policy,semantic,location,cache",
                       explains_missing_metadata=True)
 
-    build_mannequin(stage, "/World/Avatars/Avatar_Admin",
-                    (ls_cx - 2.5, ls_cy - 2.0, 0.10), "admin", mats)
-    build_mannequin(stage, "/World/Avatars/Avatar_Researcher",
-                    (ls_cx + 2.5, ls_cy - 2.0, 0.10), "researcher", mats)
-    build_mannequin(stage, "/World/Avatars/Avatar_Operator",
-                    (ls_cx - 1.8, ls_cy + 1.5, 0.10), "operator", mats)
-    build_mannequin(stage, "/World/Avatars/Avatar_Viewer",
-                    (ls_cx + 1.8, ls_cy + 0.5, 0.10), "viewer", mats)
-    build_mannequin(stage, "/World/Avatars/Avatar_Librarian",
-                    (ls_cx, ls_cy + 4.2, 0.10), "operator", mats)
+    # Active Search Zone users are created by the Isaac extension from viewer_state commands.
+    UsdGeom.Scope.Define(stage, "/World/Avatars")
 
     # ===== Zone 8: Delivery Yard — single big table + 3 STRAIGHT outgoing belts =====
     # Trucks and Big Table aligned with Lobby Y line: HPC = Lobby Y = +10
@@ -2101,48 +2108,11 @@ def main():
          (big_table_cx, big_table_cy + big_table_d / 2 - 0.05,
           floor_z + table_top_z + 0.06),
          (big_table_w * 0.95, 0.08, 0.10), mats["metal_gold"])
-    # Sample boxes ready for dispatch — spread across the longer Y span
-    box_top_z = floor_z + table_top_z + 0.05 + 0.20
-    for i, (dx, dy, led) in enumerate([
-        (-0.8, big_table_cy - 4.0, "green"),
-        (+0.8, big_table_cy - 3.0, "yellow"),
-        (-0.8, big_table_cy - 1.5, "green"),
-        (+0.8, big_table_cy - 0.5, "green"),
-        (-0.8, big_table_cy + 1.0, "yellow"),
-        (+0.8, big_table_cy + 2.0, "green"),
-        (-0.8, big_table_cy + 3.0, "green"),
-        (+0.8, big_table_cy + 4.0, "red"),
-    ]):
-        make_iceberg_box(stage, f"/World/DeliveryYard/BigTable/Box_{i + 1}",
-                         (big_table_cx + dx, dy, box_top_z),
-                         (0.50, 0.36, 0.40), mats, led=led)
+    # No static boxes on the Delivery table. Packages appear only after Send to Delivery.
 
     # Canonical workload delivery packages generated from selected ready bundles.
 
-    # ---- ONE LH belt -> big table (south edge) — SILVER ----
-    big_t_south = big_table_cy - big_table_d / 2  # +5.0
-    big_t_north = big_table_cy + big_table_d / 2  # +10.0
-    build_conveyor(stage, "/World/DeliveryYard/LH_Belt/X",
-                   x_start=37.5, x_end=big_table_cx, y_center=0.0,
-                   z_top=0.7, width=1.0, mats=mats,
-                   frame_mat_key="metal_silver")
-    build_conveyor_Y(stage, "/World/DeliveryYard/LH_Belt/Y",
-                     y_start=0.0, y_end=big_t_south,
-                     x_center=big_table_cx,
-                     z_top=0.7, width=1.0, mats=mats,
-                     frame_mat_key="metal_silver")
-
-    # ---- ONE SC belt -> big table (north edge) — GOLD ----
-    # SC now at cy=+22, east wall exit at Y=+22.
-    build_conveyor(stage, "/World/DeliveryYard/SC_Belt/X",
-                   x_start=37.5, x_end=big_table_cx, y_center=+22.0,
-                   z_top=0.7, width=1.0, mats=mats,
-                   frame_mat_key="metal_gold")
-    build_conveyor_Y(stage, "/World/DeliveryYard/SC_Belt/Y",
-                     y_start=big_t_north, y_end=+22.0,
-                     x_center=big_table_cx,
-                     z_top=0.7, width=1.0, mats=mats,
-                     frame_mat_key="metal_gold")
+    # Incoming Lakehouse/Staging rails are intentionally hidden; live delivery boxes animate only after user action.
 
     # ---- 3 STRAIGHT outgoing belts: big table east edge -> each truck (no bends) ----
     # Big Table now wide enough in Y to cover all 3 truck Y lanes, so each belt is
@@ -2153,10 +2123,7 @@ def main():
                        x_start=big_t_east, x_end=truck_rear_x - 0.5, y_center=dy,
                        z_top=0.7, width=0.9, mats=mats,
                        frame_mat_key="conveyor_promotion")
-        # Iceberg box on belt with 5 gate badges
-        bx_pos = (big_t_east + 3.0, dy, 0.7 + 0.15)
-        make_iceberg_box(stage, f"/World/DeliveryYard/OutBelt_{nm}/Box",
-                         bx_pos, (0.42, 0.30, 0.30), mats)
+        # No static package box here; live delivery animation creates it on demand.
 
     # ---- Trucks parked east (cab +X, open rear at truck_rear_x) ----
     build_ai_truck(stage, "/World/DeliveryYard/Vehicle_AI",
@@ -2195,12 +2162,15 @@ def main():
     top_cams = [
         ("Top_Overview",      ( 15,  +7, 95), 14),
         ("Top_Ingest",        (-22,   0, 22), 22),
-        ("Top_RawBucket",     ( -4,   0, 28), 22),
-        ("Top_Accumulation",  (+13,   0, 22), 20),
-        ("Top_Lakehouse",     (+29,   0, 28), 22),
-        ("Top_Staging",       (+29, +22, 28), 22),
-        ("Top_Search",        (+44, +10, 22), 22),
-        ("Top_Delivery",      (+59, +10, 30), 22),
+        ("Top_RawBucket",     ( -4,  11, 24), 28),
+        ("zone_02_raw_bucket",( -4,  11, 24), 28),
+        ("Top_Accumulation",  (+12,   0, 18), 24),
+        ("Top_Lakehouse",     (+29,   2, 24), 28),
+        ("zone_04_lakehouse", (+29,   2, 24), 28),
+        ("Top_Staging",       (+29, +21, 22), 28),
+        ("zone_04_staging",   (+29, +21, 22), 28),
+        ("Top_Search",        (+44, +10, 18), 26),
+        ("Top_Delivery",      (+59, +10, 22), 26),
         ("Top_Tower",         (-22, +25, 22), 22),
     ]
     UsdGeom.Scope.Define(stage, "/World/Cameras")
@@ -2237,12 +2207,10 @@ def main():
     oblique_cams = [
         ("/World/Cameras/Overview_Top45",       (25.0, -65.0, 65.0), (25.0, 10.0, 0.0), 12.0),
         ("/World/Cameras/zone_01_truck_yard",  (-22.0, -22.0, 22.0), (-22.0,  0.0, 1.5), 18.0),
-        ("/World/Cameras/zone_02_raw_bucket",  ( -4.0, -31.0, 42.0), ( -4.0, 11.0, 1.5), 18.0),
-        ("/World/Cameras/zone_03_accumulation",( 13.0, -18.0, 18.0), ( 13.0,  0.0, 1.5), 18.0),
-        ("/World/Cameras/zone_04_lakehouse",   ( 29.0, -31.0, 42.0), ( 29.0, 11.0, 1.5), 18.0),
-        ("/World/Cameras/zone_05_search",      ( 44.0,  -6.0, 16.0), ( 44.0, 10.0, 1.5), 18.0),
-        ("/World/Cameras/zone_06_delivery",    ( 59.0, -12.0, 22.0), ( 59.0, 10.0, 1.5), 18.0),
-        ("/World/Cameras/zone_07_tower",       (-22.0,   7.0, 18.0), (-22.0, 25.0, 1.5), 18.0),
+        ("/World/Cameras/zone_03_accumulation",( 12.0, -12.0, 14.0), ( 12.0,  0.0, 1.2), 24.0),
+        ("/World/Cameras/zone_05_search",      ( 44.0,  -2.0, 13.0), ( 44.0, 10.0, 1.2), 24.0),
+        ("/World/Cameras/zone_06_delivery",    ( 59.0,  -5.0, 17.0), ( 59.0, 10.0, 1.2), 24.0),
+        ("/World/Cameras/zone_07_tower",       (-22.0,  10.0, 15.0), (-22.0, 25.0, 1.2), 24.0),
     ]
     for usd_path, translate, look_at, focal in oblique_cams:
         add_look_at_camera(usd_path, translate, look_at, focal)
