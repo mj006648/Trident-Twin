@@ -433,9 +433,9 @@ def _nearby_lakehouse_paths(stage, namespace: str, target_xyz: tuple[float, floa
         path = str(item.GetPath())
         if not item.IsA(UsdGeom.Gprim):
             continue
-        # The whole dataset cell should pulse faintly so the selected dataset is obvious.
+        # Keep highlight tight: pulse the selected crate plus its small table
+        # support/label, not the entire namespace slot/divider footprint.
         if any(token in path for token in ("/SlotBase", "/DividerS", "/DividerN", "/DividerW", "/DividerE")):
-            result.append(path)
             continue
         # The selected table support and flat table-name label are separate from
         # the Iceberg table crate, so include nearby pieces in the same cell.
@@ -456,8 +456,8 @@ def _create_highlight_plate(stage, entity_id: str, target_xyz: tuple[float, floa
     x, y, z = target_xyz
     plate = UsdGeom.Cube.Define(stage, path)
     plate.CreateSizeAttr(1.0)
-    UsdGeom.XformCommonAPI(plate).SetTranslate(Gf.Vec3d(x, y, max(0.40, z - 0.18)))
-    UsdGeom.XformCommonAPI(plate).SetScale(Gf.Vec3f(0.78, 0.58, 0.055))
+    UsdGeom.XformCommonAPI(plate).SetTranslate(Gf.Vec3d(x, y, max(0.40, z - 0.12)))
+    UsdGeom.XformCommonAPI(plate).SetScale(Gf.Vec3f(0.44, 0.36, 0.035))
     _set_display_color(plate.GetPrim(), Gf.Vec3f(1.0, 0.12, 0.12))
     return path
 
@@ -602,15 +602,67 @@ def _big_table_y(index: int, total: int) -> float:
     return low + (high - low) * (index / max(1, total - 1))
 
 
-def _package_color(destination: str, workload_type: str) -> Gf.Vec3f:
-    if destination == "ai_bus" or workload_type.upper() == "AI":
-        return Gf.Vec3f(0.10, 0.55, 1.00)
-    if workload_type.upper() == "HPC":
-        return Gf.Vec3f(0.25, 0.85, 0.35)
-    return Gf.Vec3f(0.62, 0.40, 0.95)
+_METADATA_TOKENS = ("manifest", "metadata", "catalog", "asset", "schema", "lineage", "link", "index")
 
 
-def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, float], *, destination: str, workload_type: str) -> str:
+def _table_component(entity_id: str, item: dict[str, Any] | None = None) -> str:
+    table = str((item or {}).get("table") or "").strip()
+    if table:
+        return table.split(".")[-1]
+    parts = [p for p in entity_id.split(".") if p]
+    return parts[-1] if parts else entity_id
+
+
+def _table_role_for_package(stage, entity_id: str, item: dict[str, Any] | None = None) -> str:
+    prim = _find_prim_by_entity_id(stage, entity_id)
+    if prim is not None and prim.IsValid():
+        attr = prim.GetAttribute("trident:table_role")
+        if attr and attr.Get():
+            value = str(attr.Get()).lower()
+            if value in {"data", "metadata"}:
+                return value
+    token = _table_component(entity_id, item).lower()
+    return "metadata" if any(t in token for t in _METADATA_TOKENS) else "data"
+
+
+def _table_role_color(role: str) -> Gf.Vec3f:
+    if role == "metadata":
+        return Gf.Vec3f(1.00, 0.78, 0.22)
+    return Gf.Vec3f(0.38, 0.72, 1.00)
+
+
+def _cube_child(stage, path: str, translate: tuple[float, float, float], scale: tuple[float, float, float], color: Gf.Vec3f):
+    cube = UsdGeom.Cube.Define(stage, path)
+    cube.CreateSizeAttr(1.0)
+    UsdGeom.XformCommonAPI(cube).SetTranslate(Gf.Vec3d(*translate))
+    UsdGeom.XformCommonAPI(cube).SetScale(Gf.Vec3f(*scale))
+    _set_display_color(cube.GetPrim(), color)
+    return cube.GetPrim()
+
+
+def _make_table_crate_package(stage, root_path: str, *, entity_id: str, role: str) -> None:
+    # Match the generated Lakehouse table crate proportions instead of using a
+    # generic delivery cube: 0.26 x 0.20 x 0.16, role-colored body, tiny top
+    # readiness badges on the front edge. Text labels are intentionally omitted
+    # for moving packages because dynamic bitmap text is not available here.
+    body = _cube_child(stage, f"{root_path}/TableCrate", (0.0, 0.0, 0.0), (0.26, 0.20, 0.16), _table_role_color(role))
+    body.CreateAttribute("trident:source_entity_id", Sdf.ValueTypeNames.String).Set(entity_id)
+    badge_colors = (
+        Gf.Vec3f(0.20, 0.95, 0.30),
+        Gf.Vec3f(0.20, 0.95, 0.30),
+        Gf.Vec3f(0.20, 0.95, 0.30),
+    )
+    for idx, color in enumerate(badge_colors):
+        _cube_child(
+            stage,
+            f"{root_path}/GateBadges/Ready_{idx + 1}",
+            (-0.045 + idx * 0.045, -0.084, 0.088),
+            (0.035, 0.026, 0.012),
+            color,
+        )
+
+
+def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, float], *, destination: str, workload_type: str, item: dict[str, Any] | None = None) -> str:
     global _delivery_seq
     existing = _package_locations.get(entity_id)
     if destination == "ai_bus" and existing:
@@ -627,12 +679,12 @@ def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, flo
     _ensure_scope(stage, "/World/LiveDelivery")
     xform = UsdGeom.Xform.Define(stage, root_path)
     xform.AddTranslateOp().Set(Gf.Vec3d(*start))
-    xform.AddScaleOp().Set(Gf.Vec3f(0.42, 0.32, 0.32))
-    body = UsdGeom.Cube.Define(stage, f"{root_path}/Body")
-    _set_display_color(body.GetPrim(), _package_color(destination, workload_type))
+    role = _table_role_for_package(stage, entity_id, item)
+    _make_table_crate_package(stage, root_path, entity_id=entity_id, role=role)
     xform.GetPrim().CreateAttribute("trident:entity_id", Sdf.ValueTypeNames.String).Set(f"delivery.{_delivery_seq:03d}.{entity_id}")
     xform.GetPrim().CreateAttribute("trident:entity_type", Sdf.ValueTypeNames.String).Set("live_delivery_package")
     xform.GetPrim().CreateAttribute("trident:source_entity_id", Sdf.ValueTypeNames.String).Set(entity_id)
+    xform.GetPrim().CreateAttribute("trident:table_role", Sdf.ValueTypeNames.String).Set(role)
     return root_path
 
 
@@ -647,7 +699,7 @@ def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workl
         sx, sy, sz = existing["pos"]
     start_z = max(float(sz) + 0.35, 1.0) if destination != "ai_bus" else max(float(sz), 1.05)
     start = (float(sx), float(sy), start_z)
-    root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type)
+    root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type, item=item)
 
     route_y = 19.6 if sy >= 13.0 else 0.9
     detour_x = 52.0
