@@ -690,6 +690,7 @@ if FastAPI is not None:
             "table": payload.get("table"),
             "destination": payload.get("destination") or "delivery",
             "selection_id": payload.get("selection_id"),
+            "origin": payload.get("origin") or payload.get("source") or payload.get("delivery_origin"),
             "workload_type": payload.get("workload_type") or "HPDA",
         })
         return {"ok": True, "command": command}

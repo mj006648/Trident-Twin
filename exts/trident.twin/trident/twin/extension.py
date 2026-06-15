@@ -726,11 +726,16 @@ def _rebuild_staging(stage) -> None:
             prim.CreateAttribute("trident:source_entity_id", Sdf.ValueTypeNames.String).Set(entity_id)
             prim.CreateAttribute("trident:bundle_id", Sdf.ValueTypeNames.String).Set(str(bundle_id))
             prim.CreateAttribute("trident:table_role", Sdf.ValueTypeNames.String).Set(role)
-            _package_locations[entity_id] = {
+            # Keep staged package locations under a staging-specific key.
+            # A selected Lakehouse table and its staged bundle can share the
+            # same source entity_id; using entity_id as the only key made later
+            # Data Search deliveries incorrectly start from the Staging Zone.
+            _package_locations[f"staging:{safe_bundle}:{entity_id}"] = {
                 "path": root_path,
                 "pos": pos,
                 "stage": "staging",
                 "bundle_id": bundle_id,
+                "source_entity_id": entity_id,
             }
     carb.log_info(f"[trident.twin] staging bundles rebuilt: {len(_staging_state)}")
 
@@ -768,6 +773,56 @@ def _apply_staging(stage, command: dict[str, Any]) -> None:
     carb.log_info(f"[trident.twin] staging {action}: {bundle_id} items={len(items)}")
 
 
+def _find_staging_location(stage, entity_id: str) -> dict[str, Any] | None:
+    """Return the staged package location for a source entity, if present."""
+    for state in _package_locations.values():
+        if state.get("stage") != "staging":
+            continue
+        if str(state.get("source_entity_id") or "") != entity_id:
+            continue
+        path = str(state.get("path") or "")
+        prim = stage.GetPrimAtPath(path) if stage is not None else None
+        if prim is not None and prim.IsValid():
+            pos = _prim_translate(prim, state.get("pos") or (29.0, 20.0, STAGING_CRATE_Z))
+            return {**state, "pos": pos}
+
+    root = stage.GetPrimAtPath("/World/LiveStaging") if stage is not None else None
+    if root is None or not root.IsValid():
+        return None
+    for prim in Usd.PrimRange(root):
+        attr = prim.GetAttribute("trident:source_entity_id")
+        if attr and attr.Get() == entity_id:
+            return {
+                "path": str(prim.GetPath()),
+                "pos": _prim_translate(prim, (29.0, 20.0, STAGING_CRATE_Z)),
+                "stage": "staging",
+                "source_entity_id": entity_id,
+            }
+    return None
+
+
+def _take_inflight_delivery(entity_id: str) -> dict[str, Any] | None:
+    """Detach an in-flight package so a later command can reuse the same copy.
+
+    Portal sends a Big Table command followed shortly by an AI Bus command. The
+    Big Table animation lasts longer than that delay, so without this handoff a
+    second moving package is created for a single selected table.
+    """
+    for state in list(_delivery_state):
+        if str(state.get("entity_id") or "") != entity_id:
+            continue
+        duration = max(float(state.get("duration", 8.0)), 0.1)
+        t = min(float(state.get("elapsed", 0.0)) / duration, 1.0)
+        pos = _interpolate(state.get("points", []), t)
+        _delivery_state.remove(state)
+        return {
+            "path": state.get("path"),
+            "pos": pos,
+            "stage": state.get("final_stage") or "delivery",
+        }
+    return None
+
+
 def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, float], *, destination: str, workload_type: str, item: dict[str, Any] | None = None) -> str:
     global _delivery_seq
     existing = _package_locations.get(entity_id)
@@ -796,42 +851,66 @@ def _make_or_reuse_package(stage, entity_id: str, start: tuple[float, float, flo
     return root_path
 
 
-def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workload_type: str, index: int, total: int) -> None:
+def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workload_type: str, origin: str, index: int, total: int) -> None:
     entity_id = str(item.get("entity_id") or "").strip()
     if not entity_id:
         return
-    prim = _find_prim_by_entity_id(stage, entity_id)
-    sx, sy, sz = _prim_translate(prim, (29.0, 2.0, 0.9))
-    existing = _package_locations.get(entity_id)
-    if existing and existing.get("pos"):
-        if destination == "ai_bus" or (destination in {"big_table", "selection_table", "table"} and existing.get("stage") == "staging"):
-            sx, sy, sz = existing["pos"]
+
+    reuse = _take_inflight_delivery(entity_id) if destination == "ai_bus" else None
+    root_path = str((reuse or {}).get("path") or "")
+
+    if reuse and root_path and stage.GetPrimAtPath(root_path).IsValid():
+        sx, sy, sz = reuse["pos"]
+    else:
+        prim = _find_prim_by_entity_id(stage, entity_id)
+        sx, sy, sz = _prim_translate(prim, (29.0, 2.0, 0.9))
+
+        if origin == "staging":
+            staged = _find_staging_location(stage, entity_id)
+            if staged and staged.get("pos"):
+                sx, sy, sz = staged["pos"]
+        elif origin != "lakehouse":
+            # Backward-compatible fallback for old commands that had no origin.
+            # Prefer non-staging package locations only; staging locations are
+            # used exclusively when origin=staging is explicit.
+            existing = _package_locations.get(entity_id)
+            if existing and existing.get("pos") and existing.get("stage") != "staging":
+                sx, sy, sz = existing["pos"]
+
     start_z = max(float(sz) + 0.35, 1.0) if destination != "ai_bus" else max(float(sz), 1.05)
     start = (float(sx), float(sy), start_z)
-    root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type, item=item)
+    if not root_path:
+        root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type, item=item)
+    else:
+        prim = stage.GetPrimAtPath(root_path)
+        if prim.IsValid():
+            _set_translate(prim, start[0], start[1], start[2])
 
     route_y = 19.6 if sy >= 13.0 else 0.9
     detour_x = 52.0
+    big_y = _big_table_y(index, total)
     if destination in {"big_table", "selection_table", "table"}:
-        end_y = _big_table_y(index, total)
         points = [
             start,
             (float(sx), route_y, 1.05),
             (detour_x, route_y, 1.05),
-            (detour_x, end_y, 1.18),
+            (detour_x, big_y, 1.18),
         ]
         remove_on_finish = False
         final_stage = "big_table"
+        duration = 8.0
     elif destination == "ai_bus":
         lane_y = _delivery_lane("AI")
         points = [
             start,
-            (54.0, float(sy), 1.18),
+            (detour_x, big_y, 1.18),
+            (54.0, big_y, 1.18),
             (54.0, lane_y, 1.18),
             (61.5, lane_y, 1.05),
         ]
         remove_on_finish = False
         final_stage = "ai_bus"
+        duration = 6.0
     else:
         lane_y = _delivery_lane(workload_type)
         points = [
@@ -843,19 +922,19 @@ def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workl
         ]
         remove_on_finish = True
         final_stage = "delivery"
+        duration = 8.0
 
     _delivery_state.append({
         "path": root_path,
         "entity_id": entity_id,
         "points": points,
         "elapsed": 0.0,
-        "duration": 7.0 if destination == "ai_bus" else 8.0,
+        "duration": duration,
         "remove_on_finish": remove_on_finish,
         "final_stage": final_stage,
     })
     _highlight_entity(stage, entity_id)
-    carb.log_info(f"[trident.twin] package move started: {entity_id} -> {destination}/{workload_type}")
-
+    carb.log_info(f"[trident.twin] package move started: {entity_id} -> {destination}/{workload_type} origin={origin}")
 
 def _start_delivery(stage, command: dict[str, Any]) -> None:
     if stage is None:
@@ -865,8 +944,11 @@ def _start_delivery(stage, command: dict[str, Any]) -> None:
         return
     destination = str(command.get("destination") or "delivery").strip().lower()
     workload_type = str(command.get("workload_type") or "HPDA").strip().upper()
+    origin = str(command.get("origin") or command.get("source") or command.get("delivery_origin") or "").strip().lower()
+    if origin not in {"lakehouse", "staging"}:
+        origin = ""
     for idx, item in enumerate(items):
-        _start_delivery_item(stage, item, destination=destination, workload_type=workload_type, index=idx, total=len(items))
+        _start_delivery_item(stage, item, destination=destination, workload_type=workload_type, origin=origin, index=idx, total=len(items))
 
 
 def _animate_deliveries(stage, dt: float) -> None:
