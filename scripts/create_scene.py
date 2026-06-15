@@ -223,7 +223,7 @@ COLORS = {
     # Avatar roles
     "role_admin":         ((1.00, 0.80, 0.10), 1.00),
     "role_operator":      ((0.15, 0.40, 0.80), 1.00),
-    "role_researcher":    ((0.96, 0.96, 0.98), 1.00),
+    "role_researcher":    ((0.62, 0.25, 0.95), 1.00),
     "role_viewer":        ((0.55, 0.55, 0.58), 1.00),
     "role_service":       ((0.25, 0.25, 0.27), 1.00),
     "skin_tone":          ((0.85, 0.75, 0.65), 1.00),
@@ -363,6 +363,7 @@ ALPHABET_5x7 = {
     "7": ["11111", "00001", "00010", "00100", "01000", "01000", "01000"],
     "8": ["01110", "10001", "10001", "01110", "10001", "10001", "01110"],
     "9": ["01110", "10001", "10001", "01111", "00001", "00001", "01110"],
+    "_": ["00000", "00000", "00000", "00000", "00000", "00000", "11111"],
     "A": ["01110", "10001", "10001", "11111", "10001", "10001", "10001"],
     "B": ["11110", "10001", "10001", "11110", "10001", "10001", "11110"],
     "C": ["01111", "10000", "10000", "10000", "10000", "10000", "01111"],
@@ -1912,30 +1913,17 @@ def main():
     def _safe_name(value: str) -> str:
         return value.replace("-", "_").replace(".", "_").title()
 
-    def _short_table_label(component: str) -> str:
-        token = component.upper().replace("TRIDENT_", "").replace("_", " ")
-        aliases = {
-            "DATASET MANIFEST": "DS",
-            "NOTE MANIFEST": "NOTE",
-            "IMAGE MANIFEST": "IMG",
-            "WAVEFORM MANIFEST": "WAVE",
-            "RADIOLOGY REPORTS": "RAD",
-            "VITAL EVENTS": "VITAL",
-            "PROCEDURE EVENTS": "PROC",
-            "MEDICATION EVENTS": "MED",
-            "LAB EVENTS": "LAB",
-            "SEPSIS SEGMENT MANIFEST": "SEPSIS",
-            "VASOPRESSOR EVENTS": "VASO",
-            "SOFA SCORES": "SOFA",
-            "QSOFA SCORES": "QSOFA",
-            "LACTATE RESULTS": "LACT",
-            "FLUID BOLUSES": "FLUID",
-            "BLOOD CULTURES": "CULT",
-            "ANTIBIOTIC EVENTS": "ABX",
-        }
-        if token in aliases:
-            return aliases[token]
-        return token.split()[0][:6] if token.split() else token[:6]
+    def _table_label(component: str) -> str:
+        # Use the real table name instead of opaque aliases (DS/IMG/WAVE).
+        # The bitmap font renders uppercase, but keeps underscores so table
+        # identity remains visible, e.g. ANTIBIOTIC_EVENTS.
+        return component.upper().replace("TRIDENT_", "")
+
+    def _table_label_pixel(label: str) -> float:
+        # Fit long table names on a 0.26m crate top without truncation.
+        # render_text width ≈ (6 * chars - 1) * pixel.
+        chars = max(1, len(label))
+        return min(0.0048, 0.230 / max(1, (6 * chars - 1)))
 
     def _slot_grid_center(slot_index: int) -> tuple[float, float]:
         # Fallback only for inventory namespaces that do not have a Raw Bucket slot.
@@ -2015,11 +2003,13 @@ def main():
                 location=location, policy=policy, freshness=freshness, workload_fit=fit,
                 table_role=role,
             )
-            # Put the label directly on the crate top so it reads attached, not floating.
-            label_color = "black_panel" if role == "metadata" else "white_panel"
+            # Put the real table name directly on the crate top. Always black:
+            # white labels disappear on light/blue crate tops in the zone camera.
+            table_label = _table_label(comp)
             render_text(stage, f"/World/Lakehouse/Tables/{safe_ns}/TableLabel_{idx:02d}",
-                        _short_table_label(comp), (tx, ty, tz + box_scale[2] / 2 - 0.0003), mats,
-                        pixel=0.0056, height_z=0.0012, color_key=label_color)
+                        table_label, (tx, ty, tz + box_scale[2] / 2 - 0.0003), mats,
+                        pixel=_table_label_pixel(table_label), height_z=0.0010,
+                        color_key="black_panel")
     # ===== Staging zone (north half of unified Lakehouse, Y: +13~+26 world coords) =====
     # Empty showcase tables for future frequently used datasets. No static boxes are
     # placed here yet; live/curated bundles can be added later.
