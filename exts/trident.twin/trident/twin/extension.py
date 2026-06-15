@@ -519,19 +519,27 @@ def _extract_active_namespaces(entities: list[dict]) -> dict[str, str]:
     return result
 
 
-def _box_x_for(gate_statuses: dict[int, str]) -> float:
-    """완료된 마지막 게이트 다음 위치 반환."""
-    for gate_no in range(len(GATES), 0, -1):
-        if gate_statuses.get(gate_no) == "done":
-            _, _, _, gx = GATES[gate_no - 1]
-            if gate_no == len(GATES):
-                return LAKEHOUSE_X
-            return gx + 1.5
-    # 아직 첫 게이트 전 — 벨트 시작
-    return 5.0
+def _active_ingest_progress(entities: list[dict]) -> tuple[int, int]:
+    """Return (active namespace count, highest visible 3-step gate).
+
+    The live scene has 3 conceptual Accumulation steps. Do not count the
+    historical catalog pipeline_operation entities here; those can be 6/7+ and
+    caused misleading status text such as "gates 6/3 done".
+    """
+    gates: list[int] = []
+    for e in entities:
+        if e.get("type") != "raw_bucket":
+            continue
+        event = str(e.get("event") or "")
+        if event == "audit_done":
+            continue
+        gate = _EVENT_GATE.get(event, 0)
+        if gate > 0:
+            gates.append(gate)
+    return len(gates), max(gates, default=0)
 
 
-def _sync_boxes(stage, entities: list[dict], gate_statuses: dict[int, str]) -> int:
+def _sync_boxes(stage, entities: list[dict]) -> int:
     """namespace별 상자를 생성/이동/뱃지 추가/제거한다."""
     _ensure_scope(stage, "/World/LiveSync")
     active_ns = _extract_active_namespaces(entities)
@@ -737,11 +745,13 @@ class TridentTwinExtension(omni.ext.IExt):
             self._set_status("No open stage.")
             return
 
-        gate_statuses = _extract_gate_statuses(entities)
-        updated       = _sync_boxes(stage, entities, gate_statuses)
-
-        done_count = sum(1 for s in gate_statuses.values() if s == "done")
+        updated = _sync_boxes(stage, entities)
+        active_count, current_step = _active_ingest_progress(entities)
+        if active_count:
+            status = f"Live — active ingest {active_count}  |  step {current_step}/{len(GATES)}  |  boxes {len(_box_state)}  |  {updated} updates"
+        else:
+            status = f"Live — idle  |  boxes {len(_box_state)}  |  {updated} updates"
         self._set_status(
-            f"Live — gates {done_count}/{len(GATES)} done  |  boxes {len(_box_state)}  |  {updated} updates",
+            status,
             f"interval={self._poll_interval:.0f}s  hub={self._hub_url}",
         )
