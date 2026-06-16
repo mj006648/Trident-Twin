@@ -661,25 +661,55 @@ if FastAPI is not None:
         })
         return {"ok": True, "command": command}
 
+    def _normalize_twin_item(item: dict[str, Any]) -> dict[str, Any] | None:
+        entity_id = str(item.get("entity_id") or "").strip()
+        if not entity_id:
+            return None
+        return {
+            "entity_id": entity_id,
+            "label": item.get("label"),
+            "table": item.get("table"),
+            "dataset": item.get("dataset"),
+            "table_type": item.get("table_type"),
+            "table_role": item.get("table_role") or item.get("role"),
+            "role": item.get("role") or item.get("table_role"),
+        }
+
+    def _normalize_twin_items(raw_items: Any) -> list[dict[str, Any]]:
+        if not isinstance(raw_items, list):
+            return []
+        normalized: list[dict[str, Any]] = []
+        for item in raw_items:
+            if not isinstance(item, dict):
+                continue
+            normalized_item = _normalize_twin_item(item)
+            if normalized_item:
+                normalized.append(normalized_item)
+        return normalized
+
     @app.post("/api/twin/staging")
     def api_twin_staging(payload: dict[str, Any]):
         action = str(payload.get("action") or "upsert").strip().lower()
-        if action not in {"upsert", "select", "remove", "clear"}:
-            raise HTTPException(status_code=400, detail="action must be upsert, select, remove, or clear")
-        raw_items = payload.get("items")
-        normalized_items = []
-        if isinstance(raw_items, list):
-            normalized_items = [
-                {
-                    "entity_id": str(item.get("entity_id") or ""),
-                    "label": item.get("label"),
-                    "table": item.get("table"),
-                    "dataset": item.get("dataset"),
-                    "table_type": item.get("table_type"),
-                }
-                for item in raw_items
-                if isinstance(item, dict) and str(item.get("entity_id") or "").strip()
-            ]
+        if action not in {"upsert", "select", "remove", "clear", "sync", "replace"}:
+            raise HTTPException(status_code=400, detail="action must be upsert, select, remove, clear, sync, or replace")
+        normalized_items = _normalize_twin_items(payload.get("items"))
+        normalized_bundles: list[dict[str, Any]] = []
+        if isinstance(payload.get("bundles"), list):
+            for raw_bundle in payload.get("bundles"):
+                if not isinstance(raw_bundle, dict):
+                    continue
+                items = _normalize_twin_items(raw_bundle.get("items"))
+                if not items:
+                    continue
+                normalized_bundles.append({
+                    "id": raw_bundle.get("id") or raw_bundle.get("bundle_id"),
+                    "bundle_id": raw_bundle.get("bundle_id") or raw_bundle.get("id"),
+                    "title": raw_bundle.get("title"),
+                    "items": items,
+                    "query": raw_bundle.get("query"),
+                    "question": raw_bundle.get("question"),
+                    "created_at": raw_bundle.get("created_at"),
+                })
         if action in {"upsert", "select"} and not normalized_items:
             raise HTTPException(status_code=400, detail="items[] is required for staging upsert/select")
         command = _append_command("staging", {
@@ -687,6 +717,7 @@ if FastAPI is not None:
             "bundle_id": payload.get("bundle_id") or payload.get("selection_id") or "staged_bundle",
             "title": payload.get("title") or "Staged Bundle",
             "items": normalized_items,
+            "bundles": normalized_bundles,
             "query": payload.get("query"),
             "question": payload.get("question"),
             "selection_id": payload.get("selection_id"),
@@ -697,24 +728,10 @@ if FastAPI is not None:
     def api_twin_delivery(payload: dict[str, Any]):
         items = payload.get("items")
         if isinstance(items, list):
-            normalized_items = [
-                {
-                    "entity_id": str(item.get("entity_id") or ""),
-                    "label": item.get("label"),
-                    "table": item.get("table"),
-                    "dataset": item.get("dataset"),
-                }
-                for item in items
-                if isinstance(item, dict) and str(item.get("entity_id") or "").strip()
-            ]
+            normalized_items = _normalize_twin_items(items)
         else:
-            entity_id = str(payload.get("entity_id") or "")
-            normalized_items = [{
-                "entity_id": entity_id,
-                "label": payload.get("label") or entity_id,
-                "table": payload.get("table"),
-                "dataset": payload.get("dataset"),
-            }] if entity_id else []
+            normalized_item = _normalize_twin_item(payload)
+            normalized_items = [normalized_item] if normalized_item else []
         if not normalized_items:
             raise HTTPException(status_code=400, detail="entity_id or items[] is required")
         command = _append_command("delivery", {
