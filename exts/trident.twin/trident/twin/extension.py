@@ -926,28 +926,36 @@ def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workl
             if existing and existing.get("pos") and existing.get("stage") != "staging":
                 sx, sy, sz = existing["pos"]
 
-    start_z = max(float(sz) + 0.35, 1.0) if destination != "ai_bus" else max(float(sz), 1.05)
-    start = (float(sx), float(sy), start_z)
+    route_y = DELIVERY_STAGING_RAIL_Y if origin == "staging" else DELIVERY_LAKEHOUSE_RAIL_Y
+    rail_entry_x = DELIVERY_RAIL_ENTRY_X
+    detour_x = DELIVERY_BIG_TABLE_X
+    big_y = _big_table_y(index, total)
+
+    # Search/Lakehouse/Staging selections should not drag the original table
+    # crate across the floor. The real table/staged crate stays in place and
+    # only blinks; a matching copy appears directly on the correct inbound belt.
+    # Offset multiple selected packages along the rail so 2/3-table bundles are
+    # visible as separate boxes instead of overlapping.
+    rail_spacing = 0.46
+    rail_start_x = min(detour_x - 1.0, rail_entry_x + index * rail_spacing)
+    rail_entry = (rail_start_x, route_y, DELIVERY_RAIL_Z)
+    rail_to_table = (detour_x, route_y, DELIVERY_RAIL_Z)
+    table_pos = (detour_x, big_y, DELIVERY_TABLE_Z)
+
+    if reuse and root_path and stage.GetPrimAtPath(root_path).IsValid():
+        start_z = max(float(sz), DELIVERY_RAIL_Z)
+        start = (float(sx), float(sy), start_z)
+    else:
+        start = rail_entry
     if not root_path:
         root_path = _make_or_reuse_package(stage, entity_id, start, destination=destination, workload_type=workload_type, item=item)
     else:
         prim = stage.GetPrimAtPath(root_path)
         if prim.IsValid():
             _set_translate(prim, start[0], start[1], start[2])
-
-    route_y = DELIVERY_STAGING_RAIL_Y if origin == "staging" else DELIVERY_LAKEHOUSE_RAIL_Y
-    rail_entry_x = DELIVERY_RAIL_ENTRY_X
-    detour_x = DELIVERY_BIG_TABLE_X
-    big_y = _big_table_y(index, total)
-    source_exit = (rail_entry_x, float(sy), DELIVERY_RAIL_Z)
-    rail_entry = (rail_entry_x, route_y, DELIVERY_RAIL_Z)
-    rail_to_table = (detour_x, route_y, DELIVERY_RAIL_Z)
-    table_pos = (detour_x, big_y, DELIVERY_TABLE_Z)
     if destination in {"big_table", "selection_table", "table"}:
         points = [
             start,
-            source_exit,
-            rail_entry,
             rail_to_table,
             table_pos,
         ]
@@ -959,8 +967,8 @@ def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workl
         # Reused packages normally start on/near the Big Table. If a direct AI
         # command arrives without a prior Big Table leg, still route through the
         # proper inbound rail first.
-        if float(sx) < DELIVERY_RAIL_ENTRY_X + 0.1:
-            points = [start, source_exit, rail_entry, rail_to_table, table_pos]
+        if float(sx) < DELIVERY_BIG_TABLE_X - 0.5:
+            points = [start, rail_to_table, table_pos]
         else:
             points = [start, table_pos]
         points.extend([
@@ -975,8 +983,6 @@ def _start_delivery_item(stage, item: dict[str, Any], *, destination: str, workl
         lane_y = _delivery_lane(workload_type)
         points = [
             start,
-            source_exit,
-            rail_entry,
             rail_to_table,
             (detour_x, 10.0, DELIVERY_RAIL_Z),
             (61.5, lane_y, DELIVERY_RAIL_Z),
