@@ -146,6 +146,7 @@ STATE_KEYS = {
     "source_operation", "operation", "step_no", "output_kind", "output_entity",
     "nessie_commit", "table_full_name", "integrity_pct", "s3_file_count",
     "index_row_count", "last_updated_at", "status", "job_type",
+    "table_role", "table_type",
 }
 
 
@@ -219,9 +220,34 @@ def _readiness_from_dataset(row: dict[str, Any]) -> float:
     return round(min(score, 0.95), 2)
 
 
+def _visual_table_role(row: dict[str, Any], table_name: str) -> str | None:
+    """Return the Lakehouse visual role, or None for internal helper tables.
+
+    Stats-service owns the semantic role. Do not infer metadata from names when
+    the catalog explicitly says ``data``; e.g. ``dataset_manifest`` can be a
+    real data table in the demo Lakehouse.
+    """
+    raw_role = str(row.get("table_role") or row.get("role") or "").strip().lower()
+    if raw_role in {"data", "metadata"}:
+        return raw_role
+    if raw_role in {"asset", "catalog", "audit", "system", "internal"}:
+        return None
+
+    lowered = table_name.lower()
+    if lowered.startswith("trident_"):
+        return None
+    table_type = str(row.get("table_type") or "").strip().lower()
+    if table_type in {"search_index", "file_registry", "asset", "catalog", "audit"}:
+        return None
+    return "data"
+
+
 def _dataset_entity(row: dict[str, Any]) -> dict[str, Any]:
     table_full_name = str(row.get("table_full_name") or "unknown")
     _, namespace, table = _split_table_name(table_full_name)
+    table_role = _visual_table_role(row, table)
+    if table_role is None:
+        return {}
     component = _component_from_dataset(row)
     readiness = _readiness_from_dataset(row)
     tags = row.get("tags") or []
@@ -234,6 +260,10 @@ def _dataset_entity(row: dict[str, Any]) -> dict[str, Any]:
         "name": table_full_name,
         "table_full_name": table_full_name,
         "namespace": namespace,
+        "table": table,
+        "table_role": table_role,
+        "role": table_role,
+        "table_type": row.get("table_type"),
         "component": component,
         "zone": "zone.lakehouse_inventory",
         "stage": "lakehouse_inventory",
@@ -427,7 +457,12 @@ def load_live_entities() -> dict[str, Any]:
         merged.update(dict(row))
 
     pipeline_runs = overview.get("pipeline_runs", []) or []
-    entities = [_dataset_entity(row) for row in datasets_by_name.values() if row.get("table_full_name")]
+    entities = [
+        entity for row in datasets_by_name.values()
+        if row.get("table_full_name")
+        for entity in [_dataset_entity(row)]
+        if entity
+    ]
 
     # audit 데이터를 먼저 수집 — operation entities와 raw bucket 모두에서 재사용
     try:

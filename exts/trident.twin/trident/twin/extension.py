@@ -619,7 +619,23 @@ def _table_component(entity_id: str, item: dict[str, Any] | None = None) -> str:
     return parts[-1] if parts else entity_id
 
 
+def _explicit_table_role(item: dict[str, Any] | None = None) -> str | None:
+    if not isinstance(item, dict):
+        return None
+    for key in ("table_role", "role", "table_type"):
+        value = str(item.get(key) or "").strip().lower()
+        if value in {"data", "metadata"}:
+            return value
+    return None
+
+
 def _table_role_for_package(stage, entity_id: str, item: dict[str, Any] | None = None) -> str:
+    # Prefer the live catalog role carried by Portal/Twin Hub. Older scenes may
+    # have mis-colored ``dataset_manifest`` from name-token inference; explicit
+    # live role must win over stale prim attributes.
+    explicit = _explicit_table_role(item)
+    if explicit:
+        return explicit
     prim = _find_prim_by_entity_id(stage, entity_id)
     if prim is not None and prim.IsValid():
         attr = prim.GetAttribute("trident:table_role")

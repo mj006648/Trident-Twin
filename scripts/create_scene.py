@@ -1419,11 +1419,18 @@ def _fetch_lakehouse_inventory_specs(max_tables: int = 64) -> list[dict]:
             continue
         seen.add(rel_path)
         readiness = float(e.get("readiness_score") or e.get("quality_score") or 0.85)
+        explicit_role = str(e.get("table_role") or e.get("role") or "").strip().lower()
+        if explicit_role in {"asset", "catalog", "audit", "system", "internal"}:
+            continue
+        if table.lower().startswith("trident_"):
+            continue
+        table_role = explicit_role if explicit_role in {"data", "metadata"} else None
         specs.append({
             "rel_path": rel_path,
             "entity_id": entity_id,
             "namespace": ns,
             "component": table,
+            "table_role": table_role,
             "row_count": int(e.get("row_count") or 0),
             "object_count": int(e.get("object_count") or e.get("total_assets") or 0),
             "quality_score": round(max(0.0, min(1.0, readiness)), 2),
@@ -1901,13 +1908,20 @@ def main():
             (s["rel_path"], s["entity_id"], s["namespace"], s["component"],
              (0.0, 0.0, 0.0), s["row_count"], s["object_count"],
              s["quality_score"], s["access_frequency"], s["semantic"],
-             s["location"], s["policy"], s["freshness"], s["workload_fit"])
+             s["location"], s["policy"], s["freshness"], s["workload_fit"], s.get("table_role"))
             for s in live_inventory_specs
         ]
 
-    def _table_role(component: str) -> str:
+    def _table_role(component: str, explicit_role: str | None = None) -> str | None:
+        role = str(explicit_role or "").strip().lower()
+        if role in {"data", "metadata"}:
+            return role
+        if role in {"asset", "catalog", "audit", "system", "internal"}:
+            return None
         token = component.lower()
-        metadata_tokens = ("manifest", "metadata", "catalog", "asset", "schema", "lineage", "link", "index")
+        if token.startswith("trident_"):
+            return None
+        metadata_tokens = ("metadata", "schema", "lineage", "index")
         return "metadata" if any(t in token for t in metadata_tokens) else "data"
 
     def _safe_name(value: str) -> str:
@@ -1978,12 +1992,24 @@ def main():
         box_scale = (0.26, 0.20, 0.16)
         zone_x0 = gx - ZONE_W / 2
         zone_y0 = gy_boxes - ZONE_D / 2
-        for idx, (rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit) in enumerate(specs):
+        visible_specs = []
+        for spec in specs:
+            if len(spec) >= 15:
+                explicit_role = spec[14]
+                base_spec = spec[:14]
+            else:
+                explicit_role = None
+                base_spec = spec
+            rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit = base_spec
+            role = _table_role(comp, explicit_role)
+            if role is None:
+                continue
+            visible_specs.append((rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit, role))
+        for idx, (rel_path, eid, _ns, comp, _pos, rows, objects, quality, access, semantic, location, policy, freshness, fit, role) in enumerate(visible_specs):
             slot = idx % slots_per_layer
             layer = idx // slots_per_layer
             col = slot % cols
             row = slot // cols
-            role = _table_role(comp)
             tx = zone_x0 + col * CELL + CELL / 2
             ty = zone_y0 + row * CELL + CELL / 2
             tabletop_z = 0.37 + layer * 0.23
