@@ -1,5 +1,5 @@
 2026 C&S Project 최종 제출 파일
-Team-Code / Trident Lakehouse Digital Twin
+Team-L / Trident Lakehouse Digital Twin
 
 1. 프로젝트 개요
 본 프로젝트는 Trident Lakehouse의 데이터 흐름을 NVIDIA Isaac Sim / Omniverse 기반 3D Digital Twin으로 시각화하는 프로젝트입니다.
@@ -188,11 +188,3 @@ TRIDENT_STATS_BASE_URL 환경변수를 설정하지 않으면 twin-hub는 Triden
 - 외부 컴퓨터 단독 실행에서는 fixture mode로 Scene과 Extension 동작을 확인합니다.
 - 실제 live mode는 내부 IP, Kubernetes namespace, Keycloak credential, Gemma4 endpoint가 필요합니다.
 - 실제 클러스터 배포 source of truth는 SmartX-Team/TwinX-Ops ArgoCD repository이며, 배포 변경은 PR/merge 절차로 수행합니다.
-
-8. 제출 기준 포함 여부
-- USD/USDA 파일 포함: 예
-- Isaac Sim Extension 포함: 예
-- 추가 실행 모듈(twin-hub, scripts, data) 포함: 예
-- 실제 연동 데모 재현 절차 포함: 예, 내부망 Portal 접속 절차 기재
-- 개발 Omniverse 앱 버전 기재: 예, NVIDIA Isaac Sim 5.1.0
-- Extension 버전 기재: 예, trident.twin 0.1.0
