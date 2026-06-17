@@ -4,7 +4,7 @@ FastAPI adapter that exposes Trident Lakehouse live state to the Omniverse Kit
 extension using the same schema as the PoC fixtures
 (`data/twin_entities.json`, `data/mock_twin_events.json`).
 
-## Purpose (Phase 5, scope-bounded)
+## Purpose (Phase 4, scope-bounded)
 
 - Serve a **read-only** view of current entity state and event stream.
 - Replace mock JSON fixtures with real sources behind the same HTTP contract.
