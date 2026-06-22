@@ -239,18 +239,18 @@ Scene 내부에는 Truck Yard/Internal Intake 표현이 남아 있을 수 있지
 
 가장 중요한 정의는 Raw Bucket과 Lakehouse가 같은 dataset grid를 공유한다는 점이다.
 
-예를 들어 Raw Bucket Zone에 `icu_waveform_mixed_v1` dataset slot이 있으면, Lakehouse Zone에도 같은 dataset slot이 있고 그 안에 실제로 생성된 table들만 표시한다.
+예를 들어 Raw Bucket Zone에 어떤 namespace slot이 있으면, Lakehouse Zone에도 같은 namespace slot이 있고 그 안에 실제로 생성된 table들만 표시한다. 아래 `icu_waveform_mixed_v1`은 과거 clinical synthetic 예시이며 Twin 구조가 ICU에 고정된다는 뜻이 아니다.
 
 ```text
 Raw Bucket Zone
-  icu_waveform_mixed_v1
+  <namespace>
 
 Lakehouse Zone
-  lakehouse.slot.icu_waveform_mixed_v1
-    ├─ table.icu_waveform_mixed_v1.<data-table-1>       role=data
-    ├─ table.icu_waveform_mixed_v1.<data-table-2>       role=data
-    ├─ table.icu_waveform_mixed_v1.<data-table-3>       role=data
-    └─ table.icu_waveform_mixed_v1.<metadata-table-1>   role=metadata
+  lakehouse.slot.<namespace>
+    ├─ table.<namespace>.<data-table-1>       role=data
+    ├─ table.<namespace>.<data-table-2>       role=data
+    ├─ table.<namespace>.<data-table-3>       role=data
+    └─ table.<namespace>.<metadata-table-1>   role=metadata
 ```
 
 ### 구현
@@ -393,7 +393,7 @@ scene 내부 live-linked 결과 확인 예:
 
 ```bash
 SCENE=/mnt/Trident-Twin-520d314/stages/trident_lakehouse_twin_*.usda
-grep -n 'lakehouse.slot.icu_waveform_mixed_v1\|raw.icu_waveform_mixed_v1\|trident:table_role' $SCENE | head
+grep -n 'lakehouse.slot.\|raw.\|trident:table_role' $SCENE | head
 ```
 
 Isaac streaming app은 scene을 항상 자동으로 열지 못할 수 있다. 그 경우 Portal stream은 연결되어도 빈 scene처럼 보일 수 있으니 Isaac UI에서 최신 `.usda`를 `Open`으로 열면 된다.
