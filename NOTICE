@@ -1,0 +1,8 @@
+Trident-Twin
+Copyright 2026 mj006648
+
+This repository's original Trident-Twin source code, documentation, and generated Trident USD scene files are licensed under the Apache License, Version 2.0.
+
+NVIDIA Isaac Sim, NVIDIA Omniverse Kit, omni/carb runtime components, NVIDIA-provided models, textures, sample assets, SDK components, and related NVIDIA materials are not licensed by this repository. They remain governed by their respective NVIDIA license terms.
+
+This repository may contain code that imports or interoperates with Isaac Sim, Omniverse Kit, OpenUSD/Pixar USD APIs, and related runtime components. Those dependencies must be installed and used under their own license terms.

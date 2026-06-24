@@ -590,3 +590,11 @@ Trident-Twin/
 3. `twin-hub/app.py` — HTTP contract/source mapping
 4. `exts/trident.twin/` — Isaac runtime behavior
 5. `docs/*.md` — 과거 설계/PoC 기록. 현재 구현과 다를 수 있음
+
+---
+
+## 17. License
+
+Trident-Twin의 원본 소스코드, 문서, 그리고 Trident가 생성한 USD scene 파일은 Apache License 2.0으로 배포한다. 자세한 내용은 [`LICENSE`](LICENSE)와 [`NOTICE`](NOTICE)를 참고한다.
+
+NVIDIA Isaac Sim, NVIDIA Omniverse Kit, `omni`/`carb` runtime component, NVIDIA 제공 모델·텍스처·샘플 asset·SDK component는 이 저장소의 Apache 2.0 라이선스 대상이 아니며, 각각의 NVIDIA 라이선스 조건을 따른다.
